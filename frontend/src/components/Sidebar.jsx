@@ -35,7 +35,7 @@ export default function Sidebar({ open, collapsed, onClose, onToggleCollapse }) 
       <div className="brand-panel">
         <p className="eyebrow">SEI BI</p>
         <h1>{collapsed ? "COPAG" : "Monitoramento COPAG"}</h1>
-        {!collapsed ? <span>Dashboards inteligentes para snapshots di\u00e1rios do SEI</span> : null}
+        {!collapsed ? <span>Dashboards inteligentes para relatórios diários do SEI</span> : null}
       </div>
 
       <nav className="menu">
