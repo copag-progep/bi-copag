@@ -1,0 +1,63 @@
+from datetime import date, datetime
+
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
+
+
+class UserCreate(BaseModel):
+    name: str = Field(min_length=2, max_length=120)
+    email: EmailStr
+    password: str = Field(min_length=6, max_length=128)
+    is_admin: bool = False
+
+
+class UserLogin(BaseModel):
+    email: EmailStr
+    password: str = Field(min_length=6, max_length=128)
+
+
+class UserRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    name: str
+    email: EmailStr
+    is_admin: bool
+    created_at: datetime
+
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    user: UserRead
+
+
+class UploadRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    setor: str
+    data_relatorio: date
+    data_upload: datetime
+    original_filename: str
+    total_records: int
+
+
+class UploadUpdate(BaseModel):
+    data_relatorio: date
+
+
+class UploadResult(BaseModel):
+    status: str
+    message: str
+    setor: str
+    data_relatorio: date
+    original_filename: str
+    total_registros: int
+    substituiu_snapshot_anterior: bool = False
+
+
+class FilterOptions(BaseModel):
+    datas: list[date]
+    setores: list[str]
+    tipos: list[str]
+    atribuicoes: list[str]
