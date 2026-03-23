@@ -37,7 +37,7 @@ CORS_ORIGINS = os.getenv("CORS_ORIGINS", "")
 app = FastAPI(
     title="SEI BI API",
     version="1.0.0",
-    description="API para importação de relatórios SEI e análise de processos administrativos.",
+    description="API para importacao de relatorios SEI e analise de processos administrativos.",
 )
 
 origins = [
@@ -106,8 +106,15 @@ def auto_import_workspace_data() -> None:
 def get_upload_or_404(db: Session, upload_id: int) -> Upload:
     upload = db.query(Upload).filter(Upload.id == upload_id).first()
     if not upload:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Relatório não encontrado.")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Relatorio nao encontrado.")
     return upload
+
+
+def get_user_or_404(db: Session, user_id: int) -> User:
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuario nao encontrado.")
+    return user
 
 
 @app.on_event("startup")
@@ -126,7 +133,7 @@ def healthcheck() -> dict:
 def login(credentials: UserLogin, db: Session = Depends(get_db)) -> Token:
     user = authenticate_user(db, credentials.email, credentials.password)
     if not user:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Email ou senha inválidos.")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Email ou senha invalidos.")
     token = create_access_token(user.email)
     return Token(access_token=token, user=user)
 
@@ -157,7 +164,7 @@ def create_user(
 ) -> User:
     existing = db.query(User).filter(User.email == payload.email.lower()).first()
     if existing:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Já existe um usuário com este email.")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Ja existe um usuario com este email.")
 
     user = User(
         name=payload.name,
@@ -169,6 +176,33 @@ def create_user(
     db.commit()
     db.refresh(user)
     return user
+
+
+@app.delete("/api/admin/users/{user_id}")
+def delete_user(
+    user_id: int,
+    current_admin: User = Depends(get_current_admin_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    user = get_user_or_404(db, user_id)
+    if user.id == current_admin.id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Voce nao pode excluir a propria conta.",
+        )
+
+    if user.is_admin:
+        admin_count = db.query(User).filter(User.is_admin.is_(True)).count()
+        if admin_count <= 1:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Nao e possivel excluir o ultimo administrador do sistema.",
+            )
+
+    name = user.name
+    db.delete(user)
+    db.commit()
+    return {"message": f"Usuario {name} excluido com sucesso."}
 
 
 @app.get("/api/uploads", response_model=list[UploadRead])
@@ -188,7 +222,7 @@ async def upload_snapshot(
     db: Session = Depends(get_db),
 ) -> UploadResult:
     if setor.upper() not in SETORES:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Setor inválido.")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Setor invalido.")
     if not file.filename.lower().endswith(".csv"):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Envie um arquivo CSV.")
 
@@ -240,7 +274,7 @@ def update_upload(
     if conflict:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Já existe um relatório deste setor com a data informada.",
+            detail="Ja existe um relatorio deste setor com a data informada.",
         )
 
     db.query(Processo).filter(Processo.upload_id == upload.id).update(
@@ -268,7 +302,7 @@ def delete_upload(
     db.commit()
     clear_analytics_cache()
 
-    return {"message": f"Relatório {filename} excluído com sucesso."}
+    return {"message": f"Relatorio {filename} excluido com sucesso."}
 
 
 @app.get("/api/meta/options", response_model=FilterOptions)
