@@ -1,0 +1,64 @@
+from datetime import date, datetime
+
+from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from .database import Base
+
+
+class User(Base):
+    __tablename__ = "users"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    name: Mapped[str] = mapped_column(String(120), nullable=False)
+    email: Mapped[str] = mapped_column(String(255), nullable=False, unique=True, index=True)
+    password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+    is_admin: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+
+
+class Upload(Base):
+    __tablename__ = "uploads"
+    __table_args__ = (
+        UniqueConstraint("setor", "data_relatorio", "file_hash", name="uq_upload_hash_snapshot"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    setor: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    data_relatorio: Mapped[date] = mapped_column(Date, nullable=False, index=True)
+    data_upload: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    original_filename: Mapped[str] = mapped_column(String(255), nullable=False)
+    file_hash: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    total_records: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+    processos: Mapped[list["Processo"]] = relationship(
+        "Processo",
+        back_populates="upload",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+
+
+class Processo(Base):
+    __tablename__ = "processos"
+    __table_args__ = (
+        UniqueConstraint("protocolo", "setor", "data_relatorio", name="uq_processo_snapshot"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    source_row_id: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    protocolo: Mapped[str] = mapped_column(String(120), nullable=False, index=True)
+    atribuicao: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
+    tipo: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
+    especificacao: Mapped[str | None] = mapped_column(Text, nullable=True)
+    ponto_controle: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    data_autuacao: Mapped[date | None] = mapped_column(Date, nullable=True)
+    data_recebimento: Mapped[date | None] = mapped_column(Date, nullable=True)
+    data_envio: Mapped[date | None] = mapped_column(Date, nullable=True)
+    unidade_envio: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    observacoes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    setor: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    data_relatorio: Mapped[date] = mapped_column(Date, nullable=False, index=True)
+    upload_id: Mapped[int] = mapped_column(ForeignKey("uploads.id", ondelete="CASCADE"), nullable=False)
+
+    upload: Mapped["Upload"] = relationship("Upload", back_populates="processos")
