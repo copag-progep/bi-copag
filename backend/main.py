@@ -255,7 +255,7 @@ async def upload_snapshot(
 def update_upload(
     upload_id: int,
     payload: UploadUpdate,
-    _: User = Depends(get_current_user),
+    _: User = Depends(get_current_admin_user),
     db: Session = Depends(get_db),
 ) -> Upload:
     upload = get_upload_or_404(db, upload_id)
@@ -291,7 +291,7 @@ def update_upload(
 @app.delete("/api/uploads/{upload_id}")
 def delete_upload(
     upload_id: int,
-    _: User = Depends(get_current_user),
+    _: User = Depends(get_current_admin_user),
     db: Session = Depends(get_db),
 ) -> dict:
     upload = get_upload_or_404(db, upload_id)
