@@ -1,0 +1,14 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+venv/
+env/
+backend/data/
+node_modules/
+frontend/node_modules/
+frontend/dist/
+.DS_Store
+ListaProcessos_SEIPro_*.csv
+SEI/
