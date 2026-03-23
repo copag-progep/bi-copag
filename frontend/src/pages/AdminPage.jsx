@@ -12,6 +12,7 @@ export default function AdminPage() {
   const [uploads, setUploads] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [deletingUserId, setDeletingUserId] = useState(null);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [form, setForm] = useState({
@@ -50,13 +51,33 @@ export default function AdminPage() {
     setError("");
     try {
       await api.post("/admin/users", form);
-      setMessage("Usuário criado com sucesso.");
+      setMessage("Usuario criado com sucesso.");
       setForm({ name: "", email: "", password: "", is_admin: false });
-      loadAdminData();
+      await loadAdminData();
     } catch (requestError) {
-      setError(requestError.response?.data?.detail || "Não foi possível criar o usuário.");
+      setError(requestError.response?.data?.detail || "Nao foi possivel criar o usuario.");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleDeleteUser(targetUser) {
+    const confirmed = window.confirm(`Deseja excluir o usuario ${targetUser.name}?`);
+    if (!confirmed) {
+      return;
+    }
+
+    setDeletingUserId(targetUser.id);
+    setMessage("");
+    setError("");
+    try {
+      const { data } = await api.delete(`/admin/users/${targetUser.id}`);
+      setMessage(data.message || "Usuario excluido com sucesso.");
+      await loadAdminData();
+    } catch (requestError) {
+      setError(requestError.response?.data?.detail || "Nao foi possivel excluir o usuario.");
+    } finally {
+      setDeletingUserId(null);
     }
   }
 
@@ -64,8 +85,8 @@ export default function AdminPage() {
     <div className="page-grid">
       <section className="hero-panel">
         <div>
-          <p className="eyebrow">Administração</p>
-          <h1>Gestão de acessos e histórico</h1>
+          <p className="eyebrow">Administracao</p>
+          <h1>Gestao de acessos e historico</h1>
           <span>Crie novos logins com senha criptografada e acompanhe os uploads mais recentes.</span>
         </div>
       </section>
@@ -73,8 +94,8 @@ export default function AdminPage() {
       <section className="panel">
         <div className="panel-header">
           <div>
-            <h3>Novo usuário</h3>
-            <p>O usuário administrador inicial é andersoncfs@ufc.br.</p>
+            <h3>Novo usuario</h3>
+            <p>Cadastre contas e defina se o novo acesso tera privilegios administrativos.</p>
           </div>
         </div>
         <form className="form-grid" onSubmit={handleSubmit}>
@@ -121,7 +142,7 @@ export default function AdminPage() {
           {error ? <div className="alert error full-width">{error}</div> : null}
 
           <button type="submit" className="primary-button" disabled={saving}>
-            {saving ? "Salvando..." : "Criar usuário"}
+            {saving ? "Salvando..." : "Criar usuario"}
           </button>
         </form>
       </section>
@@ -129,12 +150,12 @@ export default function AdminPage() {
       <section className="panel">
         <div className="panel-header">
           <div>
-            <h3>Usuários cadastrados</h3>
-            <p>Contas disponíveis para autenticação na aplicação.</p>
+            <h3>Usuarios cadastrados</h3>
+            <p>Contas disponiveis para autenticacao na aplicacao.</p>
           </div>
         </div>
         {loading ? (
-          <LoadingBlock label="Carregando usuários..." />
+          <LoadingBlock label="Carregando usuarios..." />
         ) : (
           <DataTable
             columns={[
@@ -146,6 +167,27 @@ export default function AdminPage() {
                 render: (value) => (value ? "Administrador" : "Usuario"),
               },
               { key: "created_at", label: "Criado em" },
+              ...(user?.is_admin
+                ? [
+                    {
+                      key: "actions",
+                      label: "Acoes",
+                      render: (_, row) =>
+                        row.id === user.id ? (
+                          <span className="table-helper">Conta atual</span>
+                        ) : (
+                          <button
+                            type="button"
+                            className="table-button danger"
+                            onClick={() => handleDeleteUser(row)}
+                            disabled={deletingUserId === row.id}
+                          >
+                            {deletingUserId === row.id ? "Excluindo..." : "Excluir"}
+                          </button>
+                        ),
+                    },
+                  ]
+                : []),
             ]}
             rows={users}
           />
@@ -155,17 +197,17 @@ export default function AdminPage() {
       <section className="panel">
         <div className="panel-header">
           <div>
-            <h3>Últimos uploads</h3>
-            <p>Referência rápida para auditoria do carregamento de snapshots.</p>
+            <h3>Ultimos uploads</h3>
+            <p>Referencia rapida para auditoria do carregamento de snapshots.</p>
           </div>
         </div>
         {loading ? (
-          <LoadingBlock label="Carregando histórico..." />
+          <LoadingBlock label="Carregando historico..." />
         ) : (
           <DataTable
             columns={[
               { key: "setor", label: "Setor" },
-              { key: "data_relatorio", label: "Data do relatório" },
+              { key: "data_relatorio", label: "Data do relatorio" },
               { key: "original_filename", label: "Arquivo" },
               { key: "total_records", label: "Registros" },
             ]}
