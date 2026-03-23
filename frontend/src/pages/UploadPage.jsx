@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import api from "../api/client";
 import DataTable from "../components/DataTable";
 import LoadingBlock from "../components/LoadingBlock";
+import { useAuth } from "../context/AuthContext";
 
 
 const setores = ["DIAPE", "DICAT", "DIJOR", "DICAF", "DICAF-CHEFIA", "DICAF-REPOSICOES"];
@@ -35,6 +36,7 @@ function formatDateTime(value) {
 
 
 export default function UploadPage() {
+  const { user } = useAuth();
   const [form, setForm] = useState({
     setor: "DIAPE",
     data_relatorio: new Date().toISOString().slice(0, 10),
@@ -86,7 +88,7 @@ export default function UploadPage() {
       document.getElementById("upload-file-input").value = "";
       await loadUploads();
     } catch (requestError) {
-      setError(requestError.response?.data?.detail || "Falha no envio do relatório.");
+      setError(requestError.response?.data?.detail || "Falha no envio do relatorio.");
     } finally {
       setSending(false);
     }
@@ -106,7 +108,7 @@ export default function UploadPage() {
 
   async function handleSaveDate(upload) {
     if (!editingDate) {
-      setError("Informe a nova data do relatório.");
+      setError("Informe a nova data do relatorio.");
       return;
     }
 
@@ -118,11 +120,11 @@ export default function UploadPage() {
       await api.patch(`/uploads/${upload.id}`, {
         data_relatorio: editingDate,
       });
-      setMessage(`Data do relatório de ${upload.original_filename} atualizada com sucesso.`);
+      setMessage(`Data do relatorio de ${upload.original_filename} atualizada com sucesso.`);
       cancelEditing();
       await loadUploads();
     } catch (requestError) {
-      setError(requestError.response?.data?.detail || "Falha ao atualizar a data do relatório.");
+      setError(requestError.response?.data?.detail || "Falha ao atualizar a data do relatorio.");
     } finally {
       setSavingUploadId(null);
     }
@@ -130,7 +132,7 @@ export default function UploadPage() {
 
   async function handleDelete(upload) {
     const confirmed = window.confirm(
-      `Deseja excluir o relatório ${upload.original_filename}? Esta ação removerá também os processos desse snapshot.`
+      `Deseja excluir o relatorio ${upload.original_filename}? Esta acao removera tambem os processos desse snapshot.`
     );
     if (!confirmed) {
       return;
@@ -142,25 +144,102 @@ export default function UploadPage() {
 
     try {
       const { data } = await api.delete(`/uploads/${upload.id}`);
-      setMessage(data.message || "Relatório excluído com sucesso.");
+      setMessage(data.message || "Relatorio excluido com sucesso.");
       if (editingUploadId === upload.id) {
         cancelEditing();
       }
       await loadUploads();
     } catch (requestError) {
-      setError(requestError.response?.data?.detail || "Falha ao excluir o relatório.");
+      setError(requestError.response?.data?.detail || "Falha ao excluir o relatorio.");
     } finally {
       setDeletingUploadId(null);
     }
   }
 
+  const uploadColumns = [
+    { key: "setor", label: "Setor" },
+    {
+      key: "data_relatorio",
+      label: "Data do relatorio",
+      render: (value, row) =>
+        editingUploadId === row.id ? (
+          <div className="inline-date-editor">
+            <input
+              className="table-input"
+              type="date"
+              value={editingDate}
+              onChange={(event) => setEditingDate(event.target.value)}
+            />
+            <small className="table-helper">Corrija a data e salve.</small>
+          </div>
+        ) : (
+          formatDate(value)
+        ),
+    },
+    {
+      key: "data_upload",
+      label: "Importado em",
+      render: (value) => formatDateTime(value),
+    },
+    { key: "original_filename", label: "Arquivo" },
+    { key: "total_records", label: "Registros" },
+    ...(user?.is_admin
+      ? [
+          {
+            key: "actions",
+            label: "Acoes",
+            render: (_, row) =>
+              editingUploadId === row.id ? (
+                <div className="table-actions">
+                  <button
+                    type="button"
+                    className="table-button primary"
+                    onClick={() => handleSaveDate(row)}
+                    disabled={savingUploadId === row.id || deletingUploadId === row.id}
+                  >
+                    {savingUploadId === row.id ? "Salvando..." : "Salvar"}
+                  </button>
+                  <button
+                    type="button"
+                    className="table-button"
+                    onClick={cancelEditing}
+                    disabled={savingUploadId === row.id}
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              ) : (
+                <div className="table-actions">
+                  <button
+                    type="button"
+                    className="table-button"
+                    onClick={() => startEditing(row)}
+                    disabled={deletingUploadId === row.id}
+                  >
+                    Editar data
+                  </button>
+                  <button
+                    type="button"
+                    className="table-button danger"
+                    onClick={() => handleDelete(row)}
+                    disabled={deletingUploadId === row.id}
+                  >
+                    {deletingUploadId === row.id ? "Excluindo..." : "Excluir"}
+                  </button>
+                </div>
+              ),
+          },
+        ]
+      : []),
+  ];
+
   return (
     <div className="page-grid">
       <section className="hero-panel">
         <div>
-          <p className="eyebrow">Envio diário</p>
-          <h1>Enviar Relatório SEI</h1>
-          <span>Associe o arquivo CSV ao setor e à data do snapshot para atualizar os dashboards automaticamente.</span>
+          <p className="eyebrow">Envio diario</p>
+          <h1>Enviar Relatorio SEI</h1>
+          <span>Associe o arquivo CSV ao setor e a data do snapshot para atualizar os dashboards automaticamente.</span>
         </div>
       </section>
 
@@ -178,7 +257,7 @@ export default function UploadPage() {
           </label>
 
           <label className="field">
-            <span>Data do relatório</span>
+            <span>Data do relatorio</span>
             <input
               type="date"
               value={form.data_relatorio}
@@ -210,88 +289,18 @@ export default function UploadPage() {
       <section className="panel">
         <div className="panel-header">
           <div>
-            <h3>Histórico recente de uploads</h3>
-            <p>Você pode corrigir a data de um snapshot ou remover um relatório já enviado.</p>
+            <h3>Historico recente de uploads</h3>
+            <p>
+              {user?.is_admin
+                ? "Voce pode corrigir a data de um snapshot ou remover um relatorio ja enviado."
+                : "Os snapshots enviados aqui alimentam automaticamente os dashboards."}
+            </p>
           </div>
         </div>
         {loading ? (
           <LoadingBlock label="Carregando uploads..." />
         ) : (
-          <DataTable
-            columns={[
-              { key: "setor", label: "Setor" },
-              {
-                key: "data_relatorio",
-                label: "Data do relatório",
-                render: (value, row) =>
-                  editingUploadId === row.id ? (
-                    <div className="inline-date-editor">
-                      <input
-                        className="table-input"
-                        type="date"
-                        value={editingDate}
-                        onChange={(event) => setEditingDate(event.target.value)}
-                      />
-                      <small className="table-helper">Corrija a data e salve.</small>
-                    </div>
-                  ) : (
-                    formatDate(value)
-                  ),
-              },
-              {
-                key: "data_upload",
-                label: "Importado em",
-                render: (value) => formatDateTime(value),
-              },
-              { key: "original_filename", label: "Arquivo" },
-              { key: "total_records", label: "Registros" },
-              {
-                key: "actions",
-                label: "Ações",
-                render: (_, row) =>
-                  editingUploadId === row.id ? (
-                    <div className="table-actions">
-                      <button
-                        type="button"
-                        className="table-button primary"
-                        onClick={() => handleSaveDate(row)}
-                        disabled={savingUploadId === row.id || deletingUploadId === row.id}
-                      >
-                        {savingUploadId === row.id ? "Salvando..." : "Salvar"}
-                      </button>
-                      <button
-                        type="button"
-                        className="table-button"
-                        onClick={cancelEditing}
-                        disabled={savingUploadId === row.id}
-                      >
-                        Cancelar
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="table-actions">
-                      <button
-                        type="button"
-                        className="table-button"
-                        onClick={() => startEditing(row)}
-                        disabled={deletingUploadId === row.id}
-                      >
-                        Editar data
-                      </button>
-                      <button
-                        type="button"
-                        className="table-button danger"
-                        onClick={() => handleDelete(row)}
-                        disabled={deletingUploadId === row.id}
-                      >
-                        {deletingUploadId === row.id ? "Excluindo..." : "Excluir"}
-                      </button>
-                    </div>
-                  ),
-              },
-            ]}
-            rows={uploads}
-          />
+          <DataTable columns={uploadColumns} rows={uploads} />
         )}
       </section>
     </div>
