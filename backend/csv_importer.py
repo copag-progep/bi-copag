@@ -11,6 +11,7 @@ import pandas as pd
 from sqlalchemy.orm import Session
 
 from .models import Processo, Upload
+from .sei_users import build_sei_user_lookup, resolve_atribuicao_canonica
 
 
 SETORES = [
@@ -75,7 +76,7 @@ def _read_csv(file_bytes: bytes) -> pd.DataFrame:
             )
         except UnicodeDecodeError:
             continue
-    raise ValueError("Não foi possível ler o arquivo CSV. Verifique a codificação do arquivo exportado do SEI.")
+    raise ValueError("Nao foi possivel ler o arquivo CSV. Verifique a codificacao do arquivo exportado do SEI.")
 
 
 def prepare_dataframe(raw_df: pd.DataFrame, setor: str, data_relatorio: date) -> pd.DataFrame:
@@ -107,7 +108,7 @@ def import_csv_snapshot(
 ) -> dict:
     setor = setor.upper().strip()
     if setor not in SETORES:
-        raise ValueError("Setor inválido.")
+        raise ValueError("Setor invalido.")
 
     file_hash = compute_file_hash(file_bytes)
     existing_same_file = (
@@ -122,7 +123,7 @@ def import_csv_snapshot(
     if existing_same_file:
         return {
             "status": "duplicate",
-            "message": "Este relatório já havia sido importado anteriormente.",
+            "message": "Este relatorio ja havia sido importado anteriormente.",
             "setor": setor,
             "data_relatorio": data_relatorio,
             "original_filename": filename,
@@ -133,10 +134,16 @@ def import_csv_snapshot(
     raw_df = _read_csv(file_bytes)
     prepared = prepare_dataframe(raw_df, setor=setor, data_relatorio=data_relatorio)
     if prepared.empty:
-        raise ValueError("O arquivo não possui processos válidos para importação.")
+        raise ValueError("O arquivo nao possui processos validos para importacao.")
 
-    existing_uploads = db.query(Upload).filter(Upload.setor == setor, Upload.data_relatorio == data_relatorio).all()
-    replaced_snapshot = bool(existing_uploads)
+    sei_user_lookup = build_sei_user_lookup(db)
+    prepared["atribuicao_normalizada"] = prepared["atribuicao"].apply(
+        lambda value: resolve_atribuicao_canonica(value, sei_user_lookup)
+    )
+
+    replaced_snapshot = (
+        db.query(Upload).filter(Upload.setor == setor, Upload.data_relatorio == data_relatorio).first() is not None
+    )
     if replaced_snapshot:
         db.query(Processo).filter(
             Processo.setor == setor,
@@ -162,6 +169,7 @@ def import_csv_snapshot(
             source_row_id=row.get("source_row_id"),
             protocolo=row["protocolo"],
             atribuicao=row.get("atribuicao"),
+            atribuicao_normalizada=row.get("atribuicao_normalizada"),
             tipo=row.get("tipo"),
             especificacao=row.get("especificacao"),
             ponto_controle=row.get("ponto_controle"),
@@ -179,10 +187,10 @@ def import_csv_snapshot(
     db.add_all(processos)
     db.commit()
 
-    action = "substituído" if replaced_snapshot else "importado"
+    action = "substituido" if replaced_snapshot else "importado"
     return {
         "status": "replaced" if replaced_snapshot else "imported",
-        "message": f"Relatório {action} com sucesso.",
+        "message": f"Relatorio {action} com sucesso.",
         "setor": setor,
         "data_relatorio": data_relatorio,
         "original_filename": filename,
