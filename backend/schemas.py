@@ -61,3 +61,25 @@ class FilterOptions(BaseModel):
     setores: list[str]
     tipos: list[str]
     atribuicoes: list[str]
+
+
+class SeiUserCreate(BaseModel):
+    nome: str = Field(min_length=2, max_length=255)
+    nome_sei: str | None = Field(default=None, max_length=255)
+    usuario_sei: str | None = Field(default=None, max_length=255)
+
+
+class SeiUserRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    nome: str
+    nome_sei: str | None
+    usuario_sei: str | None
+    created_at: datetime
+
+
+class SeiUserImportResult(BaseModel):
+    imported: int
+    updated: int
+    total: int
