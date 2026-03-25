@@ -234,3 +234,35 @@ def import_sei_users_file(db: Session, filename: str, file_bytes: bytes) -> dict
     db.commit()
     sync_processo_atribuicoes(db)
     return {"imported": imported, "updated": updated, "total": total}
+
+
+def import_sei_users_rows(db: Session, rows: list[dict[str, object]]) -> dict[str, int]:
+    imported = 0
+    updated = 0
+    total = 0
+
+    for row in rows:
+        if not clean_value(row.get("nome")):
+            continue
+
+        action, _ = upsert_sei_user(
+            db,
+            nome=row.get("nome"),
+            nome_sei=row.get("nome_sei"),
+            usuario_sei=row.get("usuario_sei"),
+        )
+        total += 1
+        if action == "created":
+            imported += 1
+        else:
+            updated += 1
+
+    if total == 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Nenhuma linha valida foi encontrada na planilha enviada.",
+        )
+
+    db.commit()
+    sync_processo_atribuicoes(db)
+    return {"imported": imported, "updated": updated, "total": total}
