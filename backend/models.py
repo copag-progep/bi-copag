@@ -49,6 +49,7 @@ class Processo(Base):
     source_row_id: Mapped[str | None] = mapped_column(String(50), nullable=True)
     protocolo: Mapped[str] = mapped_column(String(120), nullable=False, index=True)
     atribuicao: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
+    atribuicao_normalizada: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
     tipo: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
     especificacao: Mapped[str | None] = mapped_column(Text, nullable=True)
     ponto_controle: Mapped[str | None] = mapped_column(String(255), nullable=True)
@@ -62,3 +63,16 @@ class Processo(Base):
     upload_id: Mapped[int] = mapped_column(ForeignKey("uploads.id", ondelete="CASCADE"), nullable=False)
 
     upload: Mapped["Upload"] = relationship("Upload", back_populates="processos")
+
+
+class SeiUser(Base):
+    __tablename__ = "sei_users"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    nome: Mapped[str] = mapped_column(String(255), nullable=False)
+    nome_sei: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    usuario_sei: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    nome_key: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    nome_sei_key: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
+    usuario_sei_key: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
