@@ -25,8 +25,21 @@ from .auth import (
 )
 from .csv_importer import SETORES, bootstrap_workspace_csvs, import_csv_snapshot
 from .database import SessionLocal, get_db, init_db
-from .models import Processo, Upload, User
-from .schemas import FilterOptions, Token, UploadRead, UploadResult, UploadUpdate, UserCreate, UserLogin, UserRead
+from .models import Processo, SeiUser, Upload, User
+from .schemas import (
+    FilterOptions,
+    SeiUserCreate,
+    SeiUserImportResult,
+    SeiUserRead,
+    Token,
+    UploadRead,
+    UploadResult,
+    UploadUpdate,
+    UserCreate,
+    UserLogin,
+    UserRead,
+)
+from .sei_users import delete_sei_user, import_sei_users_file, sync_processo_atribuicoes, upsert_sei_user
 
 
 DEFAULT_ADMIN_NAME = os.getenv("DEFAULT_ADMIN_NAME", "Anderson CFS")
@@ -122,6 +135,11 @@ def on_startup() -> None:
     init_db()
     ensure_default_user()
     auto_import_workspace_data()
+    db = SessionLocal()
+    try:
+        sync_processo_atribuicoes(db)
+    finally:
+        db.close()
 
 
 @app.get("/api/health")
@@ -203,6 +221,55 @@ def delete_user(
     db.delete(user)
     db.commit()
     return {"message": f"Usuario {name} excluido com sucesso."}
+
+
+@app.get("/api/admin/sei-users", response_model=list[SeiUserRead])
+def list_sei_users(
+    _: User = Depends(get_current_admin_user),
+    db: Session = Depends(get_db),
+) -> list[SeiUser]:
+    return db.query(SeiUser).order_by(SeiUser.nome.asc()).all()
+
+
+@app.post("/api/admin/sei-users", response_model=SeiUserRead, status_code=status.HTTP_201_CREATED)
+def create_sei_user(
+    payload: SeiUserCreate,
+    _: User = Depends(get_current_admin_user),
+    db: Session = Depends(get_db),
+) -> SeiUser:
+    _, sei_user = upsert_sei_user(db, payload.nome, payload.nome_sei, payload.usuario_sei)
+    db.commit()
+    db.refresh(sei_user)
+    sync_processo_atribuicoes(db)
+    clear_analytics_cache()
+    return sei_user
+
+
+@app.post("/api/admin/sei-users/import", response_model=SeiUserImportResult, status_code=status.HTTP_201_CREATED)
+async def import_sei_users(
+    file: UploadFile = File(...),
+    _: User = Depends(get_current_admin_user),
+    db: Session = Depends(get_db),
+) -> SeiUserImportResult:
+    file_bytes = await file.read()
+    if not file_bytes:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Arquivo vazio.")
+
+    result = import_sei_users_file(db, file.filename or "usuarios_sei.xls", file_bytes)
+    clear_analytics_cache()
+    return SeiUserImportResult(**result)
+
+
+@app.delete("/api/admin/sei-users/{sei_user_id}")
+def remove_sei_user(
+    sei_user_id: int,
+    _: User = Depends(get_current_admin_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    name = delete_sei_user(db, sei_user_id)
+    sync_processo_atribuicoes(db)
+    clear_analytics_cache()
+    return {"message": f"Usuario SEI {name} excluido com sucesso."}
 
 
 @app.get("/api/uploads", response_model=list[UploadRead])
