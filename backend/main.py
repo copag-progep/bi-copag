@@ -28,6 +28,7 @@ from .database import SessionLocal, get_db, init_db
 from .models import Processo, SeiUser, Upload, User
 from .schemas import (
     FilterOptions,
+    SeiUserBulkImport,
     SeiUserCreate,
     SeiUserImportResult,
     SeiUserRead,
@@ -39,7 +40,7 @@ from .schemas import (
     UserLogin,
     UserRead,
 )
-from .sei_users import delete_sei_user, import_sei_users_file, sync_processo_atribuicoes, upsert_sei_user
+from .sei_users import delete_sei_user, import_sei_users_file, import_sei_users_rows, sync_processo_atribuicoes, upsert_sei_user
 
 
 DEFAULT_ADMIN_NAME = os.getenv("DEFAULT_ADMIN_NAME", "Anderson CFS")
@@ -256,6 +257,17 @@ async def import_sei_users(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Arquivo vazio.")
 
     result = import_sei_users_file(db, file.filename or "usuarios_sei.xls", file_bytes)
+    clear_analytics_cache()
+    return SeiUserImportResult(**result)
+
+
+@app.post("/api/admin/sei-users/import-rows", response_model=SeiUserImportResult, status_code=status.HTTP_201_CREATED)
+def import_sei_users_rows_endpoint(
+    payload: SeiUserBulkImport,
+    _: User = Depends(get_current_admin_user),
+    db: Session = Depends(get_db),
+) -> SeiUserImportResult:
+    result = import_sei_users_rows(db, [row.model_dump() for row in payload.rows])
     clear_analytics_cache()
     return SeiUserImportResult(**result)
 
