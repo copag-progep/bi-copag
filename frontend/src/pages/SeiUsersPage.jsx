@@ -1,9 +1,81 @@
 import { useEffect, useState } from "react";
+import * as XLSX from "xlsx";
 
 import api from "../api/client";
 import DataTable from "../components/DataTable";
 import LoadingBlock from "../components/LoadingBlock";
 import { useAuth } from "../context/AuthContext";
+
+
+const HEADER_ALIASES = {
+  nome: "nome",
+  nome_sei: "nome_sei",
+  "nome sei": "nome_sei",
+  usuario_sei: "usuario_sei",
+  "usuario sei": "usuario_sei",
+  "usuário_sei": "usuario_sei",
+  "usuário sei": "usuario_sei",
+};
+
+
+function cleanValue(value) {
+  if (value === null || value === undefined) {
+    return "";
+  }
+  return String(value).trim();
+}
+
+
+function normalizeHeader(value) {
+  return cleanValue(value)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .toLowerCase();
+}
+
+
+async function extractImportRows(file) {
+  const buffer = await file.arrayBuffer();
+  const workbook = XLSX.read(buffer, { type: "array" });
+  const firstSheetName = workbook.SheetNames[0];
+
+  if (!firstSheetName) {
+    throw new Error("A planilha enviada nao possui abas disponiveis.");
+  }
+
+  const worksheet = workbook.Sheets[firstSheetName];
+  const rawRows = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
+
+  if (!rawRows.length) {
+    throw new Error("A planilha enviada esta vazia.");
+  }
+
+  const rows = rawRows
+    .map((row) => {
+      const mapped = {};
+      Object.entries(row).forEach(([key, value]) => {
+        const normalizedKey = normalizeHeader(key);
+        const targetKey = HEADER_ALIASES[normalizedKey];
+        if (targetKey) {
+          mapped[targetKey] = cleanValue(value);
+        }
+      });
+      return {
+        nome: cleanValue(mapped.nome),
+        nome_sei: cleanValue(mapped.nome_sei),
+        usuario_sei: cleanValue(mapped.usuario_sei),
+      };
+    })
+    .filter((row) => row.nome);
+
+  if (!rows.length) {
+    throw new Error("A planilha precisa conter a coluna NOME com ao menos uma linha preenchida.");
+  }
+
+  return rows;
+}
 
 
 function formatDateTime(value) {
@@ -90,11 +162,9 @@ export default function SeiUsersPage() {
     setError("");
 
     try {
-      const payload = new FormData();
-      payload.append("file", importFile);
-
-      const { data } = await api.post("/admin/sei-users/import", payload, {
-        headers: { "Content-Type": "multipart/form-data" },
+      const rows = await extractImportRows(importFile);
+      const { data } = await api.post("/admin/sei-users/import-rows", {
+        rows,
       });
       setMessage(
         `Importacao concluida: ${data.imported} novos registros, ${data.updated} atualizados, ${data.total} linhas processadas.`
@@ -103,7 +173,9 @@ export default function SeiUsersPage() {
       document.getElementById("sei-users-import-input").value = "";
       await loadSeiUsers();
     } catch (requestError) {
-      setError(requestError.response?.data?.detail || "Nao foi possivel importar a planilha de usuarios SEI.");
+      setError(
+        requestError.response?.data?.detail || requestError.message || "Nao foi possivel importar a planilha de usuarios SEI."
+      );
     } finally {
       setImporting(false);
     }
