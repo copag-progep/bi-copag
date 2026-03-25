@@ -83,3 +83,7 @@ class SeiUserImportResult(BaseModel):
     imported: int
     updated: int
     total: int
+
+
+class SeiUserBulkImport(BaseModel):
+    rows: list[SeiUserCreate]
