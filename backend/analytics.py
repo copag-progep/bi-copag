@@ -49,7 +49,7 @@ PROCESS_FIELDS = [
 
 PROCESS_COLUMN_MAP = {
     "protocolo": Processo.protocolo,
-    "atribuicao": Processo.atribuicao,
+    "atribuicao": Processo.atribuicao_normalizada,
     "tipo": Processo.tipo,
     "especificacao": Processo.especificacao,
     "ponto_controle": Processo.ponto_controle,
@@ -128,7 +128,7 @@ def _base_query(db: Session, filters: AnalyticsFilters):
     if filters.tipo:
         query = query.filter(Processo.tipo == filters.tipo)
     if filters.atribuicao:
-        query = query.filter(Processo.atribuicao == filters.atribuicao)
+        query = query.filter(Processo.atribuicao_normalizada == filters.atribuicao)
     if filters.data_inicial:
         query = query.filter(Processo.data_relatorio >= filters.data_inicial)
     if filters.data_final:
@@ -184,7 +184,7 @@ def get_filter_options(db: Session) -> dict:
             "datas": datas,
             "setores": _distinct_values(db, Processo.setor),
             "tipos": _distinct_values(db, Processo.tipo),
-            "atribuicoes": _distinct_values(db, Processo.atribuicao),
+            "atribuicoes": _distinct_values(db, Processo.atribuicao_normalizada),
         }
 
     return _cached_response(db, "filter-options", None, build)
@@ -198,7 +198,7 @@ def _available_dates(db: Session, filters: AnalyticsFilters | None = None) -> li
         if filters.tipo:
             query = query.filter(Processo.tipo == filters.tipo)
         if filters.atribuicao:
-            query = query.filter(Processo.atribuicao == filters.atribuicao)
+            query = query.filter(Processo.atribuicao_normalizada == filters.atribuicao)
         if filters.data_inicial:
             query = query.filter(Processo.data_relatorio >= filters.data_inicial)
         if filters.data_final:
