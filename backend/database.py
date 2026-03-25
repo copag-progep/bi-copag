@@ -1,7 +1,7 @@
 import os
 from pathlib import Path
 
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.orm import declarative_base, sessionmaker
 
 
@@ -41,7 +41,24 @@ def init_db() -> None:
     from . import models
 
     Base.metadata.create_all(bind=engine)
+    ensure_schema_updates()
     ensure_indexes()
+
+
+def ensure_schema_updates() -> None:
+    inspector = inspect(engine)
+    process_columns = {column["name"] for column in inspector.get_columns("processos")}
+
+    statements: list[str] = []
+    if "atribuicao_normalizada" not in process_columns:
+        statements.append("ALTER TABLE processos ADD COLUMN atribuicao_normalizada VARCHAR(255)")
+
+    if not statements:
+        return
+
+    with engine.begin() as connection:
+        for statement in statements:
+            connection.execute(text(statement))
 
 
 def ensure_indexes() -> None:
@@ -50,7 +67,11 @@ def ensure_indexes() -> None:
         "CREATE INDEX IF NOT EXISTS ix_processos_setor_data_relatorio ON processos (setor, data_relatorio)",
         "CREATE INDEX IF NOT EXISTS ix_processos_tipo_data_relatorio ON processos (tipo, data_relatorio)",
         "CREATE INDEX IF NOT EXISTS ix_processos_atribuicao_data_relatorio ON processos (atribuicao, data_relatorio)",
+        "CREATE INDEX IF NOT EXISTS ix_processos_atribuicao_normalizada_data_relatorio ON processos (atribuicao_normalizada, data_relatorio)",
         "CREATE INDEX IF NOT EXISTS ix_processos_protocolo_data_relatorio ON processos (protocolo, data_relatorio)",
+        "CREATE INDEX IF NOT EXISTS ix_sei_users_nome_key ON sei_users (nome_key)",
+        "CREATE INDEX IF NOT EXISTS ix_sei_users_nome_sei_key ON sei_users (nome_sei_key)",
+        "CREATE INDEX IF NOT EXISTS ix_sei_users_usuario_sei_key ON sei_users (usuario_sei_key)",
     ]
     with engine.begin() as connection:
         for statement in index_statements:
