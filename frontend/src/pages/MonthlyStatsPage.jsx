@@ -221,7 +221,8 @@ export default function MonthlyStatsPage() {
   const focusedIndicatorRows = data.rows
     .filter((row) => row.indicador === dashboardFilters.indicador)
     .filter((row) => (!dashboardFilters.setor ? true : row.setor === dashboardFilters.setor))
-    .filter((row) => (!dashboardFilters.ano ? true : row.ano === Number(dashboardFilters.ano)));
+    .filter((row) => (!dashboardFilters.ano ? true : row.ano === Number(dashboardFilters.ano)))
+    .filter((row) => (!dashboardFilters.mes ? true : row.num_mes === Number(dashboardFilters.mes)));
   const focusedIndicatorAverage = focusedIndicatorRows.length
     ? Math.round(
         focusedIndicatorRows.reduce((total, row) => total + Number(row.valor || 0), 0) / focusedIndicatorRows.length
