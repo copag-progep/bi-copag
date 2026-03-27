@@ -87,3 +87,36 @@ class SeiUserImportResult(BaseModel):
 
 class SeiUserBulkImport(BaseModel):
     rows: list[SeiUserCreate]
+
+
+class MonthlyStatRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    setor: str
+    indicador: str
+    valor: int
+    mes_ano: str
+    mes: str
+    num_mes: int
+    ano: int
+    periodo: date
+    updated_at: datetime
+
+
+class MonthlyStatImportResult(BaseModel):
+    imported: int
+    updated: int
+    total: int
+
+
+class MonthlyStatMonthEntry(BaseModel):
+    setor: str
+    ano: int = Field(ge=2023, le=2100)
+    num_mes: int = Field(ge=1, le=12)
+    processos_gerados: int = Field(ge=0)
+    processos_tramitacao: int = Field(ge=0)
+    processos_fechados: int = Field(ge=0)
+    processos_abertos: int = Field(ge=0)
+    documentos_gerados: int = Field(ge=0)
+    documentos_externos: int = Field(ge=0)
