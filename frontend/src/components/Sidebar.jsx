@@ -9,6 +9,7 @@ const menuItems = [
   { to: "/produtividade", label: "Produtividade", shortLabel: "PR" },
   { to: "/processos-parados", label: "Processos Parados", shortLabel: "PP" },
   { to: "/multiplos-setores", label: "M\u00faltiplos Setores", shortLabel: "MS" },
+  { to: "/indicadores-mensais", label: "Indicadores Mensais", shortLabel: "IM" },
   { to: "/usuarios-sei", label: "Usuarios SEI", shortLabel: "US", adminOnly: true },
   { to: "/administracao", label: "Administra\u00e7\u00e3o", shortLabel: "AD", adminOnly: true },
   { to: "/logout", label: "Logout", shortLabel: "SAIR" },
