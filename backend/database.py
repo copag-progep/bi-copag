@@ -72,6 +72,8 @@ def ensure_indexes() -> None:
         "CREATE INDEX IF NOT EXISTS ix_sei_users_nome_key ON sei_users (nome_key)",
         "CREATE INDEX IF NOT EXISTS ix_sei_users_nome_sei_key ON sei_users (nome_sei_key)",
         "CREATE INDEX IF NOT EXISTS ix_sei_users_usuario_sei_key ON sei_users (usuario_sei_key)",
+        "CREATE INDEX IF NOT EXISTS ix_monthly_stats_periodo_setor ON monthly_stats (periodo, setor)",
+        "CREATE INDEX IF NOT EXISTS ix_monthly_stats_indicador_periodo ON monthly_stats (indicador, periodo)",
     ]
     with engine.begin() as connection:
         for statement in index_statements:
