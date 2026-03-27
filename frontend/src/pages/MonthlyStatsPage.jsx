@@ -46,6 +46,8 @@ const MONTH_OPTIONS = [
   { value: 12, label: "Dezembro" },
 ];
 
+const NUMBER_FORMATTER = new Intl.NumberFormat("pt-BR");
+
 function buildLatestReference(rows) {
   if (!rows.length) {
     return null;
@@ -86,6 +88,33 @@ function buildTrendData(rows, indicator, setor, ano) {
       mes_ano: row.mes_ano,
       valor: Number(row.valor || 0),
       setor: row.setor,
+    }));
+}
+
+function buildManagementRows(rows) {
+  return [...rows]
+    .sort((left, right) => {
+      if (left.ano !== right.ano) {
+        return right.ano - left.ano;
+      }
+
+      if (left.num_mes !== right.num_mes) {
+        return right.num_mes - left.num_mes;
+      }
+
+      if (left.setor !== right.setor) {
+        return left.setor.localeCompare(right.setor);
+      }
+
+      return left.indicador.localeCompare(right.indicador);
+    })
+    .map((row) => ({
+      id: row.id,
+      periodo: row.mes_ano,
+      setor: row.setor,
+      indicador: row.indicador,
+      valor: NUMBER_FORMATTER.format(Number(row.valor || 0)),
+      atualizado_em: new Date(row.updated_at).toLocaleString("pt-BR"),
     }));
 }
 
@@ -146,6 +175,7 @@ export default function MonthlyStatsPage() {
     setor: "",
     indicador: ENTRY_FIELDS[0].indicator,
     ano: "",
+    mes: "",
   });
   const [entryForm, setEntryForm] = useState(buildEntryInitialState(DEFAULT_SETORES[0]));
 
@@ -173,7 +203,8 @@ export default function MonthlyStatsPage() {
 
   const filteredRows = data.rows
     .filter((row) => (!dashboardFilters.setor ? true : row.setor === dashboardFilters.setor))
-    .filter((row) => (!dashboardFilters.ano ? true : row.ano === Number(dashboardFilters.ano)));
+    .filter((row) => (!dashboardFilters.ano ? true : row.ano === Number(dashboardFilters.ano)))
+    .filter((row) => (!dashboardFilters.mes ? true : row.num_mes === Number(dashboardFilters.mes)));
 
   const latestReference = buildLatestReference(filteredRows);
   const latestRows = latestReference
@@ -187,6 +218,16 @@ export default function MonthlyStatsPage() {
     dashboardFilters.ano
   );
   const latestTableRows = buildLatestTable(latestRows, dashboardFilters.setor);
+  const focusedIndicatorRows = data.rows
+    .filter((row) => row.indicador === dashboardFilters.indicador)
+    .filter((row) => (!dashboardFilters.setor ? true : row.setor === dashboardFilters.setor))
+    .filter((row) => (!dashboardFilters.ano ? true : row.ano === Number(dashboardFilters.ano)));
+  const focusedIndicatorAverage = focusedIndicatorRows.length
+    ? Math.round(
+        focusedIndicatorRows.reduce((total, row) => total + Number(row.valor || 0), 0) / focusedIndicatorRows.length
+      )
+    : 0;
+  const managementRows = buildManagementRows(data.rows);
   const availableSetores = data.setores.length ? data.setores : DEFAULT_SETORES;
 
   async function handleImportHistory(event) {
@@ -302,7 +343,7 @@ export default function MonthlyStatsPage() {
                 <p>Defina o setor, o indicador em foco e o ano para analisar a evolucao historica.</p>
               </div>
             </div>
-            <div className="form-grid">
+            <div className="form-grid monthly-filter-grid">
               <label className="field">
                 <span>Setor</span>
                 <select
@@ -350,6 +391,21 @@ export default function MonthlyStatsPage() {
                   ))}
                 </select>
               </label>
+
+              <label className="field">
+                <span>Mes</span>
+                <select
+                  value={dashboardFilters.mes}
+                  onChange={(event) => setDashboardFilters((current) => ({ ...current, mes: event.target.value }))}
+                >
+                  <option value="">Todos</option>
+                  {MONTH_OPTIONS.map((month) => (
+                    <option key={month.value} value={month.value}>
+                      {month.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
             </div>
           </section>
 
@@ -362,6 +418,16 @@ export default function MonthlyStatsPage() {
                 hint={latestReference ? `${latestReference.mes} de ${latestReference.ano}` : "Sem dados"}
               />
             ))}
+            <StatCard
+              label="Media historica"
+              value={NUMBER_FORMATTER.format(focusedIndicatorAverage)}
+              hint={dashboardFilters.indicador}
+            />
+            <StatCard
+              label="Setor selecionado"
+              value={dashboardFilters.setor || "Todos os setores"}
+              hint={dashboardFilters.mes ? MONTH_OPTIONS.find((month) => month.value === Number(dashboardFilters.mes))?.label : "Todos os meses"}
+            />
           </section>
 
           <section className="charts-grid">
@@ -508,6 +574,26 @@ export default function MonthlyStatsPage() {
                 {saving ? "Salvando..." : "Salvar mes"}
               </button>
             </form>
+          </section>
+
+          <section className="panel">
+            <div className="panel-header">
+              <div>
+                <h3>Historico completo dos indicadores mensais</h3>
+                <p>Lista consolidada dos dados importados e dos lancamentos feitos manualmente para conferencia em tela.</p>
+              </div>
+            </div>
+            <DataTable
+              columns={[
+                { key: "periodo", label: "Periodo" },
+                { key: "setor", label: "Setor" },
+                { key: "indicador", label: "Indicador" },
+                { key: "valor", label: "Valor" },
+                { key: "atualizado_em", label: "Atualizado em" },
+              ]}
+              rows={managementRows}
+              emptyMessage="Nenhum dado mensal cadastrado ate o momento."
+            />
           </section>
         </div>
       )}
