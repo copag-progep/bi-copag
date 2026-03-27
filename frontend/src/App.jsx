@@ -8,6 +8,7 @@ import FlowPage from "./pages/FlowPage";
 import LoginPage from "./pages/LoginPage";
 import LogoutPage from "./pages/LogoutPage";
 import MultiSectorPage from "./pages/MultiSectorPage";
+import MonthlyStatsPage from "./pages/MonthlyStatsPage";
 import ProductivityPage from "./pages/ProductivityPage";
 import SeiUsersPage from "./pages/SeiUsersPage";
 import StaleProcessesPage from "./pages/StaleProcessesPage";
@@ -32,6 +33,7 @@ export default function App() {
         <Route path="produtividade" element={<ProductivityPage />} />
         <Route path="processos-parados" element={<StaleProcessesPage />} />
         <Route path="multiplos-setores" element={<MultiSectorPage />} />
+        <Route path="indicadores-mensais" element={<MonthlyStatsPage />} />
         <Route path="usuarios-sei" element={<SeiUsersPage />} />
         <Route path="administracao" element={<AdminPage />} />
         <Route path="logout" element={<LogoutPage />} />
