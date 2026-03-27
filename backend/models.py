@@ -76,3 +76,27 @@ class SeiUser(Base):
     nome_sei_key: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
     usuario_sei_key: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+
+
+class MonthlyStat(Base):
+    __tablename__ = "monthly_stats"
+    __table_args__ = (
+        UniqueConstraint("setor", "indicador", "ano", "num_mes", name="uq_monthly_stat_snapshot"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    setor: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    indicador: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    valor: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    mes_ano: Mapped[str] = mapped_column(String(20), nullable=False)
+    mes: Mapped[str] = mapped_column(String(40), nullable=False)
+    num_mes: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    ano: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    periodo: Mapped[date] = mapped_column(Date, nullable=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow,
+        nullable=False,
+    )
