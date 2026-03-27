@@ -25,9 +25,13 @@ from .auth import (
 )
 from .csv_importer import SETORES, bootstrap_workspace_csvs, import_csv_snapshot
 from .database import SessionLocal, get_db, init_db
-from .models import Processo, SeiUser, Upload, User
+from .models import MonthlyStat, Processo, SeiUser, Upload, User
+from .monthly_stats import MONTHLY_INDICATORS, import_monthly_stats_csv, upsert_month_entry
 from .schemas import (
     FilterOptions,
+    MonthlyStatImportResult,
+    MonthlyStatMonthEntry,
+    MonthlyStatRead,
     SeiUserBulkImport,
     SeiUserCreate,
     SeiUserImportResult,
@@ -282,6 +286,47 @@ def remove_sei_user(
     sync_processo_atribuicoes(db)
     clear_analytics_cache()
     return {"message": f"Usuario SEI {name} excluido com sucesso."}
+
+
+@app.get("/api/monthly-stats")
+def list_monthly_stats(
+    _: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    rows = db.query(MonthlyStat).order_by(MonthlyStat.periodo.asc(), MonthlyStat.setor.asc(), MonthlyStat.indicador.asc()).all()
+    return {
+        "rows": [MonthlyStatRead.model_validate(row).model_dump(mode="json") for row in rows],
+        "setores": sorted({row.setor for row in rows}),
+        "indicadores": list(MONTHLY_INDICATORS),
+        "anos": sorted({row.ano for row in rows}),
+    }
+
+
+@app.post("/api/admin/monthly-stats/import", response_model=MonthlyStatImportResult, status_code=status.HTTP_201_CREATED)
+async def import_monthly_stats(
+    file: UploadFile = File(...),
+    _: User = Depends(get_current_admin_user),
+    db: Session = Depends(get_db),
+) -> MonthlyStatImportResult:
+    if not (file.filename or "").lower().endswith(".csv"):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Envie um arquivo CSV mensal.")
+
+    file_bytes = await file.read()
+    if not file_bytes:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Arquivo vazio.")
+
+    result = import_monthly_stats_csv(db, file_bytes)
+    return MonthlyStatImportResult(**result)
+
+
+@app.post("/api/admin/monthly-stats/month-entry", response_model=MonthlyStatImportResult, status_code=status.HTTP_201_CREATED)
+def save_monthly_stats_entry(
+    payload: MonthlyStatMonthEntry,
+    _: User = Depends(get_current_admin_user),
+    db: Session = Depends(get_db),
+) -> MonthlyStatImportResult:
+    result = upsert_month_entry(db, payload.model_dump())
+    return MonthlyStatImportResult(**result)
 
 
 @app.get("/api/uploads", response_model=list[UploadRead])
