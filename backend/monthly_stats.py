@@ -227,6 +227,21 @@ def import_monthly_stats_csv(db: Session, file_bytes: bytes) -> dict[str, int]:
 
 
 def upsert_month_entry(db: Session, payload: dict[str, object]) -> dict[str, int]:
+    existing_records = (
+        db.query(MonthlyStat)
+        .filter(
+            MonthlyStat.setor == normalize_setor(payload["setor"]),
+            MonthlyStat.ano == int(payload["ano"]),
+            MonthlyStat.num_mes == int(payload["num_mes"]),
+        )
+        .count()
+    )
+    if existing_records:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Ja existem indicadores cadastrados para este setor e periodo. Use a edicao por linha no historico.",
+        )
+
     imported = 0
     updated = 0
     total = 0
@@ -248,3 +263,14 @@ def upsert_month_entry(db: Session, payload: dict[str, object]) -> dict[str, int
 
     db.commit()
     return {"imported": imported, "updated": updated, "total": total}
+
+
+def update_monthly_stat_value(db: Session, stat_id: int, valor: object) -> MonthlyStat:
+    monthly_stat = db.query(MonthlyStat).filter(MonthlyStat.id == stat_id).first()
+    if not monthly_stat:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Indicador mensal nao encontrado.")
+
+    monthly_stat.valor = parse_int(valor)
+    db.commit()
+    db.refresh(monthly_stat)
+    return monthly_stat
