@@ -110,6 +110,10 @@ class MonthlyStatImportResult(BaseModel):
     total: int
 
 
+class MonthlyStatUpdate(BaseModel):
+    valor: int = Field(ge=0)
+
+
 class MonthlyStatMonthEntry(BaseModel):
     setor: str
     ano: int = Field(ge=2023, le=2100)
