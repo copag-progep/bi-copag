@@ -47,6 +47,7 @@ const MONTH_OPTIONS = [
 ];
 
 const NUMBER_FORMATTER = new Intl.NumberFormat("pt-BR");
+const PAGE_SIZE = 50;
 
 function buildLatestReference(rows) {
   if (!rows.length) {
@@ -79,11 +80,12 @@ function buildKpiData(rows) {
   }));
 }
 
-function buildTrendData(rows, indicator, setor, ano) {
+function buildTrendData(rows, indicator, setor, ano, mes) {
   return rows
     .filter((row) => row.indicador === indicator)
     .filter((row) => (!setor ? true : row.setor === setor))
     .filter((row) => (!ano ? true : row.ano === Number(ano)))
+    .filter((row) => (!mes ? true : row.num_mes === Number(mes)))
     .map((row) => ({
       mes_ano: row.mes_ano,
       valor: Number(row.valor || 0),
@@ -113,6 +115,7 @@ function buildManagementRows(rows) {
       periodo: row.mes_ano,
       setor: row.setor,
       indicador: row.indicador,
+      valor_raw: Number(row.valor || 0),
       valor: NUMBER_FORMATTER.format(Number(row.valor || 0)),
       atualizado_em: new Date(row.updated_at).toLocaleString("pt-BR"),
     }));
@@ -171,6 +174,9 @@ export default function MonthlyStatsPage() {
   const [historyFile, setHistoryFile] = useState(null);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [editingRowId, setEditingRowId] = useState(null);
+  const [editingValue, setEditingValue] = useState("");
   const [dashboardFilters, setDashboardFilters] = useState({
     setor: "",
     indicador: ENTRY_FIELDS[0].indicator,
@@ -215,7 +221,8 @@ export default function MonthlyStatsPage() {
     data.rows,
     dashboardFilters.indicador,
     dashboardFilters.setor,
-    dashboardFilters.ano
+    dashboardFilters.ano,
+    dashboardFilters.mes
   );
   const latestTableRows = buildLatestTable(latestRows, dashboardFilters.setor);
   const focusedIndicatorRows = data.rows
@@ -230,6 +237,14 @@ export default function MonthlyStatsPage() {
     : 0;
   const managementRows = buildManagementRows(data.rows);
   const availableSetores = data.setores.length ? data.setores : DEFAULT_SETORES;
+  const totalPages = Math.max(1, Math.ceil(managementRows.length / PAGE_SIZE));
+  const paginatedManagementRows = managementRows.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
 
   async function handleImportHistory(event) {
     event.preventDefault();
@@ -257,6 +272,7 @@ export default function MonthlyStatsPage() {
       if (input) {
         input.value = "";
       }
+      setCurrentPage(1);
       await loadMonthlyStats();
     } catch (requestError) {
       setError(requestError.response?.data?.detail || "Nao foi possivel importar o historico mensal do SEI.");
@@ -286,12 +302,43 @@ export default function MonthlyStatsPage() {
       setMessage(
         `Lancamento mensal salvo com sucesso: ${response.data.imported} registros criados e ${response.data.updated} atualizados.`
       );
+      setCurrentPage(1);
       await loadMonthlyStats();
     } catch (requestError) {
       setError(requestError.response?.data?.detail || "Nao foi possivel salvar os indicadores mensais.");
     } finally {
       setSaving(false);
     }
+  }
+
+  async function handleSaveRowEdit(rowId) {
+    setSaving(true);
+    setMessage("");
+    setError("");
+
+    try {
+      await api.patch(`/admin/monthly-stats/${rowId}`, { valor: Number(editingValue || 0) });
+      setMessage("Indicador mensal atualizado com sucesso.");
+      setEditingRowId(null);
+      setEditingValue("");
+      await loadMonthlyStats();
+    } catch (requestError) {
+      setError(requestError.response?.data?.detail || "Nao foi possivel atualizar o indicador mensal.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function startEditingRow(row) {
+    setEditingRowId(row.id);
+    setEditingValue(String(row.valor_raw));
+    setMessage("");
+    setError("");
+  }
+
+  function cancelEditingRow() {
+    setEditingRowId(null);
+    setEditingValue("");
   }
 
   if (loading) {
@@ -591,10 +638,64 @@ export default function MonthlyStatsPage() {
                 { key: "indicador", label: "Indicador" },
                 { key: "valor", label: "Valor" },
                 { key: "atualizado_em", label: "Atualizado em" },
+                {
+                  key: "acoes",
+                  label: "Acoes",
+                  render: (_, row) =>
+                    editingRowId === row.id ? (
+                      <div className="table-actions">
+                        <input
+                          className="table-input"
+                          type="number"
+                          min="0"
+                          value={editingValue}
+                          onChange={(event) => setEditingValue(event.target.value)}
+                        />
+                        <button
+                          type="button"
+                          className="table-button primary"
+                          disabled={saving}
+                          onClick={() => handleSaveRowEdit(row.id)}
+                        >
+                          Salvar
+                        </button>
+                        <button type="button" className="table-button" onClick={cancelEditingRow}>
+                          Cancelar
+                        </button>
+                      </div>
+                    ) : (
+                      <button type="button" className="table-button" onClick={() => startEditingRow(row)}>
+                        Editar
+                      </button>
+                    ),
+                },
               ]}
-              rows={managementRows}
+              rows={paginatedManagementRows}
               emptyMessage="Nenhum dado mensal cadastrado ate o momento."
             />
+            <div className="pagination-bar">
+              <span className="pagination-summary">
+                Pagina {currentPage} de {totalPages} | {managementRows.length} registros
+              </span>
+              <div className="table-actions">
+                <button
+                  type="button"
+                  className="table-button"
+                  disabled={currentPage === 1}
+                  onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+                >
+                  Anterior
+                </button>
+                <button
+                  type="button"
+                  className="table-button"
+                  disabled={currentPage === totalPages}
+                  onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+                >
+                  Proxima
+                </button>
+              </div>
+            </div>
           </section>
         </div>
       )}
