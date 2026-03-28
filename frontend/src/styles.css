@@ -557,6 +557,19 @@ select {
   gap: 8px;
 }
 
+.pagination-bar {
+  margin-top: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.pagination-summary {
+  color: var(--muted);
+  font-weight: 700;
+}
+
 .table-button {
   appearance: none;
   border: none;
@@ -699,7 +712,8 @@ select {
 
   .topbar,
   .filter-header,
-  .panel-header {
+  .panel-header,
+  .pagination-bar {
     flex-direction: column;
     align-items: flex-start;
   }
