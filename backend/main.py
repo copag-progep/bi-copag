@@ -26,12 +26,13 @@ from .auth import (
 from .csv_importer import SETORES, bootstrap_workspace_csvs, import_csv_snapshot
 from .database import SessionLocal, get_db, init_db
 from .models import MonthlyStat, Processo, SeiUser, Upload, User
-from .monthly_stats import MONTHLY_INDICATORS, import_monthly_stats_csv, upsert_month_entry
+from .monthly_stats import MONTHLY_INDICATORS, import_monthly_stats_csv, update_monthly_stat_value, upsert_month_entry
 from .schemas import (
     FilterOptions,
     MonthlyStatImportResult,
     MonthlyStatMonthEntry,
     MonthlyStatRead,
+    MonthlyStatUpdate,
     SeiUserBulkImport,
     SeiUserCreate,
     SeiUserImportResult,
@@ -327,6 +328,16 @@ def save_monthly_stats_entry(
 ) -> MonthlyStatImportResult:
     result = upsert_month_entry(db, payload.model_dump())
     return MonthlyStatImportResult(**result)
+
+
+@app.patch("/api/admin/monthly-stats/{stat_id}", response_model=MonthlyStatRead)
+def update_monthly_stat(
+    stat_id: int,
+    payload: MonthlyStatUpdate,
+    _: User = Depends(get_current_admin_user),
+    db: Session = Depends(get_db),
+) -> MonthlyStat:
+    return update_monthly_stat_value(db, stat_id, payload.valor)
 
 
 @app.get("/api/uploads", response_model=list[UploadRead])
