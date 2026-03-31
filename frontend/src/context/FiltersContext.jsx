@@ -3,7 +3,6 @@ import { createContext, useContext, useEffect, useState } from "react";
 import api from "../api/client";
 import { useAuth } from "./AuthContext";
 
-
 const FiltersContext = createContext(null);
 
 const INITIAL_FILTERS = {
@@ -15,38 +14,44 @@ const INITIAL_FILTERS = {
   atribuicao: "",
 };
 
+const EMPTY_OPTIONS = {
+  datas: [],
+  setores: [],
+  tipos: [],
+  atribuicoes: [],
+};
 
 export function FiltersProvider({ children }) {
   const { isAuthenticated } = useAuth();
   const [filters, setFilters] = useState(INITIAL_FILTERS);
-  const [options, setOptions] = useState({
-    datas: [],
-    setores: [],
-    tipos: [],
-    atribuicoes: [],
-  });
+  const [options, setOptions] = useState(EMPTY_OPTIONS);
 
-  useEffect(() => {
-    async function loadOptions() {
-      if (!isAuthenticated) {
-        setOptions({ datas: [], setores: [], tipos: [], atribuicoes: [] });
-        setFilters(INITIAL_FILTERS);
-        return;
-      }
-
-      try {
-        const { data } = await api.get("/meta/options");
-        setOptions(data);
-        setFilters((current) => ({
-          ...current,
-          data_referencia: current.data_referencia || data.datas.at(-1) || "",
-        }));
-      } catch {
-        setOptions({ datas: [], setores: [], tipos: [], atribuicoes: [] });
-      }
+  async function reloadOptions({ focusLatestDate = false } = {}) {
+    if (!isAuthenticated) {
+      setOptions(EMPTY_OPTIONS);
+      setFilters(INITIAL_FILTERS);
+      return;
     }
 
-    loadOptions();
+    try {
+      const { data } = await api.get("/meta/options");
+      const latestDate = data.datas.at(-1) || "";
+
+      setOptions(data);
+      setFilters((current) => ({
+        ...current,
+        data_referencia:
+          focusLatestDate || !current.data_referencia
+            ? latestDate
+            : current.data_referencia,
+      }));
+    } catch {
+      setOptions(EMPTY_OPTIONS);
+    }
+  }
+
+  useEffect(() => {
+    reloadOptions();
   }, [isAuthenticated]);
 
   function setFilter(name, value) {
@@ -73,13 +78,13 @@ export function FiltersProvider({ children }) {
         clearFilters,
         setFilters,
         toQueryParams,
+        reloadOptions,
       }}
     >
       {children}
     </FiltersContext.Provider>
   );
 }
-
 
 export function useFilters() {
   return useContext(FiltersContext);
