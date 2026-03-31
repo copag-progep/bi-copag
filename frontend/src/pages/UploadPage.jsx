@@ -4,6 +4,7 @@ import api from "../api/client";
 import DataTable from "../components/DataTable";
 import LoadingBlock from "../components/LoadingBlock";
 import { useAuth } from "../context/AuthContext";
+import { useFilters } from "../context/FiltersContext";
 
 
 const setores = ["DIAPE", "DICAT", "DIJOR", "DICAF", "DICAF-CHEFIA", "DICAF-REPOSICOES"];
@@ -37,6 +38,7 @@ function formatDateTime(value) {
 
 export default function UploadPage() {
   const { user } = useAuth();
+  const { reloadOptions } = useFilters();
   const [form, setForm] = useState({
     setor: "DIAPE",
     data_relatorio: new Date().toISOString().slice(0, 10),
@@ -87,6 +89,7 @@ export default function UploadPage() {
       setForm((current) => ({ ...current, file: null }));
       document.getElementById("upload-file-input").value = "";
       await loadUploads();
+      await reloadOptions({ focusLatestDate: true });
     } catch (requestError) {
       setError(requestError.response?.data?.detail || "Falha no envio do relatorio.");
     } finally {
@@ -123,6 +126,7 @@ export default function UploadPage() {
       setMessage(`Data do relatorio de ${upload.original_filename} atualizada com sucesso.`);
       cancelEditing();
       await loadUploads();
+      await reloadOptions({ focusLatestDate: true });
     } catch (requestError) {
       setError(requestError.response?.data?.detail || "Falha ao atualizar a data do relatorio.");
     } finally {
@@ -149,6 +153,7 @@ export default function UploadPage() {
         cancelEditing();
       }
       await loadUploads();
+      await reloadOptions({ focusLatestDate: true });
     } catch (requestError) {
       setError(requestError.response?.data?.detail || "Falha ao excluir o relatorio.");
     } finally {
