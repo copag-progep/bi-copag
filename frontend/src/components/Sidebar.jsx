@@ -34,26 +34,28 @@ export default function Sidebar({ open, collapsed, onClose, onToggleCollapse }) 
         </button>
       </div>
 
-      <div className="brand-panel">
-        <p className="eyebrow">SEI BI</p>
-        <h1>{collapsed ? "COPAG" : "Monitoramento COPAG"}</h1>
-        {!collapsed ? <span>Dashboards inteligentes para relatórios diários do SEI</span> : null}
-      </div>
+      <div className="sidebar-scroll">
+        <div className="brand-panel">
+          <p className="eyebrow">SEI BI</p>
+          <h1>{collapsed ? "COPAG" : "Monitoramento COPAG"}</h1>
+          {!collapsed ? <span>Dashboards inteligentes para relatórios diários do SEI</span> : null}
+        </div>
 
-      <nav className="menu">
-        {visibleItems.map((item) => (
-          <NavLink
-            key={item.to}
-            to={item.to}
-            end={item.end}
-            onClick={onClose}
-            title={collapsed ? item.label : undefined}
-            className={({ isActive }) => `menu-link ${isActive ? "active" : ""}`}
-          >
-            {collapsed ? item.shortLabel : item.label}
-          </NavLink>
-        ))}
-      </nav>
+        <nav className="menu">
+          {visibleItems.map((item) => (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              end={item.end}
+              onClick={onClose}
+              title={collapsed ? item.label : undefined}
+              className={({ isActive }) => `menu-link ${isActive ? "active" : ""}`}
+            >
+              {collapsed ? item.shortLabel : item.label}
+            </NavLink>
+          ))}
+        </nav>
+      </div>
     </aside>
   );
 }
