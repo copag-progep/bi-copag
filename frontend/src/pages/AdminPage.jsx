@@ -32,7 +32,7 @@ export default function AdminPage() {
     try {
       const [usersResponse, uploadsResponse] = await Promise.all([api.get("/admin/users"), api.get("/uploads")]);
       setUsers(usersResponse.data);
-      setUploads(uploadsResponse.data);
+      setUploads(uploadsResponse.data.items || []);
     } catch (requestError) {
       setError(requestError.response?.data?.detail || "Falha ao carregar dados administrativos.");
     } finally {

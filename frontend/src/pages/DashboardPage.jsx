@@ -8,6 +8,7 @@ import DataTable from "../components/DataTable";
 import LoadingBlock from "../components/LoadingBlock";
 import StatCard from "../components/StatCard";
 import { useFilters } from "../context/FiltersContext";
+import { formatUserNameAsInitials } from "../utils/userNameFormatter";
 
 
 export default function DashboardPage() {
@@ -61,7 +62,12 @@ export default function DashboardPage() {
       <section className="charts-grid">
         <BarChartCard title="Processos por setor" data={data?.por_setor || []} />
         <PieChartCard title="Processos por tipo" data={(data?.por_tipo || []).slice(0, 8)} />
-        <BarChartCard title="Ranking de atribuições" data={(data?.ranking_atribuicoes || []).slice(0, 10)} color="#c2603b" />
+        <BarChartCard
+          title="Ranking de atribuições"
+          data={(data?.ranking_atribuicoes || []).slice(0, 10)}
+          color="#c2603b"
+          tickFormatter={formatUserNameAsInitials}
+        />
         <LineChartCard
           title="Evolução diária do total de processos"
           data={data?.evolucao_diaria || []}

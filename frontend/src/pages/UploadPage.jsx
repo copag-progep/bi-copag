@@ -8,6 +8,7 @@ import { useFilters } from "../context/FiltersContext";
 
 
 const setores = ["DIAPE", "DICAT", "DIJOR", "DICAF", "DICAF-CHEFIA", "DICAF-REPOSICOES"];
+const PAGE_SIZE = 30;
 
 
 function formatDate(value) {
@@ -45,6 +46,9 @@ export default function UploadPage() {
     file: null,
   });
   const [uploads, setUploads] = useState([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalUploads, setTotalUploads] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [editingUploadId, setEditingUploadId] = useState(null);
@@ -54,11 +58,19 @@ export default function UploadPage() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
-  async function loadUploads() {
+  async function loadUploads(page = currentPage) {
     setLoading(true);
+    setError("");
     try {
-      const { data } = await api.get("/uploads");
-      setUploads(data);
+      const { data } = await api.get("/uploads", {
+        params: {
+          page,
+          page_size: PAGE_SIZE,
+        },
+      });
+      setUploads(data.items || []);
+      setTotalUploads(data.total || 0);
+      setTotalPages(data.total_pages || 1);
     } catch (requestError) {
       setError(requestError.response?.data?.detail || "Falha ao carregar uploads.");
     } finally {
@@ -67,8 +79,14 @@ export default function UploadPage() {
   }
 
   useEffect(() => {
-    loadUploads();
-  }, []);
+    loadUploads(currentPage);
+  }, [currentPage]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
 
   async function handleSubmit(event) {
     event.preventDefault();
@@ -88,7 +106,11 @@ export default function UploadPage() {
       setMessage(`${data.message} ${data.total_registros} registros processados.`);
       setForm((current) => ({ ...current, file: null }));
       document.getElementById("upload-file-input").value = "";
-      await loadUploads();
+      if (currentPage === 1) {
+        await loadUploads(1);
+      } else {
+        setCurrentPage(1);
+      }
       await reloadOptions({ focusLatestDate: true });
     } catch (requestError) {
       setError(requestError.response?.data?.detail || "Falha no envio do relatorio.");
@@ -125,7 +147,7 @@ export default function UploadPage() {
       });
       setMessage(`Data do relatorio de ${upload.original_filename} atualizada com sucesso.`);
       cancelEditing();
-      await loadUploads();
+      await loadUploads(currentPage);
       await reloadOptions({ focusLatestDate: true });
     } catch (requestError) {
       setError(requestError.response?.data?.detail || "Falha ao atualizar a data do relatorio.");
@@ -152,7 +174,7 @@ export default function UploadPage() {
       if (editingUploadId === upload.id) {
         cancelEditing();
       }
-      await loadUploads();
+      await loadUploads(currentPage);
       await reloadOptions({ focusLatestDate: true });
     } catch (requestError) {
       setError(requestError.response?.data?.detail || "Falha ao excluir o relatorio.");
@@ -305,7 +327,32 @@ export default function UploadPage() {
         {loading ? (
           <LoadingBlock label="Carregando uploads..." />
         ) : (
-          <DataTable columns={uploadColumns} rows={uploads} />
+          <>
+            <DataTable columns={uploadColumns} rows={uploads} emptyMessage="Nenhum relatorio enviado ate o momento." />
+            <div className="pagination-bar">
+              <span className="pagination-summary">
+                Pagina {currentPage} de {totalPages} | {totalUploads} relatorios
+              </span>
+              <div className="table-actions">
+                <button
+                  type="button"
+                  className="table-button"
+                  disabled={currentPage === 1}
+                  onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+                >
+                  Anterior
+                </button>
+                <button
+                  type="button"
+                  className="table-button"
+                  disabled={currentPage === totalPages}
+                  onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+                >
+                  Proxima
+                </button>
+              </div>
+            </div>
+          </>
         )}
       </section>
     </div>

@@ -32,9 +32,21 @@ function pivotSeries(data, xKey, seriesKey, valueKey) {
 }
 
 
-export default function LineChartCard({ title, subtitle, data, xKey, valueKey, seriesKey }) {
+export default function LineChartCard({ title, subtitle, data, xKey, valueKey, seriesKey, formatSeriesName }) {
   const chartData = pivotSeries(data, xKey, seriesKey, valueKey);
   const series = seriesKey ? [...new Set(data.map((item) => item[seriesKey]))] : [valueKey];
+
+  function formatLegendValue(value) {
+    if (!seriesKey) {
+      return value;
+    }
+
+    return (
+      <span className="chart-legend-label" title={value}>
+        {seriesKey && typeof formatSeriesName === "function" ? formatSeriesName(value) : value}
+      </span>
+    );
+  }
 
   return (
     <ChartPanel title={title} subtitle={subtitle}>
@@ -45,7 +57,7 @@ export default function LineChartCard({ title, subtitle, data, xKey, valueKey, s
             <XAxis dataKey={xKey} tickLine={false} axisLine={false} />
             <YAxis tickLine={false} axisLine={false} />
             <Tooltip />
-            {seriesKey ? <Legend /> : null}
+            {seriesKey ? <Legend formatter={formatLegendValue} /> : null}
             {series.map((seriesName, index) => (
               <Line
                 key={seriesName}

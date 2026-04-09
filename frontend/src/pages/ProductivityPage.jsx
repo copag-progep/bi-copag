@@ -7,6 +7,7 @@ import DataTable from "../components/DataTable";
 import LoadingBlock from "../components/LoadingBlock";
 import StatCard from "../components/StatCard";
 import { useFilters } from "../context/FiltersContext";
+import { formatUserNameAsInitials } from "../utils/userNameFormatter";
 
 
 function formatDecimal(value, digits = 1) {
@@ -82,18 +83,21 @@ export default function ProductivityPage() {
           title="Produção do dia por atribuição"
           subtitle="Processos que deixaram de estar na atribuição entre o snapshot anterior e o atual."
           data={data?.producao_por_atribuicao || []}
+          tickFormatter={formatUserNameAsInitials}
         />
         <BarChartCard
           title="Entradas do dia por atribuição"
           subtitle="Processos que passaram a constar na atribuição na data de referência."
           data={data?.entradas_por_atribuicao || []}
           color="#c2603b"
+          tickFormatter={formatUserNameAsInitials}
         />
         <BarChartCard
           title="Carga atual por atribuição"
           subtitle="Quantidade de processos hoje em cada carteira."
           data={data?.carga_atual_por_atribuicao || []}
           color="#0f5f73"
+          tickFormatter={formatUserNameAsInitials}
         />
         <LineChartCard
           title="Evolução diária da produção por atribuição"
@@ -102,6 +106,7 @@ export default function ProductivityPage() {
           xKey="date"
           valueKey="produzidos"
           seriesKey="atribuicao"
+          formatSeriesName={formatUserNameAsInitials}
         />
       </section>
 

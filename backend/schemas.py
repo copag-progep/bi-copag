@@ -42,6 +42,14 @@ class UploadRead(BaseModel):
     total_records: int
 
 
+class UploadListResponse(BaseModel):
+    items: list[UploadRead]
+    page: int
+    page_size: int
+    total: int
+    total_pages: int
+
+
 class UploadUpdate(BaseModel):
     data_relatorio: date
 

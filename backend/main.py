@@ -1,7 +1,7 @@
 import os
 from datetime import date
 
-from fastapi import Depends, FastAPI, File, Form, HTTPException, UploadFile, status
+from fastapi import Depends, FastAPI, File, Form, HTTPException, Query, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
@@ -38,6 +38,7 @@ from .schemas import (
     SeiUserImportResult,
     SeiUserRead,
     Token,
+    UploadListResponse,
     UploadRead,
     UploadResult,
     UploadUpdate,
@@ -340,12 +341,29 @@ def update_monthly_stat(
     return update_monthly_stat_value(db, stat_id, payload.valor)
 
 
-@app.get("/api/uploads", response_model=list[UploadRead])
+@app.get("/api/uploads", response_model=UploadListResponse)
 def list_uploads(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(30, ge=1, le=100),
     _: User = Depends(get_current_user),
     db: Session = Depends(get_db),
-) -> list[Upload]:
-    return db.query(Upload).order_by(Upload.data_relatorio.desc(), Upload.data_upload.desc()).limit(100).all()
+) -> UploadListResponse:
+    total = db.query(Upload).count()
+    total_pages = max((total + page_size - 1) // page_size, 1)
+    items = (
+        db.query(Upload)
+        .order_by(Upload.data_relatorio.desc(), Upload.data_upload.desc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+        .all()
+    )
+    return UploadListResponse(
+        items=items,
+        page=page,
+        page_size=page_size,
+        total=total,
+        total_pages=total_pages,
+    )
 
 
 @app.post("/api/uploads", response_model=UploadResult)
