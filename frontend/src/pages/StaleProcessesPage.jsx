@@ -6,10 +6,13 @@ import LoadingBlock from "../components/LoadingBlock";
 import StatCard from "../components/StatCard";
 import { useFilters } from "../context/FiltersContext";
 
+const PAGE_SIZE = 50;
+
 
 export default function StaleProcessesPage() {
   const { filters, toQueryParams } = useFilters();
   const [data, setData] = useState(null);
+  const [currentPage, setCurrentPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -30,6 +33,10 @@ export default function StaleProcessesPage() {
     load();
   }, [filters]);
 
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filters]);
+
   if (loading) {
     return <LoadingBlock label="Verificando processos parados..." />;
   }
@@ -37,6 +44,10 @@ export default function StaleProcessesPage() {
   if (error) {
     return <div className="alert error">{error}</div>;
   }
+
+  const processes = data?.processos || [];
+  const totalPages = Math.max(Math.ceil(processes.length / PAGE_SIZE), 1);
+  const paginatedProcesses = processes.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
   return (
     <div className="page-grid">
@@ -70,9 +81,32 @@ export default function StaleProcessesPage() {
             { key: "entrada_setor", label: "Entrada no setor" },
             { key: "dias_sem_movimentacao", label: "Dias sem movimentação" },
           ]}
-          rows={data?.processos || []}
+          rows={paginatedProcesses}
           emptyMessage="Nenhum processo crítico encontrado com os filtros atuais."
         />
+        <div className="pagination-bar">
+          <span className="pagination-summary">
+            Pagina {currentPage} de {totalPages} | {processes.length} processos
+          </span>
+          <div className="table-actions">
+            <button
+              type="button"
+              className="table-button"
+              disabled={currentPage === 1}
+              onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+            >
+              Anterior
+            </button>
+            <button
+              type="button"
+              className="table-button"
+              disabled={currentPage === totalPages}
+              onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+            >
+              Proxima
+            </button>
+          </div>
+        </div>
       </section>
     </div>
   );
