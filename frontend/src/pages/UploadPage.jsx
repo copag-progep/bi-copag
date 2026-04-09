@@ -36,6 +36,25 @@ function formatDateTime(value) {
   }).format(parsed);
 }
 
+function normalizeUploadsPayload(payload, page) {
+  if (Array.isArray(payload)) {
+    const total = payload.length;
+    const totalPages = Math.max(Math.ceil(total / PAGE_SIZE), 1);
+    const start = (page - 1) * PAGE_SIZE;
+    return {
+      items: payload.slice(start, start + PAGE_SIZE),
+      total,
+      totalPages,
+    };
+  }
+
+  return {
+    items: payload?.items || [],
+    total: payload?.total || 0,
+    totalPages: payload?.total_pages || 1,
+  };
+}
+
 
 export default function UploadPage() {
   const { user } = useAuth();
@@ -68,9 +87,10 @@ export default function UploadPage() {
           page_size: PAGE_SIZE,
         },
       });
-      setUploads(data.items || []);
-      setTotalUploads(data.total || 0);
-      setTotalPages(data.total_pages || 1);
+      const normalized = normalizeUploadsPayload(data, page);
+      setUploads(normalized.items);
+      setTotalUploads(normalized.total);
+      setTotalPages(normalized.totalPages);
     } catch (requestError) {
       setError(requestError.response?.data?.detail || "Falha ao carregar uploads.");
     } finally {

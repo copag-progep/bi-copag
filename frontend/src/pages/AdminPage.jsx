@@ -26,13 +26,21 @@ export default function AdminPage() {
     return <div className="alert error">Acesso restrito a administradores.</div>;
   }
 
+  function normalizeUploadsPayload(payload) {
+    if (Array.isArray(payload)) {
+      return payload;
+    }
+
+    return payload?.items || [];
+  }
+
   async function loadAdminData() {
     setLoading(true);
     setError("");
     try {
       const [usersResponse, uploadsResponse] = await Promise.all([api.get("/admin/users"), api.get("/uploads")]);
       setUsers(usersResponse.data);
-      setUploads(uploadsResponse.data.items || []);
+      setUploads(normalizeUploadsPayload(uploadsResponse.data));
     } catch (requestError) {
       setError(requestError.response?.data?.detail || "Falha ao carregar dados administrativos.");
     } finally {
