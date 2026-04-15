@@ -107,6 +107,18 @@ def sync_processo_atribuicoes(db: Session) -> int:
     return changed
 
 
+def needs_processo_atribuicoes_sync(db: Session) -> bool:
+    return (
+        db.query(Processo.id)
+        .filter(
+            Processo.atribuicao.is_not(None),
+            Processo.atribuicao_normalizada.is_(None),
+        )
+        .first()
+        is not None
+    )
+
+
 def _find_matching_users(db: Session, payload: dict[str, str | None]) -> list[SeiUser]:
     filters = [SeiUser.nome_key == payload["nome_key"]]
     if payload["nome_sei_key"]:

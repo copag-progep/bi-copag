@@ -12,7 +12,7 @@ export function AuthProvider({ children }) {
     const raw = localStorage.getItem("sei-bi-user");
     return raw ? JSON.parse(raw) : null;
   });
-  const [loading, setLoading] = useState(Boolean(token));
+  const [loading, setLoading] = useState(() => Boolean(token && !user));
 
   useEffect(() => {
     async function restoreSession() {

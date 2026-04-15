@@ -4,6 +4,7 @@ from datetime import date
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Query, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from .analytics import (
@@ -46,7 +47,14 @@ from .schemas import (
     UserLogin,
     UserRead,
 )
-from .sei_users import delete_sei_user, import_sei_users_file, import_sei_users_rows, sync_processo_atribuicoes, upsert_sei_user
+from .sei_users import (
+    delete_sei_user,
+    import_sei_users_file,
+    import_sei_users_rows,
+    needs_processo_atribuicoes_sync,
+    sync_processo_atribuicoes,
+    upsert_sei_user,
+)
 
 
 DEFAULT_ADMIN_NAME = os.getenv("DEFAULT_ADMIN_NAME", "Anderson CFS")
@@ -144,7 +152,8 @@ def on_startup() -> None:
     auto_import_workspace_data()
     db = SessionLocal()
     try:
-        sync_processo_atribuicoes(db)
+        if needs_processo_atribuicoes_sync(db):
+            sync_processo_atribuicoes(db)
     finally:
         db.close()
 
@@ -430,12 +439,41 @@ def update_upload(
             detail="Ja existe um relatorio deste setor com a data informada.",
         )
 
-    db.query(Processo).filter(Processo.upload_id == upload.id).update(
-        {Processo.data_relatorio: payload.data_relatorio},
-        synchronize_session=False,
+    processo_conflict = (
+        db.query(Processo.id)
+        .filter(
+            Processo.upload_id != upload.id,
+            Processo.setor == upload.setor,
+            Processo.data_relatorio == payload.data_relatorio,
+        )
+        .first()
     )
-    upload.data_relatorio = payload.data_relatorio
-    db.commit()
+    if processo_conflict:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Ja existem processos deste setor com a data informada. Exclua o snapshot conflitante antes de alterar a data.",
+        )
+
+    try:
+        db.query(Processo).filter(Processo.upload_id == upload.id).update(
+            {Processo.data_relatorio: payload.data_relatorio},
+            synchronize_session=False,
+        )
+        upload.data_relatorio = payload.data_relatorio
+        db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="A data informada gera conflito com processos ja existentes para este setor.",
+        ) from exc
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Falha ao atualizar a data do relatorio.",
+        ) from exc
+
     db.refresh(upload)
     clear_analytics_cache()
     return upload
