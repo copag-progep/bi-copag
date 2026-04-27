@@ -5,6 +5,7 @@ import DataTable from "../components/DataTable";
 import LoadingBlock from "../components/LoadingBlock";
 import { useAuth } from "../context/AuthContext";
 import { useFilters } from "../context/FiltersContext";
+import { clearAnalyticsCache } from "../hooks/useAnalyticsData";
 import { normalizeUploadsPayload } from "../utils/uploadsPayload";
 
 const FALLBACK_SETORES = ["DIAPE", "DICAT", "DIJOR", "DICAF", "DICAF-CHEFIA", "DICAF-REPOSICOES"];
@@ -106,6 +107,7 @@ export default function UploadPage() {
       const { data } = await api.post("/uploads", payload, {
         headers: { "Content-Type": "multipart/form-data" },
       });
+      clearAnalyticsCache();
       setMessage(`${data.message} ${data.total_registros} registros processados.`);
       setForm((current) => ({ ...current, file: null }));
       document.getElementById("upload-file-input").value = "";

@@ -1,5 +1,3 @@
-import { useEffect, useState } from "react";
-
 import api from "../api/client";
 import BarChartCard from "../charts/BarChartCard";
 import LineChartCard from "../charts/LineChartCard";
@@ -9,40 +7,19 @@ import ErrorBlock from "../components/ErrorBlock";
 import LoadingBlock from "../components/LoadingBlock";
 import StatCard from "../components/StatCard";
 import { useFilters } from "../context/FiltersContext";
+import { useAnalyticsData } from "../hooks/useAnalyticsData";
 import { formatUserNameAsInitials } from "../utils/userNameFormatter";
 
 
 export default function DashboardPage() {
-  const { filters, toQueryParams } = useFilters();
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [retryCount, setRetryCount] = useState(0);
+  const { toQueryParams } = useFilters();
+  const { data, loading, stale, error, retry } = useAnalyticsData(
+    "/analytics/dashboard",
+    toQueryParams()
+  );
 
-  useEffect(() => {
-    async function load() {
-      setLoading(true);
-      setError("");
-      try {
-        const response = await api.get("/analytics/dashboard", { params: toQueryParams() });
-        setData(response.data);
-      } catch (requestError) {
-        setError(requestError.response?.data?.detail || "Falha ao carregar dashboard.");
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    load();
-  }, [filters, retryCount]);
-
-  if (loading) {
-    return <LoadingBlock label="Montando dashboard principal..." />;
-  }
-
-  if (error) {
-    return <ErrorBlock message={error} onRetry={() => setRetryCount((c) => c + 1)} />;
-  }
+  if (loading) return <LoadingBlock label="Montando dashboard principal..." />;
+  if (error) return <ErrorBlock message={error} onRetry={retry} />;
 
   return (
     <div className="page-grid">
@@ -51,6 +28,7 @@ export default function DashboardPage() {
           <p className="eyebrow">Dashboard principal</p>
           <h1>Visão executiva da tramitação</h1>
           <span>Data de referência: {data?.data_referencia || "Sem snapshots importados"}</span>
+          {stale ? <span className="stale-badge">Atualizando...</span> : null}
         </div>
       </section>
 

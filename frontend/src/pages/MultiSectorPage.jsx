@@ -1,43 +1,19 @@
-import { useEffect, useState } from "react";
-
-import api from "../api/client";
 import DataTable from "../components/DataTable";
 import ErrorBlock from "../components/ErrorBlock";
 import LoadingBlock from "../components/LoadingBlock";
 import { useFilters } from "../context/FiltersContext";
+import { useAnalyticsData } from "../hooks/useAnalyticsData";
 
 
 export default function MultiSectorPage() {
-  const { filters, toQueryParams } = useFilters();
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [retryCount, setRetryCount] = useState(0);
+  const { toQueryParams } = useFilters();
+  const { data, loading, stale, error, retry } = useAnalyticsData(
+    "/analytics/multi-sector",
+    toQueryParams()
+  );
 
-  useEffect(() => {
-    async function load() {
-      setLoading(true);
-      setError("");
-      try {
-        const response = await api.get("/analytics/multi-sector", { params: toQueryParams() });
-        setData(response.data);
-      } catch (requestError) {
-        setError(requestError.response?.data?.detail || "Falha ao detectar múltiplos setores.");
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    load();
-  }, [filters, retryCount]);
-
-  if (loading) {
-    return <LoadingBlock label="Investigando múltiplos setores..." />;
-  }
-
-  if (error) {
-    return <ErrorBlock message={error} onRetry={() => setRetryCount((c) => c + 1)} />;
-  }
+  if (loading) return <LoadingBlock label="Investigando múltiplos setores..." />;
+  if (error) return <ErrorBlock message={error} onRetry={retry} />;
 
   const totalOcorrencias = data?.processos?.length ?? 0;
 
@@ -52,6 +28,7 @@ export default function MultiSectorPage() {
             <strong>{totalOcorrencias}</strong>
             <span>{totalOcorrencias === 1 ? "ocorrência encontrada" : "ocorrências encontradas"}</span>
           </div>
+          {stale ? <span className="stale-badge">Atualizando...</span> : null}
         </div>
       </section>
 

@@ -1,6 +1,3 @@
-import { useEffect, useState } from "react";
-
-import api from "../api/client";
 import BarChartCard from "../charts/BarChartCard";
 import LineChartCard from "../charts/LineChartCard";
 import DataTable from "../components/DataTable";
@@ -8,46 +5,24 @@ import ErrorBlock from "../components/ErrorBlock";
 import LoadingBlock from "../components/LoadingBlock";
 import StatCard from "../components/StatCard";
 import { useFilters } from "../context/FiltersContext";
+import { useAnalyticsData } from "../hooks/useAnalyticsData";
 import { formatUserNameAsInitials } from "../utils/userNameFormatter";
 
 
 function formatDecimal(value, digits = 1) {
-  const number = Number(value ?? 0);
-  return number.toFixed(digits);
+  return Number(value ?? 0).toFixed(digits);
 }
 
 
 export default function ProductivityPage() {
-  const { filters, toQueryParams } = useFilters();
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [retryCount, setRetryCount] = useState(0);
+  const { toQueryParams } = useFilters();
+  const { data, loading, stale, error, retry } = useAnalyticsData(
+    "/analytics/productivity",
+    toQueryParams()
+  );
 
-  useEffect(() => {
-    async function load() {
-      setLoading(true);
-      setError("");
-      try {
-        const response = await api.get("/analytics/productivity", { params: toQueryParams() });
-        setData(response.data);
-      } catch (requestError) {
-        setError(requestError.response?.data?.detail || "Falha ao carregar produtividade.");
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    load();
-  }, [filters, retryCount]);
-
-  if (loading) {
-    return <LoadingBlock label="Calculando produtividade por atribuição..." />;
-  }
-
-  if (error) {
-    return <ErrorBlock message={error} onRetry={() => setRetryCount((c) => c + 1)} />;
-  }
+  if (loading) return <LoadingBlock label="Calculando produtividade por atribuição..." />;
+  if (error) return <ErrorBlock message={error} onRetry={retry} />;
 
   const maiorProdutor = data?.maior_produtor;
 
@@ -59,9 +34,9 @@ export default function ProductivityPage() {
           <h1>Produção diária por atribuição</h1>
           <span>
             Comparação entre {data?.data_anterior || "a data anterior disponível"} e {data?.data_referencia || "a data de referência"}.
-            {" "}
-            {data?.criterio_produtividade}
+            {" "}{data?.criterio_produtividade}
           </span>
+          {stale ? <span className="stale-badge">Atualizando...</span> : null}
         </div>
       </section>
 
@@ -127,11 +102,7 @@ export default function ProductivityPage() {
             { key: "entradas", label: "Entradas" },
             { key: "produzidos", label: "Produzidos" },
             { key: "saldo", label: "Saldo" },
-            {
-              key: "taxa_produtividade",
-              label: "Taxa de produção",
-              render: (value) => `${formatDecimal(value)}%`,
-            },
+            { key: "taxa_produtividade", label: "Taxa de produção", render: (v) => `${formatDecimal(v)}%` },
           ]}
           rows={data?.resumo_atribuicoes || []}
           emptyMessage="Não há histórico suficiente para calcular produtividade por atribuição."
@@ -151,11 +122,7 @@ export default function ProductivityPage() {
             { key: "produzidos_periodo", label: "Produzidos no período" },
             { key: "entradas_periodo", label: "Entradas no período" },
             { key: "dias_com_movimento", label: "Dias com movimento" },
-            {
-              key: "media_diaria_producao",
-              label: "Média diária",
-              render: (value) => formatDecimal(value, 2),
-            },
+            { key: "media_diaria_producao", label: "Média diária", render: (v) => formatDecimal(v, 2) },
           ]}
           rows={data?.ranking_producao_periodo || []}
           emptyMessage="Ainda não há período suficiente para montar o ranking acumulado."

@@ -1,51 +1,29 @@
 import { useEffect, useState } from "react";
 
-import api from "../api/client";
 import DataTable from "../components/DataTable";
 import ErrorBlock from "../components/ErrorBlock";
 import LoadingBlock from "../components/LoadingBlock";
 import StatCard from "../components/StatCard";
 import { useFilters } from "../context/FiltersContext";
+import { useAnalyticsData } from "../hooks/useAnalyticsData";
 
 const PAGE_SIZE = 50;
 
 
 export default function StaleProcessesPage() {
   const { filters, toQueryParams } = useFilters();
-  const [data, setData] = useState(null);
+  const { data, loading, stale, error, retry } = useAnalyticsData(
+    "/analytics/stale",
+    toQueryParams()
+  );
   const [currentPage, setCurrentPage] = useState(1);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [retryCount, setRetryCount] = useState(0);
-
-  useEffect(() => {
-    async function load() {
-      setLoading(true);
-      setError("");
-      try {
-        const response = await api.get("/analytics/stale", { params: toQueryParams() });
-        setData(response.data);
-      } catch (requestError) {
-        setError(requestError.response?.data?.detail || "Falha ao carregar alertas.");
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    load();
-  }, [filters, retryCount]);
 
   useEffect(() => {
     setCurrentPage(1);
   }, [filters]);
 
-  if (loading) {
-    return <LoadingBlock label="Verificando processos parados..." />;
-  }
-
-  if (error) {
-    return <ErrorBlock message={error} onRetry={() => setRetryCount((c) => c + 1)} />;
-  }
+  if (loading) return <LoadingBlock label="Verificando processos parados..." />;
+  if (error) return <ErrorBlock message={error} onRetry={retry} />;
 
   const processes = data?.processos || [];
   const totalPages = Math.max(Math.ceil(processes.length / PAGE_SIZE), 1);
@@ -58,6 +36,7 @@ export default function StaleProcessesPage() {
           <p className="eyebrow">Alertas críticos</p>
           <h1>Processos sem movimentação</h1>
           <span>Data de referência: {data?.data_referencia || "Sem dados"}.</span>
+          {stale ? <span className="stale-badge">Atualizando...</span> : null}
         </div>
       </section>
 
@@ -95,7 +74,7 @@ export default function StaleProcessesPage() {
               type="button"
               className="table-button"
               disabled={currentPage === 1}
-              onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
             >
               Anterior
             </button>
@@ -103,7 +82,7 @@ export default function StaleProcessesPage() {
               type="button"
               className="table-button"
               disabled={currentPage === totalPages}
-              onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
             >
               Próxima
             </button>

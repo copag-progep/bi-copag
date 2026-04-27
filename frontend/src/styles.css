@@ -878,6 +878,27 @@ select {
   border-color: var(--primary);
 }
 
+/* ── Stale badge ───────────────────────────────────── */
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+
+.stale-badge {
+  display: inline-block;
+  margin-top: 12px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: rgba(243, 147, 32, 0.15);
+  border: 1px solid rgba(243, 147, 32, 0.25);
+  color: rgba(240, 244, 255, 0.9);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  animation: pulse 1.6s ease infinite;
+}
+
 /* ── Misc ──────────────────────────────────────────── */
 
 .chart-legend-label {
