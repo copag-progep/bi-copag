@@ -2,7 +2,7 @@ import os
 from contextlib import asynccontextmanager
 from datetime import date
 
-from fastapi import Depends, FastAPI, File, Form, HTTPException, Query, UploadFile, status
+from fastapi import BackgroundTasks, Depends, FastAPI, File, Form, HTTPException, Query, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
@@ -89,6 +89,22 @@ def auto_import_workspace_data() -> None:
         results = bootstrap_workspace_csvs(db)
         if any(result["status"] in {"imported", "replaced"} for result in results):
             clear_analytics_cache()
+    finally:
+        db.close()
+
+
+def precompute_analytics() -> None:
+    db = SessionLocal()
+    try:
+        default_filters = AnalyticsFilters()
+        get_filter_options(db)
+        get_dashboard_data(db, default_filters)
+        get_entries_exits_data(db, default_filters)
+        get_productivity_data(db, default_filters)
+        get_stale_processes_data(db, default_filters)
+        get_multi_sector_data(db, default_filters)
+    except Exception:
+        pass
     finally:
         db.close()
 
@@ -259,6 +275,7 @@ def list_sei_users(
 @app.post("/api/admin/sei-users", response_model=SeiUserRead, status_code=status.HTTP_201_CREATED)
 def create_sei_user(
     payload: SeiUserCreate,
+    background_tasks: BackgroundTasks,
     _: User = Depends(get_current_admin_user),
     db: Session = Depends(get_db),
 ) -> SeiUser:
@@ -267,12 +284,14 @@ def create_sei_user(
     db.refresh(sei_user)
     sync_processo_atribuicoes(db)
     clear_analytics_cache()
+    background_tasks.add_task(precompute_analytics)
     return sei_user
 
 
 @app.post("/api/admin/sei-users/import", response_model=SeiUserImportResult, status_code=status.HTTP_201_CREATED)
 async def import_sei_users(
     file: UploadFile = File(...),
+    background_tasks: BackgroundTasks,
     _: User = Depends(get_current_admin_user),
     db: Session = Depends(get_db),
 ) -> SeiUserImportResult:
@@ -282,29 +301,34 @@ async def import_sei_users(
 
     result = import_sei_users_file(db, file.filename or "usuarios_sei.xls", file_bytes)
     clear_analytics_cache()
+    background_tasks.add_task(precompute_analytics)
     return SeiUserImportResult(**result)
 
 
 @app.post("/api/admin/sei-users/import-rows", response_model=SeiUserImportResult, status_code=status.HTTP_201_CREATED)
 def import_sei_users_rows_endpoint(
     payload: SeiUserBulkImport,
+    background_tasks: BackgroundTasks,
     _: User = Depends(get_current_admin_user),
     db: Session = Depends(get_db),
 ) -> SeiUserImportResult:
     result = import_sei_users_rows(db, [row.model_dump() for row in payload.rows])
     clear_analytics_cache()
+    background_tasks.add_task(precompute_analytics)
     return SeiUserImportResult(**result)
 
 
 @app.delete("/api/admin/sei-users/{sei_user_id}")
 def remove_sei_user(
     sei_user_id: int,
+    background_tasks: BackgroundTasks,
     _: User = Depends(get_current_admin_user),
     db: Session = Depends(get_db),
 ) -> dict:
     name = delete_sei_user(db, sei_user_id)
     sync_processo_atribuicoes(db)
     clear_analytics_cache()
+    background_tasks.add_task(precompute_analytics)
     return {"message": f"Usuario SEI {name} excluido com sucesso."}
 
 
@@ -389,6 +413,7 @@ async def upload_snapshot(
     setor: str = Form(...),
     data_relatorio: date = Form(...),
     file: UploadFile = File(...),
+    background_tasks: BackgroundTasks,
     _: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> UploadResult:
@@ -418,6 +443,7 @@ async def upload_snapshot(
 
     if result["status"] in {"imported", "replaced"}:
         clear_analytics_cache()
+        background_tasks.add_task(precompute_analytics)
 
     return UploadResult(**result)
 
@@ -426,6 +452,7 @@ async def upload_snapshot(
 def update_upload(
     upload_id: int,
     payload: UploadUpdate,
+    background_tasks: BackgroundTasks,
     _: User = Depends(get_current_admin_user),
     db: Session = Depends(get_db),
 ) -> Upload:
@@ -485,12 +512,14 @@ def update_upload(
 
     db.refresh(upload)
     clear_analytics_cache()
+    background_tasks.add_task(precompute_analytics)
     return upload
 
 
 @app.delete("/api/uploads/{upload_id}")
 def delete_upload(
     upload_id: int,
+    background_tasks: BackgroundTasks,
     _: User = Depends(get_current_admin_user),
     db: Session = Depends(get_db),
 ) -> dict:
@@ -501,6 +530,7 @@ def delete_upload(
     db.delete(upload)
     db.commit()
     clear_analytics_cache()
+    background_tasks.add_task(precompute_analytics)
 
     return {"message": f"Relatorio {filename} excluido com sucesso."}
 
