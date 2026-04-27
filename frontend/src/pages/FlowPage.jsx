@@ -4,6 +4,7 @@ import api from "../api/client";
 import BarChartCard from "../charts/BarChartCard";
 import LineChartCard from "../charts/LineChartCard";
 import DataTable from "../components/DataTable";
+import ErrorBlock from "../components/ErrorBlock";
 import LoadingBlock from "../components/LoadingBlock";
 import StatCard from "../components/StatCard";
 import { useFilters } from "../context/FiltersContext";
@@ -14,6 +15,7 @@ export default function FlowPage() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [retryCount, setRetryCount] = useState(0);
 
   useEffect(() => {
     async function load() {
@@ -30,14 +32,14 @@ export default function FlowPage() {
     }
 
     load();
-  }, [filters]);
+  }, [filters, retryCount]);
 
   if (loading) {
     return <LoadingBlock label="Calculando entradas e saídas..." />;
   }
 
   if (error) {
-    return <div className="alert error">{error}</div>;
+    return <ErrorBlock message={error} onRetry={() => setRetryCount((c) => c + 1)} />;
   }
 
   const totalEntradas = (data?.resumo_setorial || []).reduce((accumulator, item) => accumulator + item.entradas, 0);
@@ -64,8 +66,8 @@ export default function FlowPage() {
 
       <section className="charts-grid">
         <BarChartCard title="Entradas por setor" data={data?.entradas_por_setor || []} />
-        <BarChartCard title="Saídas por setor" data={data?.saidas_por_setor || []} color="#c2603b" />
-        <BarChartCard title="Saldo por setor" data={data?.saldo_por_setor || []} color="#0f5f73" />
+        <BarChartCard title="Saídas por setor" data={data?.saidas_por_setor || []} color="#f39320" />
+        <BarChartCard title="Saldo por setor" data={data?.saldo_por_setor || []} color="#273168" />
         <LineChartCard
           title="Evolução diária da carga por setor"
           data={data?.evolucao_fluxo || []}

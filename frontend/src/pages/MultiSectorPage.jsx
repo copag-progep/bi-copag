@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 
 import api from "../api/client";
 import DataTable from "../components/DataTable";
+import ErrorBlock from "../components/ErrorBlock";
 import LoadingBlock from "../components/LoadingBlock";
 import { useFilters } from "../context/FiltersContext";
 
@@ -11,6 +12,7 @@ export default function MultiSectorPage() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [retryCount, setRetryCount] = useState(0);
 
   useEffect(() => {
     async function load() {
@@ -20,21 +22,21 @@ export default function MultiSectorPage() {
         const response = await api.get("/analytics/multi-sector", { params: toQueryParams() });
         setData(response.data);
       } catch (requestError) {
-        setError(requestError.response?.data?.detail || "Falha ao detectar multiplos setores.");
+        setError(requestError.response?.data?.detail || "Falha ao detectar múltiplos setores.");
       } finally {
         setLoading(false);
       }
     }
 
     load();
-  }, [filters]);
+  }, [filters, retryCount]);
 
   if (loading) {
-    return <LoadingBlock label="Investigando multiplos setores..." />;
+    return <LoadingBlock label="Investigando múltiplos setores..." />;
   }
 
   if (error) {
-    return <div className="alert error">{error}</div>;
+    return <ErrorBlock message={error} onRetry={() => setRetryCount((c) => c + 1)} />;
   }
 
   const totalOcorrencias = data?.processos?.length ?? 0;
@@ -43,12 +45,12 @@ export default function MultiSectorPage() {
     <div className="page-grid">
       <section className="hero-panel">
         <div>
-          <p className="eyebrow">Consistencia do snapshot</p>
-          <h1>Processos em multiplos setores</h1>
+          <p className="eyebrow">Consistência do snapshot</p>
+          <h1>Processos em múltiplos setores</h1>
           <span>Protocolos que aparecem em mais de um setor no mesmo dia.</span>
           <div className="hero-badge">
             <strong>{totalOcorrencias}</strong>
-            <span>{totalOcorrencias === 1 ? "ocorrencia encontrada" : "ocorrencias encontradas"}</span>
+            <span>{totalOcorrencias === 1 ? "ocorrência encontrada" : "ocorrências encontradas"}</span>
           </div>
         </div>
       </section>
@@ -56,18 +58,18 @@ export default function MultiSectorPage() {
       <section className="panel">
         <div className="panel-header">
           <div>
-            <h3>Ocorrencias para {data?.data_referencia || "a data selecionada"}</h3>
-            <p>Use o filtro de data no topo para analisar snapshots especificos.</p>
+            <h3>Ocorrências para {data?.data_referencia || "a data selecionada"}</h3>
+            <p>Use o filtro de data no topo para analisar snapshots específicos.</p>
           </div>
         </div>
         <DataTable
           columns={[
             { key: "protocolo", label: "Protocolo" },
             { key: "setores", label: "Setores" },
-            { key: "data_relatorio", label: "Data do relatorio" },
+            { key: "data_relatorio", label: "Data do relatório" },
           ]}
           rows={data?.processos || []}
-          emptyMessage="Nenhum processo encontrado em multiplos setores com os filtros atuais."
+          emptyMessage="Nenhum processo encontrado em múltiplos setores com os filtros atuais."
         />
       </section>
     </div>

@@ -4,6 +4,7 @@ import api from "../api/client";
 import BarChartCard from "../charts/BarChartCard";
 import LineChartCard from "../charts/LineChartCard";
 import DataTable from "../components/DataTable";
+import ErrorBlock from "../components/ErrorBlock";
 import LoadingBlock from "../components/LoadingBlock";
 import StatCard from "../components/StatCard";
 import { useFilters } from "../context/FiltersContext";
@@ -21,6 +22,7 @@ export default function ProductivityPage() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [retryCount, setRetryCount] = useState(0);
 
   useEffect(() => {
     async function load() {
@@ -37,14 +39,14 @@ export default function ProductivityPage() {
     }
 
     load();
-  }, [filters]);
+  }, [filters, retryCount]);
 
   if (loading) {
     return <LoadingBlock label="Calculando produtividade por atribuição..." />;
   }
 
   if (error) {
-    return <div className="alert error">{error}</div>;
+    return <ErrorBlock message={error} onRetry={() => setRetryCount((c) => c + 1)} />;
   }
 
   const maiorProdutor = data?.maior_produtor;
@@ -89,14 +91,14 @@ export default function ProductivityPage() {
           title="Entradas do dia por atribuição"
           subtitle="Processos que passaram a constar na atribuição na data de referência."
           data={data?.entradas_por_atribuicao || []}
-          color="#c2603b"
+          color="#f39320"
           tickFormatter={formatUserNameAsInitials}
         />
         <BarChartCard
           title="Carga atual por atribuição"
           subtitle="Quantidade de processos hoje em cada carteira."
           data={data?.carga_atual_por_atribuicao || []}
-          color="#0f5f73"
+          color="#273168"
           tickFormatter={formatUserNameAsInitials}
         />
         <LineChartCard

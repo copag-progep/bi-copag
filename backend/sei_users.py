@@ -6,7 +6,7 @@ from io import BytesIO
 
 import pandas as pd
 from fastapi import HTTPException, status
-from sqlalchemy import or_
+from sqlalchemy import or_, update
 from sqlalchemy.orm import Session
 
 from .models import Processo, SeiUser
@@ -92,14 +92,43 @@ def resolve_atribuicao_canonica(value: object, lookup: dict[str, str]) -> str | 
 
 def sync_processo_atribuicoes(db: Session) -> int:
     lookup = build_sei_user_lookup(db)
-    processos = db.query(Processo).all()
     changed = 0
 
-    for processo in processos:
-        normalized = resolve_atribuicao_canonica(processo.atribuicao, lookup)
-        if processo.atribuicao_normalizada != normalized:
-            processo.atribuicao_normalizada = normalized
-            changed += 1
+    result = db.execute(
+        update(Processo)
+        .where(Processo.atribuicao.is_(None), Processo.atribuicao_normalizada.is_not(None))
+        .values(atribuicao_normalizada=None)
+        .execution_options(synchronize_session=False)
+    )
+    changed += result.rowcount
+
+    distinct_rows = (
+        db.query(Processo.atribuicao)
+        .filter(Processo.atribuicao.is_not(None))
+        .distinct()
+        .all()
+    )
+
+    for (atribuicao,) in distinct_rows:
+        normalized = resolve_atribuicao_canonica(atribuicao, lookup)
+        if normalized is None:
+            result = db.execute(
+                update(Processo)
+                .where(Processo.atribuicao == atribuicao, Processo.atribuicao_normalizada.is_not(None))
+                .values(atribuicao_normalizada=None)
+                .execution_options(synchronize_session=False)
+            )
+        else:
+            result = db.execute(
+                update(Processo)
+                .where(
+                    Processo.atribuicao == atribuicao,
+                    or_(Processo.atribuicao_normalizada.is_(None), Processo.atribuicao_normalizada != normalized),
+                )
+                .values(atribuicao_normalizada=normalized)
+                .execution_options(synchronize_session=False)
+            )
+        changed += result.rowcount
 
     if changed:
         db.commit()

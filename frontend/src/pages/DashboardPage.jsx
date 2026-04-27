@@ -5,6 +5,7 @@ import BarChartCard from "../charts/BarChartCard";
 import LineChartCard from "../charts/LineChartCard";
 import PieChartCard from "../charts/PieChartCard";
 import DataTable from "../components/DataTable";
+import ErrorBlock from "../components/ErrorBlock";
 import LoadingBlock from "../components/LoadingBlock";
 import StatCard from "../components/StatCard";
 import { useFilters } from "../context/FiltersContext";
@@ -16,6 +17,7 @@ export default function DashboardPage() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [retryCount, setRetryCount] = useState(0);
 
   useEffect(() => {
     async function load() {
@@ -32,14 +34,14 @@ export default function DashboardPage() {
     }
 
     load();
-  }, [filters]);
+  }, [filters, retryCount]);
 
   if (loading) {
     return <LoadingBlock label="Montando dashboard principal..." />;
   }
 
   if (error) {
-    return <div className="alert error">{error}</div>;
+    return <ErrorBlock message={error} onRetry={() => setRetryCount((c) => c + 1)} />;
   }
 
   return (
@@ -65,7 +67,7 @@ export default function DashboardPage() {
         <BarChartCard
           title="Ranking de atribuições"
           data={(data?.ranking_atribuicoes || []).slice(0, 10)}
-          color="#c2603b"
+          color="#f39320"
           tickFormatter={formatUserNameAsInitials}
         />
         <LineChartCard

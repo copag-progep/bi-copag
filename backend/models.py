@@ -1,4 +1,4 @@
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 
 from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -14,7 +14,7 @@ class User(Base):
     email: Mapped[str] = mapped_column(String(255), nullable=False, unique=True, index=True)
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     is_admin: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
 
 
 class Upload(Base):
@@ -26,7 +26,7 @@ class Upload(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     setor: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
     data_relatorio: Mapped[date] = mapped_column(Date, nullable=False, index=True)
-    data_upload: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    data_upload: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
     original_filename: Mapped[str] = mapped_column(String(255), nullable=False)
     file_hash: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
     total_records: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
@@ -75,7 +75,7 @@ class SeiUser(Base):
     nome_key: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
     nome_sei_key: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
     usuario_sei_key: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
 
 
 class MonthlyStat(Base):
@@ -93,10 +93,10 @@ class MonthlyStat(Base):
     num_mes: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
     ano: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
     periodo: Mapped[date] = mapped_column(Date, nullable=False, index=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime,
-        default=datetime.utcnow,
-        onupdate=datetime.utcnow,
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
         nullable=False,
     )

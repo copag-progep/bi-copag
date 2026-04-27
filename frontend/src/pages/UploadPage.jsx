@@ -5,9 +5,9 @@ import DataTable from "../components/DataTable";
 import LoadingBlock from "../components/LoadingBlock";
 import { useAuth } from "../context/AuthContext";
 import { useFilters } from "../context/FiltersContext";
+import { normalizeUploadsPayload } from "../utils/uploadsPayload";
 
-
-const setores = ["DIAPE", "DICAT", "DIJOR", "DICAF", "DICAF-CHEFIA", "DICAF-REPOSICOES"];
+const FALLBACK_SETORES = ["DIAPE", "DICAT", "DIJOR", "DICAF", "DICAF-CHEFIA", "DICAF-REPOSICOES"];
 const PAGE_SIZE = 30;
 
 
@@ -36,31 +36,14 @@ function formatDateTime(value) {
   }).format(parsed);
 }
 
-function normalizeUploadsPayload(payload, page) {
-  if (Array.isArray(payload)) {
-    const total = payload.length;
-    const totalPages = Math.max(Math.ceil(total / PAGE_SIZE), 1);
-    const start = (page - 1) * PAGE_SIZE;
-    return {
-      items: payload.slice(start, start + PAGE_SIZE),
-      total,
-      totalPages,
-    };
-  }
-
-  return {
-    items: payload?.items || [],
-    total: payload?.total || 0,
-    totalPages: payload?.total_pages || 1,
-  };
-}
-
 
 export default function UploadPage() {
   const { user } = useAuth();
-  const { reloadOptions } = useFilters();
+  const { reloadOptions, options } = useFilters();
+  const setores = options.setores_validos?.length ? options.setores_validos : FALLBACK_SETORES;
+
   const [form, setForm] = useState({
-    setor: "DIAPE",
+    setor: setores[0] || "DIAPE",
     data_relatorio: new Date().toISOString().slice(0, 10),
     file: null,
   });
@@ -133,7 +116,7 @@ export default function UploadPage() {
       }
       await reloadOptions({ focusLatestDate: true });
     } catch (requestError) {
-      setError(requestError.response?.data?.detail || "Falha no envio do relatorio.");
+      setError(requestError.response?.data?.detail || "Falha no envio do relatório.");
     } finally {
       setSending(false);
     }
@@ -153,7 +136,7 @@ export default function UploadPage() {
 
   async function handleSaveDate(upload) {
     if (!editingDate) {
-      setError("Informe a nova data do relatorio.");
+      setError("Informe a nova data do relatório.");
       return;
     }
 
@@ -165,12 +148,12 @@ export default function UploadPage() {
       await api.patch(`/uploads/${upload.id}`, {
         data_relatorio: editingDate,
       });
-      setMessage(`Data do relatorio de ${upload.original_filename} atualizada com sucesso.`);
+      setMessage(`Data do relatório de ${upload.original_filename} atualizada com sucesso.`);
       cancelEditing();
       await loadUploads(currentPage);
       await reloadOptions({ focusLatestDate: true });
     } catch (requestError) {
-      setError(requestError.response?.data?.detail || "Falha ao atualizar a data do relatorio.");
+      setError(requestError.response?.data?.detail || "Falha ao atualizar a data do relatório.");
     } finally {
       setSavingUploadId(null);
     }
@@ -178,7 +161,7 @@ export default function UploadPage() {
 
   async function handleDelete(upload) {
     const confirmed = window.confirm(
-      `Deseja excluir o relatorio ${upload.original_filename}? Esta acao removera tambem os processos desse snapshot.`
+      `Deseja excluir o relatório ${upload.original_filename}? Esta ação removerá também os processos desse snapshot.`
     );
     if (!confirmed) {
       return;
@@ -190,14 +173,14 @@ export default function UploadPage() {
 
     try {
       const { data } = await api.delete(`/uploads/${upload.id}`);
-      setMessage(data.message || "Relatorio excluido com sucesso.");
+      setMessage(data.message || "Relatório excluído com sucesso.");
       if (editingUploadId === upload.id) {
         cancelEditing();
       }
       await loadUploads(currentPage);
       await reloadOptions({ focusLatestDate: true });
     } catch (requestError) {
-      setError(requestError.response?.data?.detail || "Falha ao excluir o relatorio.");
+      setError(requestError.response?.data?.detail || "Falha ao excluir o relatório.");
     } finally {
       setDeletingUploadId(null);
     }
@@ -207,7 +190,7 @@ export default function UploadPage() {
     { key: "setor", label: "Setor" },
     {
       key: "data_relatorio",
-      label: "Data do relatorio",
+      label: "Data do relatório",
       render: (value, row) =>
         editingUploadId === row.id ? (
           <div className="inline-date-editor">
@@ -234,7 +217,7 @@ export default function UploadPage() {
       ? [
           {
             key: "actions",
-            label: "Acoes",
+            label: "Ações",
             render: (_, row) =>
               editingUploadId === row.id ? (
                 <div className="table-actions">
@@ -284,9 +267,9 @@ export default function UploadPage() {
     <div className="page-grid">
       <section className="hero-panel">
         <div>
-          <p className="eyebrow">Envio diario</p>
-          <h1>Enviar Relatorio SEI</h1>
-          <span>Associe o arquivo CSV ao setor e a data do snapshot para atualizar os dashboards automaticamente.</span>
+          <p className="eyebrow">Envio diário</p>
+          <h1>Enviar Relatório SEI</h1>
+          <span>Associe o arquivo CSV ao setor e à data do snapshot para atualizar os dashboards automaticamente.</span>
         </div>
       </section>
 
@@ -304,7 +287,7 @@ export default function UploadPage() {
           </label>
 
           <label className="field">
-            <span>Data do relatorio</span>
+            <span>Data do relatório</span>
             <input
               type="date"
               value={form.data_relatorio}
@@ -336,10 +319,10 @@ export default function UploadPage() {
       <section className="panel">
         <div className="panel-header">
           <div>
-            <h3>Historico recente de uploads</h3>
+            <h3>Histórico recente de uploads</h3>
             <p>
               {user?.is_admin
-                ? "Voce pode corrigir a data de um snapshot ou remover um relatorio ja enviado."
+                ? "Você pode corrigir a data de um snapshot ou remover um relatório já enviado."
                 : "Os snapshots enviados aqui alimentam automaticamente os dashboards."}
             </p>
           </div>
@@ -348,10 +331,10 @@ export default function UploadPage() {
           <LoadingBlock label="Carregando uploads..." />
         ) : (
           <>
-            <DataTable columns={uploadColumns} rows={uploads} emptyMessage="Nenhum relatorio enviado ate o momento." />
+            <DataTable columns={uploadColumns} rows={uploads} emptyMessage="Nenhum relatório enviado até o momento." />
             <div className="pagination-bar">
               <span className="pagination-summary">
-                Pagina {currentPage} de {totalPages} | {totalUploads} relatorios
+                Página {currentPage} de {totalPages} | {totalUploads} relatórios
               </span>
               <div className="table-actions">
                 <button
@@ -368,7 +351,7 @@ export default function UploadPage() {
                   disabled={currentPage === totalPages}
                   onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
                 >
-                  Proxima
+                  Próxima
                 </button>
               </div>
             </div>

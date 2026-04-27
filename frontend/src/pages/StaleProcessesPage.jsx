@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 
 import api from "../api/client";
 import DataTable from "../components/DataTable";
+import ErrorBlock from "../components/ErrorBlock";
 import LoadingBlock from "../components/LoadingBlock";
 import StatCard from "../components/StatCard";
 import { useFilters } from "../context/FiltersContext";
@@ -15,6 +16,7 @@ export default function StaleProcessesPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [retryCount, setRetryCount] = useState(0);
 
   useEffect(() => {
     async function load() {
@@ -31,7 +33,7 @@ export default function StaleProcessesPage() {
     }
 
     load();
-  }, [filters]);
+  }, [filters, retryCount]);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -42,7 +44,7 @@ export default function StaleProcessesPage() {
   }
 
   if (error) {
-    return <div className="alert error">{error}</div>;
+    return <ErrorBlock message={error} onRetry={() => setRetryCount((c) => c + 1)} />;
   }
 
   const processes = data?.processos || [];
@@ -86,7 +88,7 @@ export default function StaleProcessesPage() {
         />
         <div className="pagination-bar">
           <span className="pagination-summary">
-            Pagina {currentPage} de {totalPages} | {processes.length} processos
+            Página {currentPage} de {totalPages} | {processes.length} processos
           </span>
           <div className="table-actions">
             <button
@@ -103,7 +105,7 @@ export default function StaleProcessesPage() {
               disabled={currentPage === totalPages}
               onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
             >
-              Proxima
+              Próxima
             </button>
           </div>
         </div>

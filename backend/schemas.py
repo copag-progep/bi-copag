@@ -69,6 +69,7 @@ class FilterOptions(BaseModel):
     setores: list[str]
     tipos: list[str]
     atribuicoes: list[str]
+    setores_validos: list[str] = []
 
 
 class SeiUserCreate(BaseModel):

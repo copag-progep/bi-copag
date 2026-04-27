@@ -1,9 +1,11 @@
 import os
+from contextlib import asynccontextmanager
 from datetime import date
 
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Query, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -62,10 +64,54 @@ DEFAULT_ADMIN_EMAIL = os.getenv("DEFAULT_ADMIN_EMAIL", "andersoncfs@ufc.br")
 DEFAULT_ADMIN_PASSWORD = os.getenv("DEFAULT_ADMIN_PASSWORD", "admin123")
 CORS_ORIGINS = os.getenv("CORS_ORIGINS", "")
 
+
+def ensure_default_user() -> None:
+    db = SessionLocal()
+    try:
+        existing_user = db.query(User).filter(User.email == DEFAULT_ADMIN_EMAIL.lower()).first()
+        if existing_user:
+            return
+        user = User(
+            name=DEFAULT_ADMIN_NAME,
+            email=DEFAULT_ADMIN_EMAIL.lower(),
+            password_hash=get_password_hash(DEFAULT_ADMIN_PASSWORD),
+            is_admin=True,
+        )
+        db.add(user)
+        db.commit()
+    finally:
+        db.close()
+
+
+def auto_import_workspace_data() -> None:
+    db = SessionLocal()
+    try:
+        results = bootstrap_workspace_csvs(db)
+        if any(result["status"] in {"imported", "replaced"} for result in results):
+            clear_analytics_cache()
+    finally:
+        db.close()
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    init_db()
+    ensure_default_user()
+    auto_import_workspace_data()
+    db = SessionLocal()
+    try:
+        if needs_processo_atribuicoes_sync(db):
+            sync_processo_atribuicoes(db)
+    finally:
+        db.close()
+    yield
+
+
 app = FastAPI(
     title="SEI BI API",
     version="1.0.0",
     description="API para importacao de relatorios SEI e analise de processos administrativos.",
+    lifespan=lifespan,
 )
 
 origins = [
@@ -103,34 +149,6 @@ def build_filters(
     )
 
 
-def ensure_default_user() -> None:
-    db = SessionLocal()
-    try:
-        existing_user = db.query(User).filter(User.email == DEFAULT_ADMIN_EMAIL.lower()).first()
-        if existing_user:
-            return
-        user = User(
-            name=DEFAULT_ADMIN_NAME,
-            email=DEFAULT_ADMIN_EMAIL.lower(),
-            password_hash=get_password_hash(DEFAULT_ADMIN_PASSWORD),
-            is_admin=True,
-        )
-        db.add(user)
-        db.commit()
-    finally:
-        db.close()
-
-
-def auto_import_workspace_data() -> None:
-    db = SessionLocal()
-    try:
-        results = bootstrap_workspace_csvs(db)
-        if any(result["status"] in {"imported", "replaced"} for result in results):
-            clear_analytics_cache()
-    finally:
-        db.close()
-
-
 def get_upload_or_404(db: Session, upload_id: int) -> Upload:
     upload = db.query(Upload).filter(Upload.id == upload_id).first()
     if not upload:
@@ -145,22 +163,13 @@ def get_user_or_404(db: Session, user_id: int) -> User:
     return user
 
 
-@app.on_event("startup")
-def on_startup() -> None:
-    init_db()
-    ensure_default_user()
-    auto_import_workspace_data()
-    db = SessionLocal()
-    try:
-        if needs_processo_atribuicoes_sync(db):
-            sync_processo_atribuicoes(db)
-    finally:
-        db.close()
-
-
 @app.get("/api/health")
-def healthcheck() -> dict:
-    return {"status": "ok"}
+def healthcheck(db: Session = Depends(get_db)) -> dict:
+    try:
+        db.execute(text("SELECT 1"))
+        return {"status": "ok"}
+    except Exception:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database unavailable.")
 
 
 @app.post("/api/auth/login", response_model=Token)
@@ -501,7 +510,9 @@ def filter_options(
     _: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> FilterOptions:
-    return FilterOptions(**get_filter_options(db))
+    opts = get_filter_options(db)
+    opts["setores_validos"] = SETORES
+    return FilterOptions(**opts)
 
 
 @app.get("/api/analytics/dashboard")
