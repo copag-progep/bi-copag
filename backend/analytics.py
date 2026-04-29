@@ -74,6 +74,7 @@ PROCESS_FIELD_DEFAULTS = {
 FLOW_FIELDS = ["protocolo", "setor", "data_relatorio"]
 SPAN_FIELDS = ["protocolo", "atribuicao", "tipo", "setor", "data_relatorio"]
 ASSIGNMENT_FIELDS = ["protocolo", "atribuicao", "setor", "data_relatorio"]
+ATTRIBUTION_FIELDS = ["protocolo", "atribuicao", "tipo", "especificacao", "ponto_controle", "setor", "data_relatorio"]
 
 _ANALYTICS_CACHE: dict[tuple[object, ...], dict] = {}
 _CACHE_LOCK = Lock()
@@ -657,3 +658,83 @@ def get_multi_sector_data(db: Session, filters: AnalyticsFilters) -> dict:
         return {"data_referencia": str(reference_date) if reference_date else None, "processos": processes}
 
     return _cached_response(db, "multi-sector", filters, build)
+
+
+def get_attributions_data(db: Session, filters: AnalyticsFilters) -> dict:
+    def build() -> dict:
+        frame, reference_date, available_dates = _load_dataframe(db, filters, fields=ATTRIBUTION_FIELDS)
+
+        if frame.empty or reference_date is None:
+            return {
+                "data_referencia": None,
+                "items": [],
+                "total": 0,
+                "total_com_atribuicao": 0,
+                "total_sem_atribuicao": 0,
+                "max_dias": 0,
+            }
+
+        idx_map = {day: idx for idx, day in enumerate(available_dates)}
+
+        ref_snapshot = frame[frame["report_day"] == reference_date]
+        multi_sector_protocols: set[str] = set(
+            ref_snapshot.groupby("protocolo")["setor"]
+            .nunique()
+            .loc[lambda s: s > 1]
+            .index
+        )
+
+        ordered = frame.sort_values(["protocolo", "setor", "atribuicao", "data_relatorio"])
+        items: list[dict] = []
+
+        for (protocolo, setor, atribuicao), group in ordered.groupby(
+            ["protocolo", "setor", "atribuicao"], sort=False
+        ):
+            records = group.to_dict(orient="records")
+            if not records:
+                continue
+
+            last = records[-1]
+            last_day = last.get("report_day") or pd.Timestamp(last["data_relatorio"]).date()
+            if last_day != reference_date:
+                continue
+
+            start_day = last_day
+            for i in range(len(records) - 2, -1, -1):
+                curr_day = records[i].get("report_day") or pd.Timestamp(records[i]["data_relatorio"]).date()
+                next_day = records[i + 1].get("report_day") or pd.Timestamp(records[i + 1]["data_relatorio"]).date()
+                if idx_map.get(next_day, -1) != idx_map.get(curr_day, -2) + 1:
+                    break
+                start_day = curr_day
+
+            dias = max((reference_date - start_day).days, 0)
+            atribuicao_display = None if atribuicao == "Não informado" else atribuicao
+
+            items.append({
+                "protocolo": str(protocolo),
+                "setor": str(setor),
+                "atribuicao": atribuicao_display,
+                "tipo": last.get("tipo") or "Não informado",
+                "especificacao": last.get("especificacao") or "",
+                "ponto_controle": last.get("ponto_controle") or "",
+                "entrada_atribuicao": str(start_day),
+                "dias_com_atribuicao": dias,
+                "multiplos_setores": str(protocolo) in multi_sector_protocols,
+            })
+
+        items.sort(key=lambda x: -x["dias_com_atribuicao"])
+
+        total = len(items)
+        total_com = sum(1 for item in items if item["atribuicao"])
+        total_sem = total - total_com
+
+        return {
+            "data_referencia": str(reference_date),
+            "items": items,
+            "total": total,
+            "total_com_atribuicao": total_com,
+            "total_sem_atribuicao": total_sem,
+            "max_dias": items[0]["dias_com_atribuicao"] if items else 0,
+        }
+
+    return _cached_response(db, "attributions", filters, build)

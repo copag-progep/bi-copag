@@ -1175,6 +1175,54 @@ button, input, select { font: inherit; }
 
 
 /* ══════════════════════════════════════════
+   DAYS FLAG (Atribuições)
+══════════════════════════════════════════ */
+.days-flag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.days-flag.ok {
+  background: rgba(26, 122, 80, 0.09);
+  color: #1a7a50;
+}
+
+.days-flag.warning {
+  background: rgba(254, 187, 18, 0.16);
+  color: #9a6c00;
+}
+
+.days-flag.alert {
+  background: rgba(243, 147, 32, 0.14);
+  color: #d4750e;
+}
+
+.days-flag.critical {
+  background: rgba(191, 53, 53, 0.1);
+  color: #bf3535;
+}
+
+.multi-sector-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  background: var(--blue-light-bg);
+  color: #2a7aad;
+  border: 1px solid rgba(129, 199, 238, 0.3);
+  white-space: nowrap;
+}
+
+/* ══════════════════════════════════════════
    MISC
 ══════════════════════════════════════════ */
 .chart-legend-label { cursor: help; }

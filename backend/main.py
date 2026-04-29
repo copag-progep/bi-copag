@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from .analytics import (
     AnalyticsFilters,
     clear_analytics_cache,
+    get_attributions_data,
     get_dashboard_data,
     get_entries_exits_data,
     get_filter_options,
@@ -103,6 +104,7 @@ def precompute_analytics() -> None:
         get_productivity_data(db, default_filters)
         get_stale_processes_data(db, default_filters)
         get_multi_sector_data(db, default_filters)
+        get_attributions_data(db, default_filters)
     except Exception:
         pass
     finally:
@@ -603,6 +605,38 @@ def stale_processes(
 ):
     filters = build_filters(data_referencia, data_inicial, data_final, setor, tipo, atribuicao)
     return JSONResponse(get_stale_processes_data(db, filters))
+
+
+@app.get("/api/analytics/attributions")
+def attributions_list(
+    data_referencia: date | None = None,
+    setor: str | None = None,
+    tipo: str | None = None,
+    atribuicao: str | None = None,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=200),
+    _: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    filters = build_filters(data_referencia, None, None, setor, tipo, atribuicao)
+    result = get_attributions_data(db, filters)
+
+    all_items = result["items"]
+    total = result["total"]
+    total_pages = max((total + page_size - 1) // page_size, 1)
+    start = (page - 1) * page_size
+
+    return JSONResponse({
+        "data_referencia": result["data_referencia"],
+        "items": all_items[start: start + page_size],
+        "page": page,
+        "page_size": page_size,
+        "total": total,
+        "total_pages": total_pages,
+        "total_com_atribuicao": result["total_com_atribuicao"],
+        "total_sem_atribuicao": result["total_sem_atribuicao"],
+        "max_dias": result["max_dias"],
+    })
 
 
 @app.get("/api/analytics/multi-sector")
