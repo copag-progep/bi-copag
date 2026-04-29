@@ -674,7 +674,14 @@ def get_attributions_data(db: Session, filters: AnalyticsFilters) -> dict:
                 "max_dias": 0,
             }
 
-        idx_map = {day: idx for idx, day in enumerate(available_dates)}
+        # Índice por setor — cada setor pode ter cadência de upload diferente.
+        # Usar datas globais (available_dates) causaria falsos "buracos" para setores
+        # que enviam CSV com menos frequência que os demais.
+        sector_idx_maps: dict[str, dict] = {}
+        for _setor_val in frame["setor"].unique():
+            _setor_str = str(_setor_val)
+            _setor_dates = sorted(frame[frame["setor"] == _setor_val]["report_day"].unique().tolist())
+            sector_idx_maps[_setor_str] = {day: idx for idx, day in enumerate(_setor_dates)}
 
         ref_snapshot = frame[frame["report_day"] == reference_date]
         multi_sector_protocols: set[str] = set(
@@ -699,11 +706,13 @@ def get_attributions_data(db: Session, filters: AnalyticsFilters) -> dict:
             if last_day != reference_date:
                 continue
 
+            setor_idx_map = sector_idx_maps.get(str(setor), {})
+
             start_day = last_day
             for i in range(len(records) - 2, -1, -1):
                 curr_day = records[i].get("report_day") or pd.Timestamp(records[i]["data_relatorio"]).date()
                 next_day = records[i + 1].get("report_day") or pd.Timestamp(records[i + 1]["data_relatorio"]).date()
-                if idx_map.get(next_day, -1) != idx_map.get(curr_day, -2) + 1:
+                if setor_idx_map.get(next_day, -1) != setor_idx_map.get(curr_day, -2) + 1:
                     break
                 start_day = curr_day
 
