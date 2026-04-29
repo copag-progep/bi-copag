@@ -613,6 +613,8 @@ def attributions_list(
     setor: str | None = None,
     tipo: str | None = None,
     atribuicao: str | None = None,
+    min_dias: int | None = Query(None, ge=0),
+    max_dias: int | None = Query(None, ge=0),
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=200),
     _: User = Depends(get_current_user),
@@ -622,7 +624,12 @@ def attributions_list(
     result = get_attributions_data(db, filters)
 
     all_items = result["items"]
-    total = result["total"]
+    if min_dias is not None:
+        all_items = [item for item in all_items if item["dias_com_atribuicao"] >= min_dias]
+    if max_dias is not None:
+        all_items = [item for item in all_items if item["dias_com_atribuicao"] <= max_dias]
+
+    total = len(all_items)
     total_pages = max((total + page_size - 1) // page_size, 1)
     start = (page - 1) * page_size
 
