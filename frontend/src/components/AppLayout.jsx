@@ -1,5 +1,5 @@
-import { Outlet, useLocation } from "react-router-dom";
 import { useEffect, useState } from "react";
+import { Outlet, useLocation } from "react-router-dom";
 
 import { useAuth } from "../context/AuthContext";
 import FilterBar from "./FilterBar";
@@ -14,24 +14,34 @@ const analyticRoutes = new Set([
   "/multiplos-setores",
 ]);
 
+const pageTitles = {
+  "/":                    { eyebrow: "Visão geral",       title: "Dashboard" },
+  "/enviar-relatorio":    { eyebrow: "Gestão de dados",   title: "Enviar Relatório" },
+  "/entradas-saidas":     { eyebrow: "Fluxo diário",      title: "Entradas e Saídas" },
+  "/produtividade":       { eyebrow: "Desempenho",        title: "Produtividade" },
+  "/processos-parados":   { eyebrow: "Alertas críticos",  title: "Processos Parados" },
+  "/multiplos-setores":   { eyebrow: "Consistência",      title: "Múltiplos Setores" },
+  "/indicadores-mensais": { eyebrow: "Relatórios",        title: "Indicadores Mensais" },
+  "/usuarios-sei":        { eyebrow: "Configuração",      title: "Usuários SEI" },
+  "/administracao":       { eyebrow: "Sistema",           title: "Administração" },
+};
+
 
 export default function AppLayout() {
   const { pathname } = useLocation();
   const { user } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
-    if (typeof window === "undefined") {
-      return false;
-    }
+    if (typeof window === "undefined") return false;
     return window.localStorage.getItem("sei-bi-sidebar-collapsed") === "true";
   });
 
   useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
+    if (typeof window === "undefined") return;
     window.localStorage.setItem("sei-bi-sidebar-collapsed", String(sidebarCollapsed));
   }, [sidebarCollapsed]);
+
+  const page = pageTitles[pathname] || { eyebrow: "SEI BI", title: "COPAG" };
 
   return (
     <div className={`app-shell ${sidebarCollapsed ? "sidebar-collapsed" : ""}`}>
@@ -39,23 +49,29 @@ export default function AppLayout() {
         open={sidebarOpen}
         collapsed={sidebarCollapsed}
         onClose={() => setSidebarOpen(false)}
-        onToggleCollapse={() => setSidebarCollapsed((value) => !value)}
+        onToggleCollapse={() => setSidebarCollapsed((v) => !v)}
       />
 
       <main className="content-shell">
         <header className="topbar">
-          <button type="button" className="menu-toggle" onClick={() => setSidebarOpen((value) => !value)}>
-            Menu
-          </button>
-
           <div className="topbar-copy">
-            <p className="eyebrow">Gestão administrativa</p>
-            <h2>Painel operacional do SEI</h2>
+            <p className="eyebrow">{page.eyebrow}</p>
+            <h2>{page.title}</h2>
           </div>
 
-          <div className="user-chip">
-            <span>{user?.name || "Usuário"}</span>
-            <small>{user?.email}</small>
+          <div className="topbar-actions">
+            <button
+              type="button"
+              className="menu-toggle ghost-button"
+              onClick={() => setSidebarOpen((v) => !v)}
+              aria-label="Abrir menu"
+            >
+              ☰ Menu
+            </button>
+            <div className="user-chip">
+              <span>{user?.name || user?.email || "Usuário"}</span>
+              <small>{user?.is_admin ? "Administrador" : "Servidor"}</small>
+            </div>
           </div>
         </header>
 
