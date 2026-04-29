@@ -13,11 +13,24 @@ const FAIXAS = [
   { label: "< 15d",   min: null, max: 14,   cls: "ok" },
   { label: "15–29d",  min: 15,   max: 29,   cls: "warning" },
   { label: "30–44d",  min: 30,   max: 44,   cls: "alert" },
-  { label: "45d+",    min: 45,   max: null,  cls: "critical" },
+  { label: "45–59d",  min: 45,   max: 59,   cls: "serious" },
+  { label: "60–89d",  min: 60,   max: 89,   cls: "critical" },
+  { label: "90d+",    min: 90,   max: null,  cls: "extreme" },
 ];
 
+const FLAG_COLORS = {
+  ok:       { dot: "#1a7a50", bg: "rgba(26,122,80,0.12)",    text: "#1a7a50" },
+  warning:  { dot: "#9a6c00", bg: "rgba(254,187,18,0.18)",   text: "#9a6c00" },
+  alert:    { dot: "#d4750e", bg: "rgba(243,147,32,0.16)",   text: "#d4750e" },
+  serious:  { dot: "#c0392b", bg: "rgba(192,57,43,0.13)",    text: "#c0392b" },
+  critical: { dot: "#b71c1c", bg: "rgba(183,28,28,0.13)",    text: "#b71c1c" },
+  extreme:  { dot: "#4a148c", bg: "rgba(74,20,140,0.12)",    text: "#4a148c" },
+};
+
 function DaysFlag({ days }) {
-  if (days >= 45) return <span className="days-flag critical">● {days}d</span>;
+  if (days >= 90) return <span className="days-flag extreme">● {days}d</span>;
+  if (days >= 60) return <span className="days-flag critical">● {days}d</span>;
+  if (days >= 45) return <span className="days-flag serious">● {days}d</span>;
   if (days >= 30) return <span className="days-flag alert">● {days}d</span>;
   if (days >= 15) return <span className="days-flag warning">● {days}d</span>;
   return <span className="days-flag ok">● {days}d</span>;
@@ -102,7 +115,9 @@ export default function AttributionsPage() {
           label="Maior tempo registrado"
           value={`${data?.max_dias ?? 0}d`}
           hint={
-            (data?.max_dias ?? 0) >= 45 ? "Situação crítica"
+            (data?.max_dias ?? 0) >= 90 ? "Situação extrema"
+            : (data?.max_dias ?? 0) >= 60 ? "Crítico"
+            : (data?.max_dias ?? 0) >= 45 ? "Grave"
             : (data?.max_dias ?? 0) >= 30 ? "Alerta"
             : (data?.max_dias ?? 0) >= 15 ? "Atenção"
             : "Normal"
@@ -120,76 +135,49 @@ export default function AttributionsPage() {
 
         {/* Filtro por faixa de dias */}
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 18 }}>
-          {FAIXAS.map((faixa, idx) => (
-            <button
-              key={idx}
-              type="button"
-              onClick={() => setFaixaIdx(idx)}
-              style={{
-                appearance: "none",
-                border: faixaIdx === idx
-                  ? "2px solid transparent"
-                  : "1.5px solid var(--border-strong)",
-                borderRadius: 999,
-                padding: "7px 16px",
-                cursor: "pointer",
-                fontFamily: "inherit",
-                fontSize: "0.82rem",
-                fontWeight: 700,
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 6,
-                transition: "all 0.12s ease",
-                ...(faixaIdx === idx && faixa.cls
-                  ? {
-                      background:
-                        faixa.cls === "ok"       ? "rgba(26,122,80,0.12)"
-                        : faixa.cls === "warning" ? "rgba(254,187,18,0.18)"
-                        : faixa.cls === "alert"   ? "rgba(243,147,32,0.16)"
-                        : "rgba(191,53,53,0.12)",
-                      color:
-                        faixa.cls === "ok"       ? "#1a7a50"
-                        : faixa.cls === "warning" ? "#9a6c00"
-                        : faixa.cls === "alert"   ? "#d4750e"
-                        : "#bf3535",
-                      borderColor: "transparent",
-                    }
-                  : faixaIdx === idx
-                  ? {
-                      background: "var(--primary)",
-                      color: "#fff",
-                      borderColor: "transparent",
-                    }
-                  : {
-                      background: "transparent",
-                      color: "var(--muted)",
-                    }),
-              }}
-            >
-              {faixa.cls && (
-                <span style={{
-                  width: 8, height: 8, borderRadius: "50%", display: "inline-block",
-                  background:
-                    faixa.cls === "ok"       ? "#1a7a50"
-                    : faixa.cls === "warning" ? "#9a6c00"
-                    : faixa.cls === "alert"   ? "#d4750e"
-                    : "#bf3535",
-                }} />
-              )}
-              {faixa.label}
-              {faixaIdx === idx && total > 0 && (
-                <span style={{
-                  marginLeft: 2,
-                  padding: "1px 7px",
+          {FAIXAS.map((faixa, idx) => {
+            const active = faixaIdx === idx;
+            const colors = faixa.cls ? FLAG_COLORS[faixa.cls] : null;
+            return (
+              <button
+                key={idx}
+                type="button"
+                onClick={() => setFaixaIdx(idx)}
+                style={{
+                  appearance: "none",
+                  border: active ? "2px solid transparent" : "1.5px solid var(--border-strong)",
                   borderRadius: 999,
-                  fontSize: "0.7rem",
-                  background: "rgba(0,0,0,0.08)",
-                }}>
-                  {total}
-                </span>
-              )}
-            </button>
-          ))}
+                  padding: "7px 16px",
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                  fontSize: "0.82rem",
+                  fontWeight: 700,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                  transition: "all 0.12s ease",
+                  background: active && colors ? colors.bg : active ? "var(--primary)" : "transparent",
+                  color: active && colors ? colors.text : active ? "#fff" : "var(--muted)",
+                }}
+              >
+                {colors && (
+                  <span style={{
+                    width: 8, height: 8, borderRadius: "50%", display: "inline-block",
+                    background: colors.dot,
+                  }} />
+                )}
+                {faixa.label}
+                {active && total > 0 && (
+                  <span style={{
+                    marginLeft: 2, padding: "1px 7px", borderRadius: 999,
+                    fontSize: "0.7rem", background: "rgba(0,0,0,0.08)",
+                  }}>
+                    {total}
+                  </span>
+                )}
+              </button>
+            );
+          })}
         </div>
 
         <div className="table-shell">

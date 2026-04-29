@@ -1203,9 +1203,19 @@ button, input, select { font: inherit; }
   color: #d4750e;
 }
 
+.days-flag.serious {
+  background: rgba(192, 57, 43, 0.11);
+  color: #c0392b;
+}
+
 .days-flag.critical {
-  background: rgba(191, 53, 53, 0.1);
-  color: #bf3535;
+  background: rgba(183, 28, 28, 0.11);
+  color: #b71c1c;
+}
+
+.days-flag.extreme {
+  background: rgba(74, 20, 140, 0.1);
+  color: #4a148c;
 }
 
 .multi-sector-badge {
