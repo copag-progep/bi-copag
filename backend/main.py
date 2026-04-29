@@ -292,8 +292,8 @@ def create_sei_user(
 
 @app.post("/api/admin/sei-users/import", response_model=SeiUserImportResult, status_code=status.HTTP_201_CREATED)
 async def import_sei_users(
-    file: UploadFile = File(...),
     background_tasks: BackgroundTasks,
+    file: UploadFile = File(...),
     _: User = Depends(get_current_admin_user),
     db: Session = Depends(get_db),
 ) -> SeiUserImportResult:
@@ -412,10 +412,10 @@ def list_uploads(
 
 @app.post("/api/uploads", response_model=UploadResult)
 async def upload_snapshot(
+    background_tasks: BackgroundTasks,
     setor: str = Form(...),
     data_relatorio: date = Form(...),
     file: UploadFile = File(...),
-    background_tasks: BackgroundTasks,
     _: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> UploadResult:
