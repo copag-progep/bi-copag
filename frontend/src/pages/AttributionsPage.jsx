@@ -72,7 +72,7 @@ export default function AttributionsPage() {
           ...(faixa.min != null ? { min_dias: faixa.min } : {}),
           ...(faixa.max != null ? { max_dias: faixa.max } : {}),
         };
-        const { data: response } = await api.get("/analytics/attributions", { params });
+        const { data: response } = await api.get("/analytics/attributions", { params, timeout: 60000 });
         if (!cancelled) setData(response);
       } catch (err) {
         if (!cancelled) {

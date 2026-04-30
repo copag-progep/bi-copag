@@ -94,7 +94,14 @@ def auto_import_workspace_data() -> None:
         db.close()
 
 
+_precompute_running = False
+
+
 def precompute_analytics() -> None:
+    global _precompute_running
+    if _precompute_running:
+        return
+    _precompute_running = True
     db = SessionLocal()
     try:
         default_filters = AnalyticsFilters()
@@ -108,6 +115,7 @@ def precompute_analytics() -> None:
     except Exception:
         pass
     finally:
+        _precompute_running = False
         db.close()
 
 

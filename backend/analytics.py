@@ -74,7 +74,7 @@ PROCESS_FIELD_DEFAULTS = {
 FLOW_FIELDS = ["protocolo", "setor", "data_relatorio"]
 SPAN_FIELDS = ["protocolo", "atribuicao", "tipo", "setor", "data_relatorio"]
 ASSIGNMENT_FIELDS = ["protocolo", "atribuicao", "setor", "data_relatorio"]
-ATTRIBUTION_FIELDS = ["protocolo", "atribuicao", "tipo", "especificacao", "ponto_controle", "setor", "data_relatorio"]
+ATTRIBUTION_FIELDS = ["protocolo", "atribuicao", "tipo", "setor", "data_relatorio"]
 
 _ANALYTICS_CACHE: dict[tuple[object, ...], dict] = {}
 _CACHE_LOCK = Lock()
@@ -724,8 +724,6 @@ def get_attributions_data(db: Session, filters: AnalyticsFilters) -> dict:
                 "setor": str(setor),
                 "atribuicao": atribuicao_display,
                 "tipo": last.get("tipo") or "Não informado",
-                "especificacao": last.get("especificacao") or "",
-                "ponto_controle": last.get("ponto_controle") or "",
                 "entrada_atribuicao": str(start_day),
                 "dias_com_atribuicao": dias,
                 "multiplos_setores": str(protocolo) in multi_sector_protocols,
