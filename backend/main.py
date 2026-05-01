@@ -623,6 +623,10 @@ def attributions_list(
     atribuicao: str | None = None,
     min_dias: int | None = Query(None, ge=0),
     max_dias: int | None = Query(None, ge=0),
+    sem_atribuicao: bool = Query(False),
+    sort_by: str = Query("dias"),
+    sort_dir: str = Query("desc"),
+    protocolo_busca: str | None = Query(None),
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=200),
     _: User = Depends(get_current_user),
@@ -632,10 +636,26 @@ def attributions_list(
     result = get_attributions_data(db, filters)
 
     all_items = result["items"]
+
+    if sem_atribuicao:
+        all_items = [item for item in all_items if item["atribuicao"] is None]
+
     if min_dias is not None:
         all_items = [item for item in all_items if item["dias_com_atribuicao"] >= min_dias]
     if max_dias is not None:
         all_items = [item for item in all_items if item["dias_com_atribuicao"] <= max_dias]
+
+    if protocolo_busca:
+        busca = protocolo_busca.strip().lower()
+        all_items = [item for item in all_items if busca in item["protocolo"].lower()]
+
+    reverse = sort_dir == "desc"
+    if sort_by == "atribuicao":
+        all_items = sorted(all_items, key=lambda x: (x["atribuicao"] or "").lower(), reverse=reverse)
+    elif sort_by == "tipo":
+        all_items = sorted(all_items, key=lambda x: (x["tipo"] or "").lower(), reverse=reverse)
+    elif sort_by == "dias" and sort_dir == "asc":
+        all_items = list(reversed(all_items))
 
     total = len(all_items)
     total_pages = max((total + page_size - 1) // page_size, 1)

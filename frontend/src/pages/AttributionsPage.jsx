@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import api from "../api/client";
 import ErrorBlock from "../components/ErrorBlock";
@@ -43,19 +43,37 @@ function formatDate(value) {
   );
 }
 
+function SortIcon({ col, sortBy, sortDir }) {
+  if (sortBy !== col) return <span style={{ opacity: 0.3, marginLeft: 4, fontSize: "0.75em" }}>↕</span>;
+  return (
+    <span style={{ marginLeft: 4, fontSize: "0.75em", color: "var(--accent)" }}>
+      {sortDir === "asc" ? "↑" : "↓"}
+    </span>
+  );
+}
+
 
 export default function AttributionsPage() {
   const { filters, toQueryParams } = useFilters();
-  const [data, setData] = useState(null);
-  const [page, setPage] = useState(1);
-  const [faixaIdx, setFaixaIdx] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+
+  const [data, setData]             = useState(null);
+  const [page, setPage]             = useState(1);
+  const [faixaIdx, setFaixaIdx]     = useState(0);
+  const [semAtribuicao, setSemAtribuicao] = useState(false);
+  const [sortBy, setSortBy]         = useState("dias");
+  const [sortDir, setSortDir]       = useState("desc");
+  const [buscaInput, setBuscaInput] = useState("");
+  const [buscaParam, setBuscaParam] = useState("");
+  const [loading, setLoading]       = useState(true);
+  const [error, setError]           = useState("");
   const [retryCount, setRetryCount] = useState(0);
 
+  const buscaRef = useRef(null);
+
+  // Reset page quando qualquer filtro/ordenação muda
   useEffect(() => {
     setPage(1);
-  }, [filters, faixaIdx]);
+  }, [filters, faixaIdx, semAtribuicao, sortBy, sortDir, buscaParam]);
 
   useEffect(() => {
     let cancelled = false;
@@ -69,8 +87,12 @@ export default function AttributionsPage() {
           ...toQueryParams(),
           page,
           page_size: PAGE_SIZE,
-          ...(faixa.min != null ? { min_dias: faixa.min } : {}),
-          ...(faixa.max != null ? { max_dias: faixa.max } : {}),
+          sort_by: sortBy,
+          sort_dir: sortDir,
+          ...(faixa.min != null  ? { min_dias: faixa.min }        : {}),
+          ...(faixa.max != null  ? { max_dias: faixa.max }        : {}),
+          ...(semAtribuicao      ? { sem_atribuicao: true }       : {}),
+          ...(buscaParam         ? { protocolo_busca: buscaParam } : {}),
         };
         const { data: response } = await api.get("/analytics/attributions", { params, timeout: 60000 });
         if (!cancelled) setData(response);
@@ -85,13 +107,33 @@ export default function AttributionsPage() {
 
     load();
     return () => { cancelled = true; };
-  }, [filters, page, faixaIdx, retryCount]);
+  }, [filters, page, faixaIdx, semAtribuicao, sortBy, sortDir, buscaParam, retryCount]);
+
+  function handleSort(col) {
+    if (sortBy === col) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortBy(col);
+      setSortDir("asc");
+    }
+  }
+
+  function handleBuscaSubmit(e) {
+    e.preventDefault();
+    setBuscaParam(buscaInput.trim());
+  }
+
+  function handleBuscaLimpar() {
+    setBuscaInput("");
+    setBuscaParam("");
+    buscaRef.current?.focus();
+  }
 
   if (loading) return <LoadingBlock label="Carregando atribuições..." />;
-  if (error) return <ErrorBlock message={error} onRetry={() => setRetryCount((c) => c + 1)} />;
+  if (error)   return <ErrorBlock message={error} onRetry={() => setRetryCount((c) => c + 1)} />;
 
-  const items = data?.items || [];
-  const total = data?.total ?? 0;
+  const items      = data?.items || [];
+  const total      = data?.total ?? 0;
   const totalPages = data?.total_pages ?? 1;
 
   return (
@@ -108,7 +150,7 @@ export default function AttributionsPage() {
       </section>
 
       <section className="stats-grid">
-        <StatCard label="Total de processos" value={data?.total ?? 0} />
+        <StatCard label="Total de processos" value={total} />
         <StatCard label="Com atribuição" value={data?.total_com_atribuicao ?? 0} />
         <StatCard label="Sem atribuição" value={data?.total_sem_atribuicao ?? 0} />
         <StatCard
@@ -129,12 +171,12 @@ export default function AttributionsPage() {
         <div className="panel-header">
           <div>
             <h3>Lista de processos e atribuições</h3>
-            <p>Filtre por faixa de tempo ou use os filtros do topo.</p>
+            <p>Filtre por faixa de tempo, atribuição ou busque um protocolo específico.</p>
           </div>
         </div>
 
-        {/* Filtro por faixa de dias */}
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 18 }}>
+        {/* Linha 1: filtros de faixa + toggle sem atribuição */}
+        <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8, marginBottom: 10 }}>
           {FAIXAS.map((faixa, idx) => {
             const active = faixaIdx === idx;
             const colors = faixa.cls ? FLAG_COLORS[faixa.cls] : null;
@@ -161,35 +203,123 @@ export default function AttributionsPage() {
                 }}
               >
                 {colors && (
-                  <span style={{
-                    width: 8, height: 8, borderRadius: "50%", display: "inline-block",
-                    background: colors.dot,
-                  }} />
+                  <span style={{ width: 8, height: 8, borderRadius: "50%", display: "inline-block", background: colors.dot }} />
                 )}
                 {faixa.label}
                 {active && total > 0 && (
-                  <span style={{
-                    marginLeft: 2, padding: "1px 7px", borderRadius: 999,
-                    fontSize: "0.7rem", background: "rgba(0,0,0,0.08)",
-                  }}>
+                  <span style={{ marginLeft: 2, padding: "1px 7px", borderRadius: 999, fontSize: "0.7rem", background: "rgba(0,0,0,0.08)" }}>
                     {total}
                   </span>
                 )}
               </button>
             );
           })}
+
+          {/* Separador visual */}
+          <span style={{ width: 1, height: 24, background: "var(--border-strong)", margin: "0 4px" }} />
+
+          {/* Toggle: Sem atribuição */}
+          <button
+            type="button"
+            onClick={() => setSemAtribuicao((v) => !v)}
+            style={{
+              appearance: "none",
+              border: semAtribuicao ? "2px solid transparent" : "1.5px solid var(--border-strong)",
+              borderRadius: 999,
+              padding: "7px 16px",
+              cursor: "pointer",
+              fontFamily: "inherit",
+              fontSize: "0.82rem",
+              fontWeight: 700,
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              transition: "all 0.12s ease",
+              background: semAtribuicao ? "rgba(39,49,104,0.1)" : "transparent",
+              color: semAtribuicao ? "var(--primary)" : "var(--muted)",
+            }}
+          >
+            Sem atribuição
+            {semAtribuicao && total > 0 && (
+              <span style={{ marginLeft: 2, padding: "1px 7px", borderRadius: 999, fontSize: "0.7rem", background: "rgba(0,0,0,0.08)" }}>
+                {total}
+              </span>
+            )}
+          </button>
         </div>
+
+        {/* Linha 2: busca por protocolo */}
+        <form onSubmit={handleBuscaSubmit} style={{ display: "flex", gap: 8, marginBottom: 18 }}>
+          <input
+            ref={buscaRef}
+            type="text"
+            value={buscaInput}
+            onChange={(e) => setBuscaInput(e.target.value)}
+            placeholder="Buscar por número de processo (protocolo)..."
+            style={{
+              flex: 1,
+              border: "1.5px solid var(--border-strong)",
+              borderRadius: "var(--radius)",
+              padding: "10px 14px",
+              fontSize: "0.875rem",
+              fontFamily: "inherit",
+              color: "var(--ink)",
+              background: "#fafbff",
+              outline: "none",
+            }}
+          />
+          <button type="submit" className="primary-button" style={{ padding: "10px 18px", fontSize: "0.875rem" }}>
+            Buscar
+          </button>
+          {buscaParam && (
+            <button
+              type="button"
+              className="ghost-button"
+              onClick={handleBuscaLimpar}
+              style={{ padding: "10px 16px", fontSize: "0.875rem" }}
+            >
+              Limpar
+            </button>
+          )}
+        </form>
+
+        {buscaParam && (
+          <div style={{ marginBottom: 12, fontSize: "0.82rem", color: "var(--muted)" }}>
+            Buscando por: <strong style={{ color: "var(--ink)" }}>{buscaParam}</strong>
+            {" "}— {total} resultado{total !== 1 ? "s" : ""}
+          </div>
+        )}
 
         <div className="table-shell">
           <table className="data-table">
             <thead>
               <tr>
-                <th>Atribuição</th>
+                {/* Cabeçalho ordenável: Atribuição */}
+                <th
+                  style={{ cursor: "pointer", userSelect: "none", whiteSpace: "nowrap" }}
+                  onClick={() => handleSort("atribuicao")}
+                  title="Ordenar por atribuição"
+                >
+                  Atribuição <SortIcon col="atribuicao" sortBy={sortBy} sortDir={sortDir} />
+                </th>
                 <th>Protocolo</th>
-                <th>Tipo</th>
+                {/* Cabeçalho ordenável: Tipo */}
+                <th
+                  style={{ cursor: "pointer", userSelect: "none", whiteSpace: "nowrap" }}
+                  onClick={() => handleSort("tipo")}
+                  title="Ordenar por tipo"
+                >
+                  Tipo <SortIcon col="tipo" sortBy={sortBy} sortDir={sortDir} />
+                </th>
                 <th>Setor</th>
                 <th>Desde</th>
-                <th>Dias</th>
+                <th
+                  style={{ cursor: "pointer", userSelect: "none", whiteSpace: "nowrap" }}
+                  onClick={() => handleSort("dias")}
+                  title="Ordenar por dias"
+                >
+                  Dias <SortIcon col="dias" sortBy={sortBy} sortDir={sortDir} />
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -222,13 +352,9 @@ export default function AttributionsPage() {
                     </td>
                     <td>
                       <span style={{
-                        display: "inline-block",
-                        padding: "2px 10px",
-                        borderRadius: 999,
-                        fontSize: "0.72rem",
-                        fontWeight: 700,
-                        background: "var(--primary-light)",
-                        color: "var(--primary)",
+                        display: "inline-block", padding: "2px 10px", borderRadius: 999,
+                        fontSize: "0.72rem", fontWeight: 700,
+                        background: "var(--primary-light)", color: "var(--primary)",
                       }}>
                         {item.setor}
                       </span>
