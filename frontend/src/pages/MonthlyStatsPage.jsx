@@ -9,38 +9,38 @@ import StatCard from "../components/StatCard";
 import { useAuth } from "../context/AuthContext";
 
 const ENTRY_FIELDS = [
-  { key: "processos_gerados", indicator: "Processos gerados no per\u00edodo", shortLabel: "Proc. gerados" },
+  { key: "processos_gerados", indicator: "Processos gerados no período", shortLabel: "Proc. gerados" },
   {
     key: "processos_tramitacao",
-    indicator: "Processos com tramita\u00e7\u00e3o no per\u00edodo",
-    shortLabel: "Proc. tramitacao",
+    indicator: "Processos com tramitação no período",
+    shortLabel: "Proc. tramitação",
   },
   {
     key: "processos_fechados",
-    indicator: "Processos com andamento fechado na unidade ao final do per\u00edodo",
+    indicator: "Processos com andamento fechado na unidade ao final do período",
     shortLabel: "Proc. fechados",
   },
   {
     key: "processos_abertos",
-    indicator: "Processos com andamento aberto na unidade ao final do per\u00edodo",
+    indicator: "Processos com andamento aberto na unidade ao final do período",
     shortLabel: "Proc. abertos",
   },
-  { key: "documentos_gerados", indicator: "Documentos gerados no per\u00edodo", shortLabel: "Docs gerados" },
-  { key: "documentos_externos", indicator: "Documentos externos no per\u00edodo", shortLabel: "Docs externos" },
+  { key: "documentos_gerados", indicator: "Documentos gerados no período", shortLabel: "Docs gerados" },
+  { key: "documentos_externos", indicator: "Documentos externos no período", shortLabel: "Docs externos" },
 ];
 
 const DEFAULT_SETORES = ["DIAPE", "DICAT", "DIJOR", "DICAF", "DICAF-CHEFIA", "DICAF-REPOSICOES"];
 
 const MONTH_OPTIONS = [
-  { value: 1, label: "Janeiro" },
-  { value: 2, label: "Fevereiro" },
-  { value: 3, label: "Mar\u00e7o" },
-  { value: 4, label: "Abril" },
-  { value: 5, label: "Maio" },
-  { value: 6, label: "Junho" },
-  { value: 7, label: "Julho" },
-  { value: 8, label: "Agosto" },
-  { value: 9, label: "Setembro" },
+  { value: 1,  label: "Janeiro" },
+  { value: 2,  label: "Fevereiro" },
+  { value: 3,  label: "Março" },
+  { value: 4,  label: "Abril" },
+  { value: 5,  label: "Maio" },
+  { value: 6,  label: "Junho" },
+  { value: 7,  label: "Julho" },
+  { value: 8,  label: "Agosto" },
+  { value: 9,  label: "Setembro" },
   { value: 10, label: "Outubro" },
   { value: 11, label: "Novembro" },
   { value: 12, label: "Dezembro" },
@@ -265,7 +265,7 @@ export default function MonthlyStatsPage() {
       });
 
       setMessage(
-        `Importacao mensal concluida: ${response.data.imported} novos registros, ${response.data.updated} atualizados e ${response.data.total} linhas processadas.`
+        `Importação mensal concluída: ${response.data.imported} novos registros, ${response.data.updated} atualizados e ${response.data.total} linhas processadas.`
       );
       setHistoryFile(null);
       const input = document.getElementById("monthly-stats-file-input");
@@ -275,7 +275,7 @@ export default function MonthlyStatsPage() {
       setCurrentPage(1);
       await loadMonthlyStats();
     } catch (requestError) {
-      setError(requestError.response?.data?.detail || "Nao foi possivel importar o historico mensal do SEI.");
+      setError(requestError.response?.data?.detail || "Não foi possível importar o histórico mensal do SEI.");
     } finally {
       setImporting(false);
     }
@@ -300,12 +300,12 @@ export default function MonthlyStatsPage() {
 
       const response = await api.post("/admin/monthly-stats/month-entry", payload);
       setMessage(
-        `Lancamento mensal salvo com sucesso: ${response.data.imported} registros criados e ${response.data.updated} atualizados.`
+        `Lançamento mensal salvo com sucesso: ${response.data.imported} registros criados e ${response.data.updated} atualizados.`
       );
       setCurrentPage(1);
       await loadMonthlyStats();
     } catch (requestError) {
-      setError(requestError.response?.data?.detail || "Nao foi possivel salvar os indicadores mensais.");
+      setError(requestError.response?.data?.detail || "Não foi possível salvar os indicadores mensais.");
     } finally {
       setSaving(false);
     }
@@ -323,7 +323,7 @@ export default function MonthlyStatsPage() {
       setEditingValue("");
       await loadMonthlyStats();
     } catch (requestError) {
-      setError(requestError.response?.data?.detail || "Nao foi possivel atualizar o indicador mensal.");
+      setError(requestError.response?.data?.detail || "Não foi possível atualizar o indicador mensal.");
     } finally {
       setSaving(false);
     }
@@ -350,9 +350,9 @@ export default function MonthlyStatsPage() {
       <section className="hero-panel">
         <div>
           <p className="eyebrow">Indicadores mensais</p>
-          <h1>Painel historico do desempenho do SEI</h1>
+          <h1>Painel histórico do desempenho do SEI</h1>
           <span>
-            Acompanhe os seis indicadores mensais por divisao e mantenha a serie historica atualizada a partir de
+            Acompanhe os seis indicadores mensais por divisão e mantenha a série histórica atualizada a partir de
             2025.
           </span>
         </div>
@@ -373,7 +373,7 @@ export default function MonthlyStatsPage() {
               className={`tab-button ${activeTab === "gestao" ? "active" : ""}`}
               onClick={() => setActiveTab("gestao")}
             >
-              Atualizacao mensal
+              Atualização mensal
             </button>
           </div>
         </section>
@@ -388,7 +388,7 @@ export default function MonthlyStatsPage() {
             <div className="panel-header">
               <div>
                 <h3>Filtros do painel mensal</h3>
-                <p>Defina o setor, o indicador em foco e o ano para analisar a evolucao historica.</p>
+                <p>Defina o setor, o indicador em foco e o ano para analisar a evolução histórica.</p>
               </div>
             </div>
             <div className="form-grid monthly-filter-grid">
@@ -441,7 +441,7 @@ export default function MonthlyStatsPage() {
               </label>
 
               <label className="field">
-                <span>Mes</span>
+                <span>Mês</span>
                 <select
                   value={dashboardFilters.mes}
                   onChange={(event) => setDashboardFilters((current) => ({ ...current, mes: event.target.value }))}
@@ -467,7 +467,7 @@ export default function MonthlyStatsPage() {
               />
             ))}
             <StatCard
-              label="Media historica"
+              label="Média histórica"
               value={NUMBER_FORMATTER.format(focusedIndicatorAverage)}
               hint={dashboardFilters.indicador}
             />
@@ -480,11 +480,11 @@ export default function MonthlyStatsPage() {
 
           <section className="charts-grid">
             <LineChartCard
-              title="Evolucao mensal do indicador em foco"
+              title="Evolução mensal do indicador em foco"
               subtitle={
                 dashboardFilters.setor
-                  ? `Serie mensal de ${dashboardFilters.indicador} para ${dashboardFilters.setor}.`
-                  : `Serie mensal de ${dashboardFilters.indicador} para todas as divisoes.`
+                  ? `Série mensal de ${dashboardFilters.indicador} para ${dashboardFilters.setor}.`
+                  : `Série mensal de ${dashboardFilters.indicador} para todas as divisões.`
               }
               data={trendData}
               xKey="mes_ano"
@@ -492,11 +492,11 @@ export default function MonthlyStatsPage() {
               seriesKey={dashboardFilters.setor ? undefined : "setor"}
             />
             <BarChartCard
-              title="Indicadores no ultimo mes disponivel"
+              title="Indicadores no último mês disponível"
               subtitle={
                 latestReference
-                  ? `Consolidado de ${latestReference.mes_ano} ${dashboardFilters.setor ? `em ${dashboardFilters.setor}` : "em todas as divisoes"}.`
-                  : "Nenhum dado mensal disponivel."
+                  ? `Consolidado de ${latestReference.mes_ano} ${dashboardFilters.setor ? `em ${dashboardFilters.setor}` : "em todas as divisões"}.`
+                  : "Nenhum dado mensal disponível."
               }
               data={kpiData.map((field) => ({ label: field.shortLabel, value: field.value }))}
               color="#0f5f73"
@@ -506,10 +506,10 @@ export default function MonthlyStatsPage() {
           <section className="panel">
             <div className="panel-header">
               <div>
-                <h3>Resumo do ultimo mes</h3>
+                <h3>Resumo do último mês</h3>
                 <p>
-                  Valores consolidados por divisao para{" "}
-                  {latestReference ? latestReference.mes_ano : "o periodo mais recente"}.
+                  Valores consolidados por divisão para{" "}
+                  {latestReference ? latestReference.mes_ano : "o período mais recente"}.
                 </p>
               </div>
             </div>
@@ -517,14 +517,14 @@ export default function MonthlyStatsPage() {
               columns={[
                 { key: "setor", label: "Setor" },
                 { key: "processos_gerados", label: "Proc. gerados" },
-                { key: "processos_tramitacao", label: "Proc. tramitacao" },
+                { key: "processos_tramitacao", label: "Proc. tramitação" },
                 { key: "processos_fechados", label: "Proc. fechados" },
                 { key: "processos_abertos", label: "Proc. abertos" },
                 { key: "documentos_gerados", label: "Docs gerados" },
                 { key: "documentos_externos", label: "Docs externos" },
               ]}
               rows={latestTableRows}
-              emptyMessage="Nenhum indicador mensal carregado ate o momento."
+              emptyMessage="Nenhum indicador mensal carregado até o momento."
             />
           </section>
         </>
@@ -533,13 +533,13 @@ export default function MonthlyStatsPage() {
           <section className="panel">
             <div className="panel-header">
               <div>
-                <h3>Importar historico mensal do SEI</h3>
-                <p>Envie o CSV historico com os indicadores mensais das divisoes para popular os graficos.</p>
+                <h3>Importar histórico mensal do SEI</h3>
+                <p>Envie o CSV histórico com os indicadores mensais das divisões para popular os gráficos.</p>
               </div>
             </div>
             <form className="form-grid" onSubmit={handleImportHistory}>
               <label className="field full-width">
-                <span>Arquivo CSV historico</span>
+                <span>Arquivo CSV histórico</span>
                 <input
                   id="monthly-stats-file-input"
                   type="file"
@@ -550,7 +550,7 @@ export default function MonthlyStatsPage() {
               </label>
 
               <button type="submit" className="primary-button" disabled={importing || !historyFile}>
-                {importing ? "Importando..." : "Importar historico"}
+                {importing ? "Importando..." : "Importar histórico"}
               </button>
             </form>
           </section>
@@ -558,8 +558,8 @@ export default function MonthlyStatsPage() {
           <section className="panel">
             <div className="panel-header">
               <div>
-                <h3>Atualizacao mensal a partir de 2025</h3>
-                <p>Informe os seis indicadores da divisao e do mes para atualizar a serie historica continuamente.</p>
+                <h3>Atualização mensal a partir de 2025</h3>
+                <p>Informe os seis indicadores da divisão e do mês para atualizar a série histórica continuamente.</p>
               </div>
             </div>
             <form className="form-grid" onSubmit={handleSaveEntry}>
@@ -590,7 +590,7 @@ export default function MonthlyStatsPage() {
               </label>
 
               <label className="field">
-                <span>Mes</span>
+                <span>Mês</span>
                 <select
                   value={entryForm.num_mes}
                   onChange={(event) => setEntryForm((current) => ({ ...current, num_mes: event.target.value }))}
@@ -619,7 +619,7 @@ export default function MonthlyStatsPage() {
               ))}
 
               <button type="submit" className="primary-button" disabled={saving}>
-                {saving ? "Salvando..." : "Salvar mes"}
+                {saving ? "Salvando..." : "Salvar mês"}
               </button>
             </form>
           </section>
@@ -627,20 +627,20 @@ export default function MonthlyStatsPage() {
           <section className="panel">
             <div className="panel-header">
               <div>
-                <h3>Historico completo dos indicadores mensais</h3>
-                <p>Lista consolidada dos dados importados e dos lancamentos feitos manualmente para conferencia em tela.</p>
+                <h3>Histórico completo dos indicadores mensais</h3>
+                <p>Lista consolidada dos dados importados e dos lançamentos feitos manualmente para conferência em tela.</p>
               </div>
             </div>
             <DataTable
               columns={[
-                { key: "periodo", label: "Periodo" },
+                { key: "periodo", label: "Período" },
                 { key: "setor", label: "Setor" },
                 { key: "indicador", label: "Indicador" },
                 { key: "valor", label: "Valor" },
                 { key: "atualizado_em", label: "Atualizado em" },
                 {
                   key: "acoes",
-                  label: "Acoes",
+                  label: "Ações",
                   render: (_, row) =>
                     editingRowId === row.id ? (
                       <div className="table-actions">
@@ -671,11 +671,11 @@ export default function MonthlyStatsPage() {
                 },
               ]}
               rows={paginatedManagementRows}
-              emptyMessage="Nenhum dado mensal cadastrado ate o momento."
+              emptyMessage="Nenhum dado mensal cadastrado até o momento."
             />
             <div className="pagination-bar">
               <span className="pagination-summary">
-                Pagina {currentPage} de {totalPages} | {managementRows.length} registros
+                Página {currentPage} de {totalPages} | {managementRows.length} registros
               </span>
               <div className="table-actions">
                 <button
@@ -692,7 +692,7 @@ export default function MonthlyStatsPage() {
                   disabled={currentPage === totalPages}
                   onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
                 >
-                  Proxima
+                  Próxima
                 </button>
               </div>
             </div>

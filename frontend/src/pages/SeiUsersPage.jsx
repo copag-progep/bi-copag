@@ -29,7 +29,7 @@ function cleanValue(value) {
 function normalizeHeader(value) {
   return cleanValue(value)
     .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[̀-ͯ]/g, "")
     .replace(/[^a-zA-Z0-9]+/g, "_")
     .replace(/^_+|_+$/g, "")
     .toLowerCase();
@@ -42,14 +42,14 @@ async function extractImportRows(file) {
   const firstSheetName = workbook.SheetNames[0];
 
   if (!firstSheetName) {
-    throw new Error("A planilha enviada nao possui abas disponiveis.");
+    throw new Error("A planilha enviada não possui abas disponíveis.");
   }
 
   const worksheet = workbook.Sheets[firstSheetName];
   const rawRows = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
 
   if (!rawRows.length) {
-    throw new Error("A planilha enviada esta vazia.");
+    throw new Error("A planilha enviada está vazia.");
   }
 
   const rows = rawRows
@@ -122,7 +122,7 @@ export default function SeiUsersPage() {
       const { data } = await api.get("/admin/sei-users");
       setSeiUsers(data);
     } catch (requestError) {
-      setError(requestError.response?.data?.detail || "Falha ao carregar a base de usuarios SEI.");
+      setError(requestError.response?.data?.detail || "Falha ao carregar a base de usuários SEI.");
     } finally {
       setLoading(false);
     }
@@ -140,11 +140,11 @@ export default function SeiUsersPage() {
 
     try {
       await api.post("/admin/sei-users", form);
-      setMessage("Usuario SEI salvo com sucesso. As atribuicoes ja foram consolidadas nos dashboards.");
+      setMessage("Usuário SEI salvo com sucesso. As atribuições já foram consolidadas nos dashboards.");
       setForm({ nome: "", nome_sei: "", usuario_sei: "" });
       await loadSeiUsers();
     } catch (requestError) {
-      setError(requestError.response?.data?.detail || "Nao foi possivel salvar o usuario SEI.");
+      setError(requestError.response?.data?.detail || "Não foi possível salvar o usuário SEI.");
     } finally {
       setSaving(false);
     }
@@ -153,7 +153,7 @@ export default function SeiUsersPage() {
   async function handleImport(event) {
     event.preventDefault();
     if (!importFile) {
-      setError("Selecione a planilha de usuarios SEI para importar.");
+      setError("Selecione a planilha de usuários SEI para importar.");
       return;
     }
 
@@ -167,14 +167,14 @@ export default function SeiUsersPage() {
         rows,
       });
       setMessage(
-        `Importacao concluida: ${data.imported} novos registros, ${data.updated} atualizados, ${data.total} linhas processadas.`
+        `Importação concluída: ${data.imported} novos registros, ${data.updated} atualizados, ${data.total} linhas processadas.`
       );
       setImportFile(null);
       document.getElementById("sei-users-import-input").value = "";
       await loadSeiUsers();
     } catch (requestError) {
       setError(
-        requestError.response?.data?.detail || requestError.message || "Nao foi possivel importar a planilha de usuarios SEI."
+        requestError.response?.data?.detail || requestError.message || "Não foi possível importar a planilha de usuários SEI."
       );
     } finally {
       setImporting(false);
@@ -183,7 +183,7 @@ export default function SeiUsersPage() {
 
   async function handleDelete(row) {
     const confirmed = window.confirm(
-      `Deseja excluir o vinculo de ${row.nome}? Os processos passarao a exibir a atribuicao original do SEI quando nao houver outro DE-PARA correspondente.`
+      `Deseja excluir o vínculo de ${row.nome}? Os processos passarão a exibir a atribuição original do SEI quando não houver outro DE-PARA correspondente.`
     );
     if (!confirmed) {
       return;
@@ -195,10 +195,10 @@ export default function SeiUsersPage() {
 
     try {
       const { data } = await api.delete(`/admin/sei-users/${row.id}`);
-      setMessage(data.message || "Usuario SEI excluido com sucesso.");
+      setMessage(data.message || "Usuário SEI excluído com sucesso.");
       await loadSeiUsers();
     } catch (requestError) {
-      setError(requestError.response?.data?.detail || "Nao foi possivel excluir o usuario SEI.");
+      setError(requestError.response?.data?.detail || "Não foi possível excluir o usuário SEI.");
     } finally {
       setDeletingId(null);
     }
@@ -208,10 +208,10 @@ export default function SeiUsersPage() {
     <div className="page-grid">
       <section className="hero-panel">
         <div>
-          <p className="eyebrow">Usuarios SEI</p>
-          <h1>Gestao do DE-PARA de atribuicoes</h1>
+          <p className="eyebrow">Usuários SEI</p>
+          <h1>Gestão do DE-PARA de atribuições</h1>
           <span>
-            Relacione nome, nome exibido no SEI e usuario do servidor para consolidar a atribuicao nos graficos,
+            Relacione nome, nome exibido no SEI e usuário do servidor para consolidar a atribuição nos gráficos,
             filtros e rankings.
           </span>
         </div>
@@ -220,13 +220,13 @@ export default function SeiUsersPage() {
       <section className="panel">
         <div className="panel-header">
           <div>
-            <h3>Novo vinculo manual</h3>
-            <p>Cadastre aqui um novo servidor sempre que surgir um nome ou usuario ainda nao mapeado.</p>
+            <h3>Novo vínculo manual</h3>
+            <p>Cadastre aqui um novo servidor sempre que surgir um nome ou usuário ainda não mapeado.</p>
           </div>
         </div>
         <form className="form-grid" onSubmit={handleSubmit}>
           <label className="field">
-            <span>Nome canonico</span>
+            <span>Nome canônico</span>
             <input
               type="text"
               value={form.nome}
@@ -247,7 +247,7 @@ export default function SeiUsersPage() {
           </label>
 
           <label className="field">
-            <span>Usuario SEI</span>
+            <span>Usuário SEI</span>
             <input
               type="text"
               value={form.usuario_sei}
@@ -260,7 +260,7 @@ export default function SeiUsersPage() {
           {error ? <div className="alert error full-width">{error}</div> : null}
 
           <button type="submit" className="primary-button" disabled={saving}>
-            {saving ? "Salvando..." : "Salvar vinculo"}
+            {saving ? "Salvando..." : "Salvar vínculo"}
           </button>
         </form>
       </section>
@@ -268,16 +268,16 @@ export default function SeiUsersPage() {
       <section className="panel">
         <div className="panel-header">
           <div>
-            <h3>Importar planilha de usuarios SEI</h3>
+            <h3>Importar planilha de usuários SEI</h3>
             <p>
-              Envie arquivos .xls, .xlsx ou .csv com as colunas NOME, NOME SEI e USUARIO SEI para atualizar a base em
+              Envie arquivos .xls, .xlsx ou .csv com as colunas NOME, NOME SEI e USUÁRIO SEI para atualizar a base em
               lote.
             </p>
           </div>
         </div>
         <form className="form-grid" onSubmit={handleImport}>
           <label className="field full-width">
-            <span>Planilha de correspondencia</span>
+            <span>Planilha de correspondência</span>
             <input
               id="sei-users-import-input"
               type="file"
@@ -296,22 +296,22 @@ export default function SeiUsersPage() {
       <section className="panel">
         <div className="panel-header">
           <div>
-            <h3>Base atual de usuarios SEI</h3>
-            <p>Essa lista e usada para consolidar a coluna Atribuicao em todas as analises do sistema.</p>
+            <h3>Base atual de usuários SEI</h3>
+            <p>Essa lista é usada para consolidar a coluna Atribuição em todas as análises do sistema.</p>
           </div>
         </div>
         {loading ? (
-          <LoadingBlock label="Carregando usuarios SEI..." />
+          <LoadingBlock label="Carregando usuários SEI..." />
         ) : (
           <DataTable
             columns={[
               { key: "nome", label: "Nome" },
               { key: "nome_sei", label: "Nome SEI" },
-              { key: "usuario_sei", label: "Usuario SEI" },
+              { key: "usuario_sei", label: "Usuário SEI" },
               { key: "created_at", label: "Criado em", render: (value) => formatDateTime(value) },
               {
                 key: "actions",
-                label: "Acoes",
+                label: "Ações",
                 render: (_, row) => (
                   <button
                     type="button"
@@ -325,7 +325,7 @@ export default function SeiUsersPage() {
               },
             ]}
             rows={seiUsers}
-            emptyMessage="Nenhum vinculo de usuario SEI cadastrado ate o momento."
+            emptyMessage="Nenhum vínculo de usuário SEI cadastrado até o momento."
           />
         )}
       </section>
