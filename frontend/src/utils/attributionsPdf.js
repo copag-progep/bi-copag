@@ -175,7 +175,7 @@ export function generateAttributionsPdf({ items, stats, dataReferencia, filtersT
 
   doc.autoTable({
     startY: y,
-    margin: { left: ML, right: MR, bottom: 14 },
+    margin: { left: ML, right: MR, bottom: 14, top: 52 },
     head: [["Atribuição", "Protocolo", "Tipo", "Setor", "Desde", "Dias"]],
     body: items.map((item) => [
       item.atribuicao || "",
