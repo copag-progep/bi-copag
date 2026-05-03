@@ -10,7 +10,6 @@ const DashboardPage = lazy(() => import("./pages/DashboardPage"));
 const UploadPage = lazy(() => import("./pages/UploadPage"));
 const FlowPage = lazy(() => import("./pages/FlowPage"));
 const ProductivityPage = lazy(() => import("./pages/ProductivityPage"));
-const StaleProcessesPage = lazy(() => import("./pages/StaleProcessesPage"));
 const MultiSectorPage = lazy(() => import("./pages/MultiSectorPage"));
 const AttributionsPage = lazy(() => import("./pages/AttributionsPage"));
 const MonthlyStatsPage = lazy(() => import("./pages/MonthlyStatsPage"));
@@ -36,7 +35,6 @@ export default function App() {
           <Route path="enviar-relatorio" element={<UploadPage />} />
           <Route path="entradas-saidas" element={<FlowPage />} />
           <Route path="produtividade" element={<ProductivityPage />} />
-          <Route path="processos-parados" element={<StaleProcessesPage />} />
           <Route path="multiplos-setores" element={<MultiSectorPage />} />
           <Route path="atribuicoes" element={<AttributionsPage />} />
           <Route path="indicadores-mensais" element={<MonthlyStatsPage />} />

@@ -10,7 +10,6 @@ const analyticRoutes = new Set([
   "/",
   "/entradas-saidas",
   "/produtividade",
-  "/processos-parados",
   "/multiplos-setores",
   "/atribuicoes",
 ]);
@@ -20,7 +19,6 @@ const pageTitles = {
   "/enviar-relatorio":    { eyebrow: "Gestão de dados",   title: "Enviar Relatório" },
   "/entradas-saidas":     { eyebrow: "Fluxo diário",      title: "Entradas e Saídas" },
   "/produtividade":       { eyebrow: "Desempenho",        title: "Produtividade" },
-  "/processos-parados":   { eyebrow: "Alertas críticos",  title: "Processos Parados" },
   "/multiplos-setores":   { eyebrow: "Consistência",      title: "Múltiplos Setores" },
   "/atribuicoes":         { eyebrow: "Carteiras",         title: "Atribuições" },
   "/indicadores-mensais": { eyebrow: "Relatórios",        title: "Indicadores Mensais" },

@@ -5,6 +5,7 @@ import ErrorBlock from "../components/ErrorBlock";
 import LoadingBlock from "../components/LoadingBlock";
 import StatCard from "../components/StatCard";
 import { useFilters } from "../context/FiltersContext";
+import { generateAttributionsPdf } from "../utils/attributionsPdf";
 
 const PAGE_SIZE = 50;
 
@@ -67,6 +68,7 @@ export default function AttributionsPage() {
   const [loading, setLoading]       = useState(true);
   const [error, setError]           = useState("");
   const [retryCount, setRetryCount] = useState(0);
+  const [pdfLoading, setPdfLoading] = useState(false);
 
   const buscaRef = useRef(null);
 
@@ -115,6 +117,53 @@ export default function AttributionsPage() {
     } else {
       setSortBy(col);
       setSortDir("asc");
+    }
+  }
+
+  function buildFiltersText() {
+    const parts = [];
+    if (filters.setor)      parts.push(`Setor: ${filters.setor}`);
+    if (filters.tipo)       parts.push(`Tipo: ${filters.tipo}`);
+    if (filters.atribuicao) parts.push(`Atribuição: ${filters.atribuicao}`);
+    const faixa = FAIXAS[faixaIdx];
+    if (faixa.label !== "Todos") parts.push(`Faixa: ${faixa.label}`);
+    if (semAtribuicao)      parts.push("Sem atribuição");
+    if (buscaParam)         parts.push(`Protocolo: "${buscaParam}"`);
+    if (sortBy !== "dias")  parts.push(`Ordem: ${sortBy} ${sortDir === "asc" ? "↑" : "↓"}`);
+    return parts.length ? parts.join("  ·  ") : null;
+  }
+
+  async function handleGeneratePdf() {
+    setPdfLoading(true);
+    try {
+      const faixa = FAIXAS[faixaIdx];
+      const params = {
+        ...toQueryParams(),
+        page: 1,
+        page_size: 5000,
+        sort_by: sortBy,
+        sort_dir: sortDir,
+        ...(faixa.min != null  ? { min_dias: faixa.min }        : {}),
+        ...(faixa.max != null  ? { max_dias: faixa.max }        : {}),
+        ...(semAtribuicao      ? { sem_atribuicao: true }       : {}),
+        ...(buscaParam         ? { protocolo_busca: buscaParam } : {}),
+      };
+      const { data: pdfData } = await api.get("/analytics/attributions", { params, timeout: 120000 });
+      generateAttributionsPdf({
+        items:          pdfData.items,
+        stats: {
+          total:      pdfData.total,
+          totalCom:   pdfData.total_com_atribuicao,
+          totalSem:   pdfData.total_sem_atribuicao,
+          maxDias:    pdfData.max_dias,
+        },
+        dataReferencia: pdfData.data_referencia,
+        filtersText:    buildFiltersText(),
+      });
+    } catch (err) {
+      console.error("Erro ao gerar PDF:", err);
+    } finally {
+      setPdfLoading(false);
     }
   }
 
@@ -173,6 +222,41 @@ export default function AttributionsPage() {
             <h3>Lista de processos e atribuições</h3>
             <p>Filtre por faixa de tempo, atribuição ou busque um protocolo específico.</p>
           </div>
+          <button
+            type="button"
+            onClick={handleGeneratePdf}
+            disabled={pdfLoading || total === 0}
+            style={{
+              appearance: "none",
+              border: "none",
+              borderRadius: "var(--radius)",
+              padding: "10px 18px",
+              cursor: pdfLoading || total === 0 ? "not-allowed" : "pointer",
+              fontFamily: "inherit",
+              fontSize: "0.875rem",
+              fontWeight: 700,
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 7,
+              background: pdfLoading || total === 0
+                ? "rgba(39,49,104,0.08)"
+                : "linear-gradient(135deg, #273168, #1c2350)",
+              color: pdfLoading || total === 0 ? "var(--muted)" : "#fff",
+              boxShadow: pdfLoading || total === 0 ? "none" : "0 3px 10px rgba(39,49,104,0.25)",
+              transition: "all 0.15s ease",
+              opacity: pdfLoading || total === 0 ? 0.6 : 1,
+              whiteSpace: "nowrap",
+            }}
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+              <polyline points="14 2 14 8 20 8"/>
+              <line x1="12" y1="18" x2="12" y2="12"/>
+              <line x1="9" y1="15" x2="15" y2="15"/>
+            </svg>
+            {pdfLoading ? "Gerando PDF..." : "Gerar PDF"}
+          </button>
         </div>
 
         {/* Linha 1: filtros de faixa + toggle sem atribuição */}

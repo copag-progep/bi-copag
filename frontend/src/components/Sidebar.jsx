@@ -42,7 +42,6 @@ const menuItems = [
   { to: "/enviar-relatorio",    label: "Enviar Relatório",    icon: "upload" },
   { to: "/entradas-saidas",     label: "Entradas e Saídas",   icon: "flow" },
   { to: "/produtividade",       label: "Produtividade",       icon: "prod" },
-  { to: "/processos-parados",   label: "Processos Parados",   icon: "stale" },
   { to: "/multiplos-setores",   label: "Múltiplos Setores",   icon: "multi" },
   { to: "/atribuicoes",         label: "Atribuições",          icon: "atribuicoes" },
   { to: "/indicadores-mensais", label: "Indicadores Mensais", icon: "monthly" },
