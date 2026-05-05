@@ -5,6 +5,7 @@ import ErrorBlock from "../components/ErrorBlock";
 import LoadingBlock from "../components/LoadingBlock";
 import StatCard from "../components/StatCard";
 import { useFilters } from "../context/FiltersContext";
+import { generateAttributionsExcel } from "../utils/attributionsExcel";
 import { generateAttributionsPdf } from "../utils/attributionsPdf";
 
 const PAGE_SIZE = 50;
@@ -68,7 +69,8 @@ export default function AttributionsPage() {
   const [loading, setLoading]       = useState(true);
   const [error, setError]           = useState("");
   const [retryCount, setRetryCount] = useState(0);
-  const [pdfLoading, setPdfLoading] = useState(false);
+  const [pdfLoading, setPdfLoading]     = useState(false);
+  const [excelLoading, setExcelLoading] = useState(false);
 
   const buscaRef = useRef(null);
 
@@ -133,22 +135,49 @@ export default function AttributionsPage() {
     return parts.length ? parts.join("  ·  ") : null;
   }
 
+  async function fetchAllItems() {
+    const faixa = FAIXAS[faixaIdx];
+    const params = {
+      ...toQueryParams(),
+      page: 1,
+      page_size: 5000,
+      sort_by: sortBy,
+      sort_dir: sortDir,
+      ...(faixa.min != null  ? { min_dias: faixa.min }        : {}),
+      ...(faixa.max != null  ? { max_dias: faixa.max }        : {}),
+      ...(semAtribuicao      ? { sem_atribuicao: true }       : {}),
+      ...(buscaParam         ? { protocolo_busca: buscaParam } : {}),
+    };
+    const { data: pdfData } = await api.get("/analytics/attributions", { params, timeout: 120000 });
+    return pdfData;
+  }
+
+  async function handleGenerateExcel() {
+    setExcelLoading(true);
+    try {
+      const pdfData = await fetchAllItems();
+      generateAttributionsExcel({
+        items:          pdfData.items,
+        stats: {
+          total:    pdfData.total,
+          totalCom: pdfData.total_com_atribuicao,
+          totalSem: pdfData.total_sem_atribuicao,
+          maxDias:  pdfData.max_dias,
+        },
+        dataReferencia: pdfData.data_referencia,
+        filtersText:    buildFiltersText(),
+      });
+    } catch (err) {
+      console.error("Erro ao exportar Excel:", err);
+    } finally {
+      setExcelLoading(false);
+    }
+  }
+
   async function handleGeneratePdf() {
     setPdfLoading(true);
     try {
-      const faixa = FAIXAS[faixaIdx];
-      const params = {
-        ...toQueryParams(),
-        page: 1,
-        page_size: 5000,
-        sort_by: sortBy,
-        sort_dir: sortDir,
-        ...(faixa.min != null  ? { min_dias: faixa.min }        : {}),
-        ...(faixa.max != null  ? { max_dias: faixa.max }        : {}),
-        ...(semAtribuicao      ? { sem_atribuicao: true }       : {}),
-        ...(buscaParam         ? { protocolo_busca: buscaParam } : {}),
-      };
-      const { data: pdfData } = await api.get("/analytics/attributions", { params, timeout: 120000 });
+      const pdfData = await fetchAllItems();
       generateAttributionsPdf({
         items:          pdfData.items,
         stats: {
@@ -222,6 +251,36 @@ export default function AttributionsPage() {
             <h3>Lista de processos e atribuições</h3>
             <p>Filtre por faixa de tempo, atribuição ou busque um protocolo específico.</p>
           </div>
+          <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+          {/* Botão Exportar Excel */}
+          <button
+            type="button"
+            onClick={handleGenerateExcel}
+            disabled={excelLoading || total === 0}
+            style={{
+              appearance: "none", border: "none", borderRadius: "var(--radius)",
+              padding: "10px 16px", cursor: excelLoading || total === 0 ? "not-allowed" : "pointer",
+              fontFamily: "inherit", fontSize: "0.875rem", fontWeight: 700,
+              display: "inline-flex", alignItems: "center", gap: 7,
+              background: excelLoading || total === 0 ? "rgba(26,122,80,0.07)" : "rgba(26,122,80,0.12)",
+              color: excelLoading || total === 0 ? "var(--muted)" : "var(--success)",
+              border: "1.5px solid rgba(26,122,80,0.2)",
+              transition: "all 0.15s ease", opacity: excelLoading || total === 0 ? 0.6 : 1,
+              whiteSpace: "nowrap",
+            }}
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+              <polyline points="14 2 14 8 20 8"/>
+              <polyline points="8 17 10 15 8 13"/>
+              <line x1="16" y1="13" x2="12" y2="13"/>
+              <line x1="16" y1="17" x2="12" y2="17"/>
+            </svg>
+            {excelLoading ? "Exportando..." : "Exportar Excel"}
+          </button>
+
+          {/* Botão Gerar PDF */}
           <button
             type="button"
             onClick={handleGeneratePdf}
@@ -257,6 +316,7 @@ export default function AttributionsPage() {
             </svg>
             {pdfLoading ? "Gerando PDF..." : "Gerar PDF"}
           </button>
+          </div>
         </div>
 
         {/* Linha 1: filtros de faixa + toggle sem atribuição */}

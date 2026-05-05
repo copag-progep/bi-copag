@@ -4,6 +4,7 @@ import { useAuth } from "../context/AuthContext";
 
 const icons = {
   dashboard:    { d: ["M3 3h7v7H3z", "M14 3h7v7h-7z", "M14 14h7v7h-7z", "M3 14h7v7H3z"] },
+  profile:      { d: ["M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2", "M12 11a4 4 0 100-8 4 4 0 000 8z"] },
   upload:       { d: "M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12" },
   flow:         { d: ["M17 3l4 4-4 4", "M3 7h18", "M7 21l-4-4 4-4", "M21 17H3"] },
   prod:         { d: ["M18 20V10", "M12 20V4", "M6 20v-6"] },
@@ -45,6 +46,7 @@ const menuItems = [
   { to: "/multiplos-setores",   label: "Múltiplos Setores",   icon: "multi" },
   { to: "/atribuicoes",         label: "Atribuições",          icon: "atribuicoes" },
   { to: "/indicadores-mensais", label: "Indicadores Mensais", icon: "monthly" },
+  { to: "/minha-conta",         label: "Minha Conta",          icon: "profile" },
   { to: "/usuarios-sei",        label: "Usuários SEI",        icon: "users",  adminOnly: true },
   { to: "/administracao",       label: "Administração",       icon: "admin",  adminOnly: true },
 ];

@@ -123,6 +123,11 @@ class MonthlyStatUpdate(BaseModel):
     valor: int = Field(ge=0)
 
 
+class PasswordChange(BaseModel):
+    senha_atual: str = Field(min_length=1, max_length=128)
+    nova_senha: str = Field(min_length=6, max_length=128)
+
+
 class MonthlyStatMonthEntry(BaseModel):
     setor: str
     ano: int = Field(ge=2023, le=2100)

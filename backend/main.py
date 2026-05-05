@@ -34,6 +34,7 @@ from .monthly_stats import MONTHLY_INDICATORS, import_monthly_stats_csv, update_
 from .schemas import (
     FilterOptions,
     MonthlyStatImportResult,
+    PasswordChange,
     MonthlyStatMonthEntry,
     MonthlyStatRead,
     MonthlyStatUpdate,
@@ -215,6 +216,90 @@ def logout() -> dict:
 @app.get("/api/auth/me", response_model=UserRead)
 def me(current_user: User = Depends(get_current_user)) -> User:
     return current_user
+
+
+@app.patch("/api/auth/password")
+def change_password(
+    payload: PasswordChange,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    if not verify_password(payload.senha_atual, current_user.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Senha atual incorreta.",
+        )
+    current_user.password_hash = get_password_hash(payload.nova_senha)
+    db.commit()
+    return {"message": "Senha alterada com sucesso."}
+
+
+@app.get("/api/processes/search")
+def process_search(
+    q: str = Query(..., min_length=2),
+    _: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    q_clean = q.strip()
+
+    rows = (
+        db.query(Processo)
+        .filter(Processo.protocolo.ilike(f"%{q_clean}%"))
+        .order_by(Processo.protocolo.asc(), Processo.data_relatorio.asc())
+        .limit(500)
+        .all()
+    )
+
+    if not rows:
+        return JSONResponse({"q": q_clean, "encontrado": False, "total": 0, "resultados": []})
+
+    by_proto: dict[str, list] = {}
+    for r in rows:
+        by_proto.setdefault(r.protocolo, []).append(r)
+
+    resultados = []
+    for proto, proto_rows in sorted(by_proto.items()):
+        last = proto_rows[-1]
+        last_date = str(last.data_relatorio)
+
+        spans: list[dict] = []
+        current: dict | None = None
+        for r in proto_rows:
+            atrib = r.atribuicao_normalizada or r.atribuicao
+            if current and r.setor == current["setor"] and atrib == current["atribuicao"]:
+                current["data_saida"] = str(r.data_relatorio)
+            else:
+                if current:
+                    spans.append(current)
+                current = {
+                    "setor": r.setor,
+                    "atribuicao": atrib,
+                    "tipo": r.tipo or "—",
+                    "data_entrada": str(r.data_relatorio),
+                    "data_saida": str(r.data_relatorio),
+                    "ativa": False,
+                }
+        if current:
+            current["ativa"] = current["data_saida"] == last_date
+            spans.append(current)
+
+        resultados.append({
+            "protocolo": proto,
+            "tipo": last.tipo or "—",
+            "especificacao": last.especificacao or "",
+            "setor_atual": last.setor,
+            "atribuicao_atual": last.atribuicao_normalizada or last.atribuicao,
+            "data_primeira": str(proto_rows[0].data_relatorio),
+            "data_ultima": last_date,
+            "historico": spans,
+        })
+
+    return JSONResponse({
+        "q": q_clean,
+        "encontrado": True,
+        "total": len(resultados),
+        "resultados": resultados[:20],
+    })
 
 
 @app.get("/api/admin/users", response_model=list[UserRead])
