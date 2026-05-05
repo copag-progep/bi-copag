@@ -745,3 +745,131 @@ def get_attributions_data(db: Session, filters: AnalyticsFilters) -> dict:
         }
 
     return _cached_response(db, "attributions", filters, build)
+
+
+def get_workload_balance(db: Session, filters: AnalyticsFilters) -> dict:
+    """Distribuição de carga entre servidores com comparativo ao snapshot anterior."""
+
+    def build() -> dict:
+        frame, reference_date, available_dates = _load_dataframe(db, filters, fields=ASSIGNMENT_FIELDS)
+
+        if frame.empty or reference_date is None:
+            return {"data_referencia": None, "data_anterior": None, "servidores": [], "stats": {}}
+
+        def carga_na_data(d: "date") -> dict[str, int]:
+            sub = frame[(frame["report_day"] == d) & (frame["atribuicao"] != "Não informado")]
+            return sub.groupby("atribuicao").size().to_dict()
+
+        current = carga_na_data(reference_date)
+
+        ref_idx = next((i for i, d in enumerate(available_dates) if d == reference_date), -1)
+        prev_date = available_dates[ref_idx - 1] if ref_idx > 0 else None
+        previous = carga_na_data(prev_date) if prev_date else {}
+
+        if not current:
+            return {
+                "data_referencia": str(reference_date),
+                "data_anterior": str(prev_date) if prev_date else None,
+                "servidores": [],
+                "stats": {},
+            }
+
+        cargas = list(current.values())
+        total = sum(cargas)
+        n = len(cargas)
+        media = total / n if n else 0
+        std = (sum((c - media) ** 2 for c in cargas) / n) ** 0.5 if n > 1 else 0.0
+
+        prev_total = sum(previous.values()) if previous else None
+
+        servidores = []
+        for atrib, carga in sorted(current.items(), key=lambda x: -x[1]):
+            desvio_z = (carga - media) / std if std > 0 else 0.0
+            prev = previous.get(atrib)
+            delta = (carga - prev) if prev is not None else None
+
+            status = (
+                "sobrecarga" if desvio_z > 1.5 else
+                "elevada"    if desvio_z > 0.5 else
+                "baixa"      if desvio_z < -1.0 else
+                "normal"
+            )
+
+            servidores.append({
+                "atribuicao": str(atrib),
+                "carga": carga,
+                "pct_total": round(carga / total * 100, 1) if total else 0,
+                "desvio_z": round(desvio_z, 2),
+                "status": status,
+                "carga_anterior": prev,
+                "delta": delta,
+            })
+
+        return {
+            "data_referencia": str(reference_date),
+            "data_anterior": str(prev_date) if prev_date else None,
+            "servidores": servidores,
+            "stats": {
+                "total_processos": total,
+                "total_servidores": n,
+                "media_carga": round(media, 1),
+                "desvio_padrao": round(std, 1),
+                "max_carga": max(cargas),
+                "min_carga": min(cargas),
+                "total_processos_anterior": prev_total,
+                "delta_total": (total - prev_total) if prev_total is not None else None,
+                "em_sobrecarga": sum(1 for s in servidores if s["status"] == "sobrecarga"),
+            },
+        }
+
+    return _cached_response(db, "workload-balance", filters, build)
+
+
+def get_server_profile(db: Session, filters: AnalyticsFilters) -> dict:
+    """Histórico longitudinal completo de um servidor específico."""
+
+    def build() -> dict:
+        if not filters.atribuicao:
+            return {"encontrado": False, "atribuicao": None}
+
+        frame, reference_date, available_dates = _load_dataframe(db, filters, fields=ASSIGNMENT_FIELDS)
+
+        if frame.empty or reference_date is None:
+            return {"encontrado": False, "atribuicao": filters.atribuicao}
+
+        carga_por_data = frame.groupby("report_day").size().reset_index(name="carga")
+        carga_historica = [
+            {"data": str(row["report_day"]), "carga": int(row["carga"])}
+            for _, row in carga_por_data.iterrows()
+        ]
+
+        carga_atual = int((frame["report_day"] == reference_date).sum())
+
+        protos = frame["protocolo"].unique()
+        total_recebidos = int(len(protos))
+        total_finalizados = 0
+        duracoes: list[int] = []
+
+        for proto in protos:
+            pf = frame[frame["protocolo"] == proto]
+            last = pf["report_day"].max()
+            first = pf["report_day"].min()
+            if last != reference_date:
+                total_finalizados += 1
+                duracoes.append((last - first).days)
+
+        media_permanencia = round(sum(duracoes) / len(duracoes)) if duracoes else None
+
+        return {
+            "encontrado": True,
+            "atribuicao": str(filters.atribuicao),
+            "data_referencia": str(reference_date),
+            "carga_atual": carga_atual,
+            "total_recebidos": total_recebidos,
+            "total_finalizados": total_finalizados,
+            "em_aberto": total_recebidos - total_finalizados,
+            "media_permanencia_dias": media_permanencia,
+            "carga_historica": carga_historica,
+        }
+
+    return _cached_response(db, "server-profile", filters, build)

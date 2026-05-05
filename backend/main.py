@@ -18,7 +18,9 @@ from .analytics import (
     get_filter_options,
     get_multi_sector_data,
     get_productivity_data,
+    get_server_profile,
     get_stale_processes_data,
+    get_workload_balance,
 )
 from .auth import (
     authenticate_user,
@@ -113,6 +115,7 @@ def precompute_analytics() -> None:
         get_stale_processes_data(db, default_filters)
         get_multi_sector_data(db, default_filters)
         get_attributions_data(db, default_filters)
+        get_workload_balance(db, default_filters)
     except Exception:
         pass
     finally:
@@ -757,6 +760,28 @@ def attributions_list(
         "total_sem_atribuicao": result["total_sem_atribuicao"],
         "max_dias": result["max_dias"],
     })
+
+
+@app.get("/api/analytics/workload-balance")
+def workload_balance_endpoint(
+    data_referencia: date | None = None,
+    setor: str | None = None,
+    _: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    filters = build_filters(data_referencia, None, None, setor, None, None)
+    return JSONResponse(get_workload_balance(db, filters))
+
+
+@app.get("/api/analytics/server-profile")
+def server_profile_endpoint(
+    atribuicao: str = Query(..., min_length=1),
+    data_referencia: date | None = None,
+    _: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    filters = build_filters(data_referencia, None, None, None, None, atribuicao)
+    return JSONResponse(get_server_profile(db, filters))
 
 
 @app.get("/api/analytics/multi-sector")
