@@ -61,7 +61,6 @@ export default function AttributionsPage() {
   const [data, setData]             = useState(null);
   const [page, setPage]             = useState(1);
   const [faixaIdx, setFaixaIdx]     = useState(0);
-  const [semAtribuicao, setSemAtribuicao] = useState(false);
   const [sortBy, setSortBy]         = useState("dias");
   const [sortDir, setSortDir]       = useState("desc");
   const [buscaInput, setBuscaInput] = useState("");
@@ -77,7 +76,7 @@ export default function AttributionsPage() {
   // Reset page quando qualquer filtro/ordenação muda
   useEffect(() => {
     setPage(1);
-  }, [filters, faixaIdx, semAtribuicao, sortBy, sortDir, buscaParam]);
+  }, [filters, faixaIdx, sortBy, sortDir, buscaParam]);
 
   useEffect(() => {
     let cancelled = false;
@@ -95,7 +94,6 @@ export default function AttributionsPage() {
           sort_dir: sortDir,
           ...(faixa.min != null  ? { min_dias: faixa.min }        : {}),
           ...(faixa.max != null  ? { max_dias: faixa.max }        : {}),
-          ...(semAtribuicao      ? { sem_atribuicao: true }       : {}),
           ...(buscaParam         ? { protocolo_busca: buscaParam } : {}),
         };
         const { data: response } = await api.get("/analytics/attributions", { params, timeout: 60000 });
@@ -111,7 +109,7 @@ export default function AttributionsPage() {
 
     load();
     return () => { cancelled = true; };
-  }, [filters, page, faixaIdx, semAtribuicao, sortBy, sortDir, buscaParam, retryCount]);
+  }, [filters, page, faixaIdx, sortBy, sortDir, buscaParam, retryCount]);
 
   function handleSort(col) {
     if (sortBy === col) {
@@ -126,10 +124,10 @@ export default function AttributionsPage() {
     const parts = [];
     if (filters.setor)      parts.push(`Setor: ${filters.setor}`);
     if (filters.tipo)       parts.push(`Tipo: ${filters.tipo}`);
-    if (filters.atribuicao) parts.push(`Atribuição: ${filters.atribuicao}`);
+    if (filters.atribuicao === "__sem_atribuicao__") parts.push("Sem atribuição");
+    else if (filters.atribuicao) parts.push(`Atribuição: ${filters.atribuicao}`);
     const faixa = FAIXAS[faixaIdx];
     if (faixa.label !== "Todos") parts.push(`Faixa: ${faixa.label}`);
-    if (semAtribuicao)      parts.push("Sem atribuição");
     if (buscaParam)         parts.push(`Protocolo: "${buscaParam}"`);
     if (sortBy !== "dias")  parts.push(`Ordem: ${sortBy} ${sortDir === "asc" ? "↑" : "↓"}`);
     return parts.length ? parts.join("  ·  ") : null;
@@ -145,7 +143,6 @@ export default function AttributionsPage() {
       sort_dir: sortDir,
       ...(faixa.min != null  ? { min_dias: faixa.min }        : {}),
       ...(faixa.max != null  ? { max_dias: faixa.max }        : {}),
-      ...(semAtribuicao      ? { sem_atribuicao: true }       : {}),
       ...(buscaParam         ? { protocolo_busca: buscaParam } : {}),
     };
     const { data: pdfData } = await api.get("/analytics/attributions", { params, timeout: 120000 });
@@ -359,37 +356,6 @@ export default function AttributionsPage() {
             );
           })}
 
-          {/* Separador visual */}
-          <span style={{ width: 1, height: 24, background: "var(--border-strong)", margin: "0 4px" }} />
-
-          {/* Toggle: Sem atribuição */}
-          <button
-            type="button"
-            onClick={() => setSemAtribuicao((v) => !v)}
-            style={{
-              appearance: "none",
-              border: semAtribuicao ? "2px solid transparent" : "1.5px solid var(--border-strong)",
-              borderRadius: 999,
-              padding: "7px 16px",
-              cursor: "pointer",
-              fontFamily: "inherit",
-              fontSize: "0.82rem",
-              fontWeight: 700,
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 6,
-              transition: "all 0.12s ease",
-              background: semAtribuicao ? "rgba(39,49,104,0.1)" : "transparent",
-              color: semAtribuicao ? "var(--primary)" : "var(--muted)",
-            }}
-          >
-            Sem atribuição
-            {semAtribuicao && total > 0 && (
-              <span style={{ marginLeft: 2, padding: "1px 7px", borderRadius: 999, fontSize: "0.7rem", background: "rgba(0,0,0,0.08)" }}>
-                {total}
-              </span>
-            )}
-          </button>
         </div>
 
         {/* Linha 2: busca por protocolo */}

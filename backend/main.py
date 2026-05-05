@@ -1,3 +1,4 @@
+import json
 import os
 from contextlib import asynccontextmanager
 from datetime import date
@@ -31,9 +32,10 @@ from .auth import (
 )
 from .csv_importer import SETORES, bootstrap_workspace_csvs, import_csv_snapshot
 from .database import SessionLocal, get_db, init_db
-from .models import MonthlyStat, Processo, SeiUser, Upload, User
+from .models import AuditLog, MonthlyStat, Processo, SeiUser, Upload, User
 from .monthly_stats import MONTHLY_INDICATORS, import_monthly_stats_csv, update_monthly_stat_value, upsert_month_entry
 from .schemas import (
+    AuditLogRead,
     FilterOptions,
     MonthlyStatImportResult,
     PasswordChange,
@@ -179,6 +181,27 @@ def build_filters(
     )
 
 
+def _log_audit(
+    db: Session,
+    *,
+    action: str,
+    entity_type: str,
+    entity_id: str | None = None,
+    details: dict | None = None,
+    user: User,
+) -> None:
+    """Registra uma entrada no log de auditoria sem fazer commit."""
+    entry = AuditLog(
+        action=action,
+        entity_type=entity_type,
+        entity_id=str(entity_id) if entity_id is not None else None,
+        details=json.dumps(details, ensure_ascii=False, default=str) if details else None,
+        user_email=user.email,
+        user_name=user.name,
+    )
+    db.add(entry)
+
+
 def get_upload_or_404(db: Session, upload_id: int) -> Upload:
     upload = db.query(Upload).filter(Upload.id == upload_id).first()
     if not upload:
@@ -233,6 +256,7 @@ def change_password(
             detail="Senha atual incorreta.",
         )
     current_user.password_hash = get_password_hash(payload.nova_senha)
+    _log_audit(db, action="senha.alterada", entity_type="usuario", user=current_user)
     db.commit()
     return {"message": "Senha alterada com sucesso."}
 
@@ -316,7 +340,7 @@ def list_users(
 @app.post("/api/admin/users", response_model=UserRead, status_code=status.HTTP_201_CREATED)
 def create_user(
     payload: UserCreate,
-    _: User = Depends(get_current_admin_user),
+    current_admin: User = Depends(get_current_admin_user),
     db: Session = Depends(get_db),
 ) -> User:
     existing = db.query(User).filter(User.email == payload.email.lower()).first()
@@ -330,6 +354,11 @@ def create_user(
         is_admin=payload.is_admin,
     )
     db.add(user)
+    db.flush()
+    _log_audit(db, action="usuario.criado", entity_type="usuario",
+               entity_id=str(user.id),
+               details={"nome": user.name, "email": user.email, "is_admin": user.is_admin},
+               user=current_admin)
     db.commit()
     db.refresh(user)
     return user
@@ -357,6 +386,10 @@ def delete_user(
             )
 
     name = user.name
+    _log_audit(db, action="usuario.excluido", entity_type="usuario",
+               entity_id=str(user.id),
+               details={"nome": user.name, "email": user.email},
+               user=current_admin)
     db.delete(user)
     db.commit()
     return {"message": f"Usuario {name} excluido com sucesso."}
@@ -512,7 +545,7 @@ async def upload_snapshot(
     setor: str = Form(...),
     data_relatorio: date = Form(...),
     file: UploadFile = File(...),
-    _: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> UploadResult:
     if setor.upper() not in SETORES:
@@ -542,6 +575,13 @@ async def upload_snapshot(
     if result["status"] in {"imported", "replaced"}:
         clear_analytics_cache()
         background_tasks.add_task(precompute_analytics)
+        _log_audit(db, action=f"upload.{result['status']}", entity_type="upload",
+                   entity_id=result["setor"],
+                   details={"arquivo": result["original_filename"], "setor": result["setor"],
+                            "data_relatorio": str(result["data_relatorio"]),
+                            "registros": result["total_registros"]},
+                   user=current_user)
+        db.commit()
 
     return UploadResult(**result)
 
@@ -551,7 +591,7 @@ def update_upload(
     upload_id: int,
     payload: UploadUpdate,
     background_tasks: BackgroundTasks,
-    _: User = Depends(get_current_admin_user),
+    current_admin: User = Depends(get_current_admin_user),
     db: Session = Depends(get_db),
 ) -> Upload:
     upload = get_upload_or_404(db, upload_id)
@@ -609,6 +649,12 @@ def update_upload(
         ) from exc
 
     db.refresh(upload)
+    _log_audit(db, action="upload.data_alterada", entity_type="upload",
+               entity_id=str(upload.id),
+               details={"arquivo": upload.original_filename, "setor": upload.setor,
+                        "data_nova": str(payload.data_relatorio)},
+               user=current_admin)
+    db.commit()
     clear_analytics_cache()
     background_tasks.add_task(precompute_analytics)
     return upload
@@ -618,7 +664,7 @@ def update_upload(
 def delete_upload(
     upload_id: int,
     background_tasks: BackgroundTasks,
-    _: User = Depends(get_current_admin_user),
+    current_admin: User = Depends(get_current_admin_user),
     db: Session = Depends(get_db),
 ) -> dict:
     upload = get_upload_or_404(db, upload_id)
@@ -626,11 +672,41 @@ def delete_upload(
 
     db.query(Processo).filter(Processo.upload_id == upload.id).delete(synchronize_session=False)
     db.delete(upload)
+    _log_audit(db, action="upload.excluido", entity_type="upload",
+               entity_id=str(upload_id),
+               details={"arquivo": filename, "setor": upload.setor,
+                        "data_relatorio": str(upload.data_relatorio)},
+               user=current_admin)
     db.commit()
     clear_analytics_cache()
     background_tasks.add_task(precompute_analytics)
 
     return {"message": f"Relatorio {filename} excluido com sucesso."}
+
+
+@app.get("/api/admin/audit-logs")
+def list_audit_logs(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=200),
+    _: User = Depends(get_current_admin_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    total = db.query(AuditLog).count()
+    total_pages = max((total + page_size - 1) // page_size, 1)
+    items = (
+        db.query(AuditLog)
+        .order_by(AuditLog.created_at.desc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+        .all()
+    )
+    return {
+        "items": [AuditLogRead.model_validate(item).model_dump(mode="json") for item in items],
+        "total": total,
+        "total_pages": total_pages,
+        "page": page,
+        "page_size": page_size,
+    }
 
 
 @app.get("/api/meta/options", response_model=FilterOptions)

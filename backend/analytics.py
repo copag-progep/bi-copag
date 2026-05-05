@@ -129,7 +129,10 @@ def _base_query(db: Session, filters: AnalyticsFilters):
     if filters.tipo:
         query = query.filter(Processo.tipo == filters.tipo)
     if filters.atribuicao:
-        query = query.filter(Processo.atribuicao_normalizada == filters.atribuicao)
+        if filters.atribuicao == "__sem_atribuicao__":
+            query = query.filter(Processo.atribuicao_normalizada.is_(None))
+        else:
+            query = query.filter(Processo.atribuicao_normalizada == filters.atribuicao)
     if filters.data_inicial:
         query = query.filter(Processo.data_relatorio >= filters.data_inicial)
     if filters.data_final:
@@ -199,7 +202,10 @@ def _available_dates(db: Session, filters: AnalyticsFilters | None = None) -> li
         if filters.tipo:
             query = query.filter(Processo.tipo == filters.tipo)
         if filters.atribuicao:
-            query = query.filter(Processo.atribuicao_normalizada == filters.atribuicao)
+            if filters.atribuicao == "__sem_atribuicao__":
+                query = query.filter(Processo.atribuicao_normalizada.is_(None))
+            else:
+                query = query.filter(Processo.atribuicao_normalizada == filters.atribuicao)
         if filters.data_inicial:
             query = query.filter(Processo.data_relatorio >= filters.data_inicial)
         if filters.data_final:

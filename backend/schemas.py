@@ -123,6 +123,19 @@ class MonthlyStatUpdate(BaseModel):
     valor: int = Field(ge=0)
 
 
+class AuditLogRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    action: str
+    entity_type: str
+    entity_id: str | None
+    details: str | None
+    user_email: str
+    user_name: str
+    created_at: datetime
+
+
 class PasswordChange(BaseModel):
     senha_atual: str = Field(min_length=1, max_length=128)
     nova_senha: str = Field(min_length=6, max_length=128)

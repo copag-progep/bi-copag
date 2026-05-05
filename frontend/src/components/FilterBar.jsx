@@ -77,6 +77,7 @@ export default function FilterBar() {
           <span>Atribuição</span>
           <select value={filters.atribuicao} onChange={(event) => setFilter("atribuicao", event.target.value)}>
             <option value="">Todas</option>
+            <option value="__sem_atribuicao__">Sem atribuição</option>
             {options.atribuicoes.map((value) => (
               <option key={value} value={value}>
                 {value}

@@ -12,6 +12,48 @@ function formatDate(value) {
   return new Intl.DateTimeFormat("pt-BR", { timeZone: "UTC" }).format(new Date(`${value}T00:00:00Z`));
 }
 
+function formatDateTime(value) {
+  if (!value) return "-";
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? value
+    : new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "medium" }).format(d);
+}
+
+const ACTION_LABELS = {
+  "upload.imported":    { label: "Upload importado",         color: "var(--success)" },
+  "upload.replaced":    { label: "Upload substituído",       color: "#9a6c00" },
+  "upload.excluido":    { label: "Upload excluído",          color: "var(--danger)" },
+  "upload.data_alterada":{ label: "Data do upload alterada", color: "var(--primary)" },
+  "usuario.criado":     { label: "Usuário criado",           color: "var(--success)" },
+  "usuario.excluido":   { label: "Usuário excluído",         color: "var(--danger)" },
+  "senha.alterada":     { label: "Senha alterada",           color: "var(--primary)" },
+  "sei_usuario.criado": { label: "DE-PARA criado",           color: "var(--success)" },
+  "sei_usuario.excluido":{ label: "DE-PARA excluído",        color: "var(--danger)" },
+  "sei_usuario.importado":{ label: "DE-PARA importado",      color: "var(--primary)" },
+};
+
+function ActionBadge({ action }) {
+  const cfg = ACTION_LABELS[action] || { label: action, color: "var(--muted)" };
+  return (
+    <span style={{
+      padding: "2px 10px", borderRadius: 999, fontSize: "0.75rem", fontWeight: 700,
+      background: `${cfg.color}18`, color: cfg.color, whiteSpace: "nowrap",
+    }}>
+      {cfg.label}
+    </span>
+  );
+}
+
+function parseDetails(raw) {
+  if (!raw) return null;
+  try {
+    const obj = JSON.parse(raw);
+    return Object.entries(obj).map(([k, v]) => `${k}: ${v}`).join(" · ");
+  } catch {
+    return raw;
+  }
+}
+
 
 export default function AdminPage() {
   const { user } = useAuth();
@@ -22,6 +64,12 @@ export default function AdminPage() {
   const [deletingUserId, setDeletingUserId] = useState(null);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [auditLogs, setAuditLogs] = useState([]);
+  const [auditPage, setAuditPage] = useState(1);
+  const [auditTotal, setAuditTotal] = useState(0);
+  const [auditTotalPages, setAuditTotalPages] = useState(1);
+  const [auditLoading, setAuditLoading] = useState(false);
+  const AUDIT_PAGE_SIZE = 50;
   const [form, setForm] = useState({
     name: "",
     email: "",
@@ -50,9 +98,30 @@ export default function AdminPage() {
     }
   }
 
+  async function loadAuditLogs(page = auditPage) {
+    setAuditLoading(true);
+    try {
+      const { data } = await api.get("/admin/audit-logs", {
+        params: { page, page_size: AUDIT_PAGE_SIZE },
+      });
+      setAuditLogs(data.items || []);
+      setAuditTotal(data.total || 0);
+      setAuditTotalPages(data.total_pages || 1);
+    } catch {
+      // silencia — log é secundário
+    } finally {
+      setAuditLoading(false);
+    }
+  }
+
   useEffect(() => {
     loadAdminData();
+    loadAuditLogs(1);
   }, []);
+
+  useEffect(() => {
+    loadAuditLogs(auditPage);
+  }, [auditPage]);
 
   async function handleSubmit(event) {
     event.preventDefault();
@@ -234,6 +303,81 @@ export default function AdminPage() {
             rows={uploads}
             emptyMessage="Nenhum upload encontrado."
           />
+        )}
+      </section>
+
+      {/* Log de auditoria */}
+      <section className="panel">
+        <div className="panel-header">
+          <div>
+            <h3>Log de auditoria</h3>
+            <p>Registro das ações críticas realizadas no sistema — uploads, exclusões, criação de usuários e alterações de senha.</p>
+          </div>
+          <button type="button" className="ghost-button"
+            onClick={() => { setAuditPage(1); loadAuditLogs(1); }}
+            style={{ padding: "8px 14px", fontSize: "0.82rem" }}>
+            Atualizar
+          </button>
+        </div>
+        {auditLoading ? (
+          <LoadingBlock label="Carregando log..." />
+        ) : (
+          <>
+            <div className="table-shell">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th style={{ whiteSpace: "nowrap" }}>Data / Hora</th>
+                    <th>Usuário</th>
+                    <th>Ação</th>
+                    <th>Detalhe</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {auditLogs.length === 0 ? (
+                    <tr>
+                      <td colSpan={4} style={{ textAlign: "center", color: "var(--muted)", padding: "24px" }}>
+                        Nenhum registro de auditoria encontrado.
+                      </td>
+                    </tr>
+                  ) : (
+                    auditLogs.map((log) => (
+                      <tr key={log.id}>
+                        <td style={{ fontSize: "0.78rem", whiteSpace: "nowrap", color: "var(--muted)" }}>
+                          {formatDateTime(log.created_at)}
+                        </td>
+                        <td>
+                          <div style={{ fontWeight: 600, fontSize: "0.82rem" }}>{log.user_name}</div>
+                          <div style={{ fontSize: "0.72rem", color: "var(--muted)" }}>{log.user_email}</div>
+                        </td>
+                        <td><ActionBadge action={log.action} /></td>
+                        <td style={{ fontSize: "0.78rem", color: "var(--muted)", maxWidth: 320 }}>
+                          {parseDetails(log.details) || "—"}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+            <div className="pagination-bar">
+              <span className="pagination-summary">
+                Página {auditPage} de {auditTotalPages} | {auditTotal} registros
+              </span>
+              <div className="table-actions">
+                <button type="button" className="table-button"
+                  disabled={auditPage === 1}
+                  onClick={() => setAuditPage((p) => Math.max(1, p - 1))}>
+                  Anterior
+                </button>
+                <button type="button" className="table-button"
+                  disabled={auditPage === auditTotalPages}
+                  onClick={() => setAuditPage((p) => Math.min(auditTotalPages, p + 1))}>
+                  Próxima
+                </button>
+              </div>
+            </div>
+          </>
         )}
       </section>
     </div>
