@@ -1,7 +1,7 @@
 import os
 from datetime import datetime, timedelta, timezone
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 from passlib.context import CryptContext
@@ -17,6 +17,7 @@ ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "720"
 
 password_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
+oauth2_scheme_optional = OAuth2PasswordBearer(tokenUrl="/api/auth/login", auto_error=False)
 
 
 def _validate_bcrypt_password(password: str) -> None:
@@ -65,6 +66,32 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     if not user:
         raise credentials_exception
     return user
+
+
+def get_current_user_or_api_key(
+    request: Request,
+    token: str | None = Depends(oauth2_scheme_optional),
+    db: Session = Depends(get_db),
+) -> User:
+    """Aceita JWT válido OU API key no header X-Api-Key.
+    Usado nos endpoints analíticos acessados pelo script de relatório semanal.
+    """
+    api_key = request.headers.get("X-Api-Key", "")
+    upload_key = os.getenv("API_UPLOAD_KEY", "")
+    if upload_key and api_key == upload_key:
+        return User(
+            name="Automação",
+            email="automacao@sistema",
+            password_hash="",
+            is_admin=True,
+        )
+    if token:
+        return get_current_user(token=token, db=db)
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Não autenticado.",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
 
 
 def get_current_admin_user(current_user: User = Depends(get_current_user)) -> User:

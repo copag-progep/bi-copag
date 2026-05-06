@@ -1,0 +1,64 @@
+name: Upload diário SEI → BI COPAG
+
+# Roda automaticamente de segunda a sexta às 08:30 BRT (11:30 UTC).
+# Pode ser disparado manualmente em qualquer momento via "Run workflow".
+#
+# Para trocar de coordenador:
+#   Atualize apenas os Secrets SEI_USER e SEI_PASSWORD em:
+#   github.com/copag-progep/bi-copag → Settings → Secrets and variables → Actions
+#   Nenhum arquivo de código precisa ser alterado.
+
+on:
+  schedule:
+    - cron: "30 11 * * 1-5"   # 08:30 BRT (UTC-3), segunda a sexta
+  workflow_dispatch:            # disparo manual (útil para testes e reprocessamentos)
+
+jobs:
+  upload:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60         # abort se demorar mais de 1h (ex: SEI fora do ar)
+
+    steps:
+      - name: Checkout do repositório
+        uses: actions/checkout@v4
+
+      - name: Configurar Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Instalar dependências Python
+        run: pip install playwright httpx
+
+      - name: Instalar Chromium (Playwright)
+        run: playwright install chromium --with-deps
+
+      - name: Executar uploader SEI
+        env:
+          SEI_URL:      ${{ secrets.SEI_URL }}
+          SEI_USER:     ${{ secrets.SEI_USER }}      # atualizar na troca de coordenador
+          SEI_PASSWORD: ${{ secrets.SEI_PASSWORD }}  # atualizar na troca de coordenador
+          BI_API_URL:   ${{ vars.BI_API_URL }}
+          BI_API_KEY:   ${{ secrets.BI_API_KEY }}
+        run: python scripts/sei_uploader.py
+
+      - name: Notificar falha por e-mail
+        if: failure()
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          username: ${{ secrets.GMAIL_USER }}
+          password: ${{ secrets.GMAIL_APP_PASSWORD }}
+          to: ${{ vars.REPORT_RECIPIENTS }}
+          subject: "⚠️ BI COPAG — falha no upload automático (${{ github.run_id }})"
+          body: |
+            O upload diário de processos SEI → BI COPAG falhou em ${{ github.event.repository.full_name }}.
+
+            Data: ${{ github.event.schedule || 'disparo manual' }}
+            Logs completos: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+            Verifique se:
+            - O SEI está acessível (sei.ufc.br)
+            - As credenciais SEI_USER e SEI_PASSWORD estão corretas nos Secrets
+            - A API do BI está respondendo (health check: ${{ vars.BI_API_URL }}/api/health)

@@ -28,7 +28,9 @@ from .auth import (
     create_access_token,
     get_current_admin_user,
     get_current_user,
+    get_current_user_or_api_key,
     get_password_hash,
+    verify_password,
 )
 from .csv_importer import SETORES, bootstrap_workspace_csvs, import_csv_snapshot
 from .database import SessionLocal, get_db, init_db
@@ -66,6 +68,7 @@ from .sei_users import (
 
 
 DEFAULT_ADMIN_NAME = os.getenv("DEFAULT_ADMIN_NAME", "Anderson CFS")
+API_UPLOAD_KEY = os.getenv("API_UPLOAD_KEY", "")
 DEFAULT_ADMIN_EMAIL = os.getenv("DEFAULT_ADMIN_EMAIL", "andersoncfs@ufc.br")
 DEFAULT_ADMIN_PASSWORD = os.getenv("DEFAULT_ADMIN_PASSWORD", "admin123")
 CORS_ORIGINS = os.getenv("CORS_ORIGINS", "")
@@ -586,6 +589,66 @@ async def upload_snapshot(
     return UploadResult(**result)
 
 
+@app.post("/api/upload-with-key", response_model=UploadResult)
+async def upload_snapshot_api_key(
+    background_tasks: BackgroundTasks,
+    setor: str = Form(...),
+    data_relatorio: date = Form(...),
+    file: UploadFile = File(...),
+    x_api_key: str = Header(..., alias="X-Api-Key"),
+    db: Session = Depends(get_db),
+) -> UploadResult:
+    """Endpoint para upload automático via API key (sem JWT). Usado pelo script SEI → BI COPAG."""
+    if not API_UPLOAD_KEY or x_api_key != API_UPLOAD_KEY:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="API key inválida.")
+    if setor.upper() not in SETORES:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Setor inválido.")
+    if not file.filename.lower().endswith(".csv"):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Envie um arquivo CSV.")
+
+    file_bytes = await file.read()
+    if not file_bytes:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Arquivo vazio.")
+
+    try:
+        result = import_csv_snapshot(
+            db=db,
+            file_bytes=file_bytes,
+            filename=file.filename,
+            setor=setor,
+            data_relatorio=data_relatorio,
+        )
+    except ValueError as exc:
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                            detail="Falha ao importar CSV.") from exc
+
+    if result["status"] in {"imported", "replaced"}:
+        bot = User(name="Automação SEI", email="automacao@sistema", password_hash="", is_admin=True)
+        _log_audit(
+            db,
+            action=f"upload.{result['status']}",
+            entity_type="upload",
+            entity_id=result["setor"],
+            details={
+                "arquivo": result["original_filename"],
+                "setor": result["setor"],
+                "data_relatorio": str(result["data_relatorio"]),
+                "registros": result["total_registros"],
+                "origem": "automacao",
+            },
+            user=bot,
+        )
+        db.commit()
+        clear_analytics_cache()
+        background_tasks.add_task(precompute_analytics)
+
+    return UploadResult(**result)
+
+
 @app.patch("/api/uploads/{upload_id}", response_model=UploadRead)
 def update_upload(
     upload_id: int,
@@ -727,7 +790,7 @@ def dashboard(
     setor: str | None = None,
     tipo: str | None = None,
     atribuicao: str | None = None,
-    _: User = Depends(get_current_user),
+    _: User = Depends(get_current_user_or_api_key),
     db: Session = Depends(get_db),
 ):
     filters = build_filters(data_referencia, data_inicial, data_final, setor, tipo, atribuicao)
@@ -772,7 +835,7 @@ def stale_processes(
     setor: str | None = None,
     tipo: str | None = None,
     atribuicao: str | None = None,
-    _: User = Depends(get_current_user),
+    _: User = Depends(get_current_user_or_api_key),
     db: Session = Depends(get_db),
 ):
     filters = build_filters(data_referencia, data_inicial, data_final, setor, tipo, atribuicao)
@@ -842,7 +905,7 @@ def attributions_list(
 def workload_balance_endpoint(
     data_referencia: date | None = None,
     setor: str | None = None,
-    _: User = Depends(get_current_user),
+    _: User = Depends(get_current_user_or_api_key),
     db: Session = Depends(get_db),
 ):
     filters = build_filters(data_referencia, None, None, setor, None, None)
