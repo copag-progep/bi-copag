@@ -156,7 +156,7 @@ async def trocar_para_setor(page, sei_base: str, sigla: str) -> None:
         )
         await page.wait_for_load_state("networkidle")
 
-    print(f"  ✓ Unidade: {sigla}")
+    print(f"  ✓ Unidade: {sigla}  (URL: {page.url.split('?')[0].split('/')[-1]})")
 
 
 # ---------------------------------------------------------------------------
@@ -230,7 +230,17 @@ async def coletar_todos_processos(page) -> list[dict]:
     todos: list[dict] = []
     pagina = 1
 
-    # Aguarda a tabela de processos aparecer antes de começar a coleta.
+    # Força visibilidade do divRecebidos — o Bootstrap usa d-none d-md-block
+    # e em alguns casos a div pode ser renderizada como oculta mesmo em
+    # viewport largo (headless). O JS garante que o elemento fique visível.
+    await page.evaluate("""
+        () => {
+            const div = document.getElementById('divRecebidos');
+            if (div) { div.style.display = 'block'; div.style.visibility = 'visible'; }
+        }
+    """)
+
+    # Aguarda a tabela de processos aparecer.
     # Todos os setores sempre têm processos — se a tabela não carregar é erro.
     # Timeout de 60 s para tolerar variações de latência do SEI.
     await page.wait_for_selector("#tblProcessosRecebidos", timeout=60_000)
@@ -320,7 +330,8 @@ async def main() -> None:
 
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
-        page    = await browser.new_page()
+        # Viewport explícito acima de 768 px para que Bootstrap d-md-block funcione
+        page = await browser.new_page(viewport={"width": 1440, "height": 900})
 
         print("Fazendo login no SEI...")
         await fazer_login(page, sei_url, sei_user, sei_pass)
