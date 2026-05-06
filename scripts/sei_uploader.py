@@ -121,6 +121,12 @@ async def trocar_para_setor(page, sei_base: str, sigla: str) -> None:
 
     await page.wait_for_load_state("networkidle")
 
+    # Aguarda a lista de labels aparecer antes de procurar a sigla específica
+    try:
+        await page.wait_for_selector("label.infraRadioLabel", timeout=15_000)
+    except PlaywrightTimeout:
+        pass  # sem labels visíveis — a tentativa de clique abaixo vai falhar com mensagem clara
+
     # 2. Clica no label da sigla-alvo via JS (ignora visibilidade headless).
     #    O clique dispara a navegação de volta ao painel — não há submit button.
     clicked: bool = await page.evaluate(
@@ -226,7 +232,13 @@ async def coletar_todos_processos(page) -> list[dict]:
 
     # Aguarda a tabela de processos aparecer antes de começar a coleta.
     # O SEI pode fazer navegações internas adicionais após trocar de unidade.
-    await page.wait_for_selector("#tblProcessosRecebidos", timeout=30_000)
+    # Se a tabela não aparecer em 60 s, o setor provavelmente não tem processos
+    # em Recebidos (SEI não renderiza a tabela quando vazia) — retorna lista vazia.
+    try:
+        await page.wait_for_selector("#tblProcessosRecebidos", timeout=60_000)
+    except PlaywrightTimeout:
+        print("    ⚠ Tabela não encontrada em 60 s — setor sem processos ou página lenta.")
+        return []
 
     while True:
         print(f"    Página {pagina}...")
@@ -323,6 +335,16 @@ async def main() -> None:
         sei_base = page.url.rsplit("/", 1)[0]
         print(f"  → SEI base: {sei_base}")
 
+        painel_url = f"{sei_base}/controlador.php?acao=procedimento_controlar"
+
+        async def resetar_pagina() -> None:
+            """Navega ao painel principal para garantir estado limpo antes do próximo setor."""
+            try:
+                await page.goto(painel_url, wait_until="domcontentloaded")
+                await page.wait_for_load_state("networkidle")
+            except Exception:
+                pass  # melhor esforço
+
         erros: list[str] = []
         for bi_setor, sigla_sei in SETORES:
             print(f"\n--- {bi_setor} ---")
@@ -330,7 +352,8 @@ async def main() -> None:
                 await trocar_para_setor(page, sei_base, sigla_sei)
                 processos  = await coletar_todos_processos(page)
                 if not processos:
-                    print("  ⚠ Nenhum processo encontrado — setor ignorado.")
+                    print(f"  ⚠ {bi_setor}: sem processos em Recebidos — upload ignorado.")
+                    await resetar_pagina()
                     continue
                 csv_bytes  = montar_csv(processos)
                 await upload_para_bi(bi_url, bi_key, bi_setor, hoje, csv_bytes)
@@ -338,14 +361,17 @@ async def main() -> None:
                 msg = f"{bi_setor}: timeout — {exc}"
                 print(f"  ✗ {msg}")
                 erros.append(msg)
+                await resetar_pagina()   # recupera estado para o próximo setor
             except httpx.HTTPError as exc:
                 msg = f"{bi_setor}: erro no upload — {exc}"
                 print(f"  ✗ {msg}")
                 erros.append(msg)
+                await resetar_pagina()
             except RuntimeError as exc:
                 msg = f"{bi_setor}: {exc}"
                 print(f"  ✗ {msg}")
                 erros.append(msg)
+                await resetar_pagina()
 
         await browser.close()
 
