@@ -139,6 +139,17 @@ async def trocar_para_setor(page, sei_base: str, sigla: str) -> None:
 
     # 3. Aguarda a navegação de volta ao painel da divisão
     await page.wait_for_load_state("networkidle")
+
+    # Caso especial: se a unidade já era a ativa, o SEI pode manter a URL
+    # em infra_trocar_unidade ao invés de redirecionar ao painel.
+    # Nesse caso navegamos manualmente para o painel de controle.
+    if "infra_trocar_unidade" in page.url:
+        await page.goto(
+            f"{sei_base}/controlador.php?acao=procedimento_controlar",
+            wait_until="domcontentloaded",
+        )
+        await page.wait_for_load_state("networkidle")
+
     print(f"  ✓ Unidade: {sigla}")
 
 
