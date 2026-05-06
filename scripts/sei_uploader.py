@@ -2,32 +2,28 @@
 """
 Upload automático de processos SEI → BI COPAG
 ==============================================
-Navega o SEI com Playwright (Chromium headless), troca de setor pelo
-seletor do topo da tela, coleta TODOS os processos de TODAS as páginas
-(paginação 100/página) e faz upload para a API do BI via API key.
+Navega o SEI com Playwright (Chromium headless), troca de setor clicando
+no link de unidade no topo da tela, percorre TODAS as páginas (100/página)
+e faz upload para a API do BI via API key.
 
 Credenciais via variáveis de ambiente (GitHub Secrets) — nunca no código.
 
 Troca de coordenador:
     Basta atualizar SEI_USER e SEI_PASSWORD nos GitHub Secrets.
-    Nenhum arquivo de código precisa ser alterado.
 
 Variáveis de ambiente necessárias:
-    SEI_URL       URL base do SEI    ex: https://sei.ufc.br/sei
+    SEI_URL       URL base do SEI    (sem barra final)
     SEI_USER      Login SEI
     SEI_PASSWORD  Senha SEI
-    BI_API_URL    URL da API do BI   ex: https://sei-bi-copag-andersoncfs-api.onrender.com
-    BI_API_KEY    API key configurada no Render (variável API_UPLOAD_KEY)
-
-Ajuste obrigatório antes do primeiro uso:
-    Os seletores CSS marcados com  # ⚠️ CONFIRMAR  precisam ser verificados
-    abrindo o SEI no Chrome → DevTools (F12) → inspecionar os elementos.
+    BI_API_URL    URL da API do BI
+    BI_API_KEY    API key (variável API_UPLOAD_KEY no Render)
 """
 
 import asyncio
 import csv
 import io
 import os
+import re
 import sys
 from datetime import date
 
@@ -35,97 +31,177 @@ import httpx
 from playwright.async_api import async_playwright, TimeoutError as PlaywrightTimeout
 
 # ---------------------------------------------------------------------------
-# Configuração dos setores
-# Coluna 1: código do setor no BI COPAG
-# Coluna 2: nome exato da unidade como aparece no seletor do SEI
-# ⚠️ CONFIRMAR os nomes após inspecionar o seletor de unidade no SEI
+# Mapeamento: código do setor no BI → nome exato da unidade no SEI
+# Nomes confirmados na inspeção do DevTools em 06/05/2026
 # ---------------------------------------------------------------------------
 SETORES = [
-    ("DIAPE",            "COPAG - DIAPE"),
-    ("DICAT",            "COPAG - DICAT"),
-    ("DIJOR",            "COPAG - DIJOR"),
-    ("DICAF",            "COPAG - DICAF"),
-    ("DICAF-CHEFIA",     "COPAG - DICAF (Chefia)"),
-    ("DICAF-REPOSICOES", "COPAG - DICAF Reposições"),
+    ("DIAPE",            "DIVISÃO DE APOSENTADORIA E PENSÕES"),
+    ("DICAT",            "DIVISÃO DE CADASTRO"),
+    ("DIJOR",            "DIVISÃO DE JORNADA DE TRABALHO"),
+    ("DICAF",            "DIVISÃO DE CÁLCULOS E MOVIMENTAÇÕES FINANCEIRAS"),
+    ("DICAF-CHEFIA",     "CHEFIA - DIVISÃO DE CÁLCULOS E MOVIMENTAÇÕES FINANCEIRAS"),
+    ("DICAF-REPOSICOES", "DICAF REPOSIÇÕES ERÁRIO"),
 ]
 
 # ---------------------------------------------------------------------------
 # Cabeçalho CSV esperado pelo BI COPAG (não alterar)
 # ---------------------------------------------------------------------------
-CABECALHO_CSV = [
+CABECALHO = [
     "ID", "Protocolo", "Atribuicao", "Tipo", "Especificacao",
     "Ponto_Controle", "Data_Autuacao", "Data_Recebimento",
     "Data_Envio", "Unidade_Envio", "Observacoes",
 ]
 
-# ---------------------------------------------------------------------------
-# Mapeamento: índice da coluna na tabela HTML do SEI → campo do CSV do BI
-# ⚠️ CONFIRMAR após inspecionar a tabela de processos no SEI
-# Exemplo: se a 2ª coluna (índice 1) é "Processo/Documento" → "Protocolo"
-# ---------------------------------------------------------------------------
-COLUNA_MAP: dict[int, str] = {
-    # índice : nome_no_csv
-    # 0: "ID",          # descomente e ajuste conforme necessário
-    # 1: "Protocolo",
-    # 2: "Tipo",
-    # 3: "Atribuicao",
-    # 4: "Especificacao",
-}
-
 
 # ---------------------------------------------------------------------------
-# Funções de navegação no SEI
+# Login
 # ---------------------------------------------------------------------------
 
 async def fazer_login(page, sei_url: str, sei_user: str, sei_pass: str) -> None:
-    """Faz login no SEI com usuário e senha."""
-    await page.goto(f"{sei_url}/login.php")           # ⚠️ CONFIRMAR URL de login
-    await page.fill("#txtUsuario", sei_user)           # ⚠️ CONFIRMAR seletor do campo usuário
-    await page.fill("#pwdSenha", sei_pass)             # ⚠️ CONFIRMAR seletor da senha
-    await page.click("#sbmLogin")                      # ⚠️ CONFIRMAR seletor do botão login
+    """Faz login no SEI."""
+    login_url = (
+        f"{sei_url}/sip/login.php"
+        "?sigla_orgao_sistema=UFC&sigla_sistema=SEI"
+    )
+    await page.goto(login_url)
+    await page.fill("#txtUsuario", sei_user)
+    await page.fill("#pwdSenha",   sei_pass)
+    await page.click("#sbmAcessar")
     await page.wait_for_load_state("networkidle")
 
-    # Verificação básica: se ainda estiver na página de login, algo errou
     if "login" in page.url.lower():
         raise RuntimeError("Login falhou — verifique SEI_USER e SEI_PASSWORD.")
-
     print("  ✓ Login realizado.")
 
 
+# ---------------------------------------------------------------------------
+# Troca de unidade
+# ---------------------------------------------------------------------------
+
 async def trocar_para_setor(page, nome_unidade: str) -> None:
-    """Clica no seletor de unidade no topo do SEI e escolhe a divisão."""
-    # ⚠️ CONFIRMAR os seletores abaixo após inspecionar o botão de troca de unidade
-    await page.click("#lnkInfraMenuSistema")           # ⚠️ botão/link no topo
-    await page.wait_for_selector("#frmAlterarUnidade") # ⚠️ formulário/modal que abre
-    await page.select_option(
-        "select[name='selUnidade']",                   # ⚠️ seletor do <select> de unidades
-        label=nome_unidade,
-    )
-    await page.click("button[type='submit']")          # ⚠️ botão confirmar
+    """
+    Clica no link de unidade no topo da tela e seleciona a divisão desejada.
+
+    O link #lnkInfraUnidade redireciona para a página de seleção de unidade.
+    Nessa página selecionamos a unidade pelo texto exato.
+
+    ⚠️ O seletor da unidade na página de seleção ainda precisa ser confirmado.
+    Ajuste os seletores abaixo conforme a inspeção da página de troca de unidade.
+    """
+    await page.click("#lnkInfraUnidade")
     await page.wait_for_load_state("networkidle")
 
+    # Tenta localizar a unidade pelo texto visível
+    # ⚠️ CONFIRMAR: pode ser um <a>, <option> ou <li> — inspecionar a página
+    try:
+        await page.click(f"text={nome_unidade}", timeout=10_000)
+    except PlaywrightTimeout:
+        # Alternativa: procura em um select ou input de busca
+        select = await page.query_selector("select[name*='unidade'], select[id*='unidade']")
+        if select:
+            await page.select_option(select, label=nome_unidade)
+            confirm = await page.query_selector("button[type='submit'], input[type='submit']")
+            if confirm:
+                await confirm.click()
+        else:
+            raise RuntimeError(
+                f"Não foi possível selecionar a unidade '{nome_unidade}'. "
+                "Inspecione a página de troca de unidade e ajuste o seletor."
+            )
 
-async def coletar_todos_processos(page) -> list[list[str]]:
-    """Coleta todos os processos iterando por TODAS as páginas (100/página)."""
-    todos: list[list[str]] = []
+    await page.wait_for_load_state("networkidle")
+    print(f"  ✓ Unidade trocada para: {nome_unidade}")
+
+
+# ---------------------------------------------------------------------------
+# Extração de dados de uma linha da tabela de processos
+# ---------------------------------------------------------------------------
+
+async def extrair_linha(row) -> dict | None:
+    """
+    Extrai dados de uma linha <tr> da tabela de processos recebidos.
+
+    Estrutura observada no DevTools:
+      td[0] → checkbox: title="PROTOCOLO", aria-label="... / Tipo X / Especificação Y"
+      td[1] → ícones de status (ignorado)
+      td[2] → link do processo (número formatado com <wbr>)
+      td[3] → atribuição: <a title="Atribuído para NOME">sigla</a> ou &nbsp;
+    """
+    checkbox = await row.query_selector("input[type='checkbox']")
+    if not checkbox:
+        return None
+
+    # Protocolo (ex: "23067.021001/2026-66")
+    protocolo = (await checkbox.get_attribute("title") or "").strip()
+    if not protocolo:
+        return None
+
+    # ID interno do processo (value do checkbox)
+    process_id = (await checkbox.get_attribute("value") or "").strip()
+
+    # Tipo e Especificação — extraídos do aria-label
+    aria = (await checkbox.get_attribute("aria-label") or "")
+    tipo         = ""
+    especificacao = ""
+    for parte in aria.split(" / "):
+        if parte.startswith("Tipo "):
+            tipo = parte[5:].strip()
+        elif parte.startswith("Especificação "):
+            especificacao = parte[14:].strip()
+
+    # Atribuição — 4ª coluna: <a title="Atribuído para NOME">
+    atribuicao = ""
+    atrib_link = await row.query_selector("td:nth-child(4) a[title]")
+    if atrib_link:
+        atrib_title = (await atrib_link.get_attribute("title") or "").strip()
+        if atrib_title.startswith("Atribuído para "):
+            atribuicao = atrib_title[15:].strip()
+
+    return {
+        "ID":               process_id,
+        "Protocolo":        protocolo,
+        "Atribuicao":       atribuicao,
+        "Tipo":             tipo,
+        "Especificacao":    especificacao,
+        "Ponto_Controle":   "",  # não disponível nesta view
+        "Data_Autuacao":    "",  # não disponível nesta view
+        "Data_Recebimento": "",  # não disponível nesta view
+        "Data_Envio":       "",  # não disponível nesta view
+        "Unidade_Envio":    "",  # não disponível nesta view
+        "Observacoes":      "",  # não disponível nesta view
+    }
+
+
+# ---------------------------------------------------------------------------
+# Coleta de todos os processos (com paginação)
+# ---------------------------------------------------------------------------
+
+async def coletar_todos_processos(page) -> list[dict]:
+    """
+    Percorre TODAS as páginas da tabela #tblProcessosRecebidos.
+    A paginação usa o link #lnkRecebidosProximaPaginaSuperior.
+    """
+    todos: list[dict] = []
     pagina = 1
 
     while True:
         print(f"    Página {pagina}...")
 
-        # Extrai todas as linhas da tabela de processos da página atual
-        # ⚠️ CONFIRMAR o seletor da tabela de processos
-        linhas: list[list[str]] = await page.eval_on_selector_all(
-            "table#tabelaProcessos tbody tr",          # ⚠️ CONFIRMAR seletor da tabela
-            "rows => rows.map(r => Array.from(r.cells).map(c => c.innerText.trim()))",
+        rows = await page.query_selector_all(
+            "#tblProcessosRecebidos tbody tr"
         )
-        todos.extend(linhas)
 
-        # Verifica se existe botão/link de "Próxima página"
-        # ⚠️ CONFIRMAR o seletor do link de próxima página
-        proximo = await page.query_selector("a[title='Próxima página']")  # ⚠️ CONFIRMAR
-        if not proximo:
-            break  # Última página alcançada
+        for row in rows:
+            dado = await extrair_linha(row)
+            if dado:
+                todos.append(dado)
+
+        # Próxima página
+        proximo = await page.query_selector(
+            "#lnkRecebidosProximaPaginaSuperior"
+        )
+        if not proximo or not await proximo.is_visible():
+            break
 
         await proximo.click()
         await page.wait_for_load_state("networkidle")
@@ -139,19 +215,13 @@ async def coletar_todos_processos(page) -> list[list[str]]:
 # Geração do CSV
 # ---------------------------------------------------------------------------
 
-def montar_csv(linhas: list[list[str]]) -> bytes:
-    """Converte as linhas extraídas do SEI para CSV no formato do BI COPAG."""
+def montar_csv(processos: list[dict]) -> bytes:
+    """Serializa a lista de processos no formato CSV esperado pelo BI COPAG."""
     buf = io.StringIO()
-    writer = csv.writer(buf, delimiter=";")
-    writer.writerow(CABECALHO_CSV)
-
-    for linha in linhas:
-        row = [""] * len(CABECALHO_CSV)
-        for idx, col_nome in COLUNA_MAP.items():
-            if idx < len(linha) and col_nome in CABECALHO_CSV:
-                row[CABECALHO_CSV.index(col_nome)] = linha[idx]
-        writer.writerow(row)
-
+    writer = csv.DictWriter(buf, fieldnames=CABECALHO, delimiter=";",
+                            extrasaction="ignore")
+    writer.writeheader()
+    writer.writerows(processos)
     return buf.getvalue().encode("utf-8-sig")
 
 
@@ -160,25 +230,27 @@ def montar_csv(linhas: list[list[str]]) -> bytes:
 # ---------------------------------------------------------------------------
 
 async def upload_para_bi(
-    bi_url: str,
-    bi_key: str,
-    setor: str,
-    data_str: str,
-    csv_bytes: bytes,
+    bi_url: str, bi_key: str, setor: str, data_str: str, csv_bytes: bytes
 ) -> None:
-    """Envia o CSV para a API do BI COPAG via API key."""
     async with httpx.AsyncClient(timeout=120) as client:
         r = await client.post(
             f"{bi_url}/api/upload-with-key",
             data={"setor": setor, "data_relatorio": data_str},
-            files={"file": (f"processos_{setor}_{data_str}.csv", csv_bytes, "text/csv")},
+            files={"file": (f"processos_{setor}_{data_str}.csv",
+                            csv_bytes, "text/csv")},
             headers={"X-Api-Key": bi_key},
         )
         r.raise_for_status()
         res = r.json()
-        status_label = {"imported": "importado", "replaced": "substituído",
-                        "duplicate": "duplicado (ignorado)"}.get(res.get("status", ""), res.get("status", ""))
-        print(f"  ✓ {setor}: {res.get('total_registros', 0)} processos — {status_label}")
+        status_label = {
+            "imported":  "importado",
+            "replaced":  "substituído",
+            "duplicate": "duplicado (ignorado)",
+        }.get(res.get("status", ""), res.get("status", ""))
+        print(
+            f"  ✓ {setor}: {res.get('total_registros', 0)} processos"
+            f" — {status_label}"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -186,9 +258,9 @@ async def upload_para_bi(
 # ---------------------------------------------------------------------------
 
 async def main() -> None:
-    sei_url  = os.environ["SEI_URL"]
-    sei_user = os.environ["SEI_USER"]       # GitHub Secret — atualizar na troca de coordenador
-    sei_pass = os.environ["SEI_PASSWORD"]   # GitHub Secret — atualizar na troca de coordenador
+    sei_url  = os.environ["SEI_URL"].rstrip("/")
+    sei_user = os.environ["SEI_USER"]
+    sei_pass = os.environ["SEI_PASSWORD"]
     bi_url   = os.environ["BI_API_URL"]
     bi_key   = os.environ["BI_API_KEY"]
     hoje     = date.today().isoformat()
@@ -199,28 +271,30 @@ async def main() -> None:
         browser = await p.chromium.launch(headless=True)
         page    = await browser.new_page()
 
-        # 1. Login
-        print("Login no SEI...")
+        print("Fazendo login no SEI...")
         await fazer_login(page, sei_url, sei_user, sei_pass)
 
-        # 2. Para cada setor: trocar → coletar → enviar
         erros: list[str] = []
         for bi_setor, nome_sei in SETORES:
-            print(f"\n--- {bi_setor} ({nome_sei}) ---")
+            print(f"\n--- {bi_setor} ---")
             try:
                 await trocar_para_setor(page, nome_sei)
-                linhas    = await coletar_todos_processos(page)
-                if not linhas:
-                    print(f"  ⚠ Nenhum processo encontrado — setor ignorado.")
+                processos  = await coletar_todos_processos(page)
+                if not processos:
+                    print("  ⚠ Nenhum processo encontrado — setor ignorado.")
                     continue
-                csv_bytes = montar_csv(linhas)
+                csv_bytes  = montar_csv(processos)
                 await upload_para_bi(bi_url, bi_key, bi_setor, hoje, csv_bytes)
             except PlaywrightTimeout as exc:
-                msg = f"{bi_setor}: timeout ao navegar — {exc}"
+                msg = f"{bi_setor}: timeout — {exc}"
                 print(f"  ✗ {msg}")
                 erros.append(msg)
             except httpx.HTTPError as exc:
                 msg = f"{bi_setor}: erro no upload — {exc}"
+                print(f"  ✗ {msg}")
+                erros.append(msg)
+            except RuntimeError as exc:
+                msg = f"{bi_setor}: {exc}"
                 print(f"  ✗ {msg}")
                 erros.append(msg)
 
@@ -228,10 +302,10 @@ async def main() -> None:
 
     print("\n=== Concluído ===")
     if erros:
-        print(f"\nErros ({len(erros)}):")
+        print(f"\nErros encontrados ({len(erros)}):")
         for e in erros:
             print(f"  - {e}")
-        sys.exit(1)  # Faz o GitHub Actions marcar o job como falho → dispara e-mail de alerta
+        sys.exit(1)
 
 
 if __name__ == "__main__":
