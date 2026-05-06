@@ -231,14 +231,9 @@ async def coletar_todos_processos(page) -> list[dict]:
     pagina = 1
 
     # Aguarda a tabela de processos aparecer antes de começar a coleta.
-    # O SEI pode fazer navegações internas adicionais após trocar de unidade.
-    # Se a tabela não aparecer em 60 s, o setor provavelmente não tem processos
-    # em Recebidos (SEI não renderiza a tabela quando vazia) — retorna lista vazia.
-    try:
-        await page.wait_for_selector("#tblProcessosRecebidos", timeout=60_000)
-    except PlaywrightTimeout:
-        print("    ⚠ Tabela não encontrada em 60 s — setor sem processos ou página lenta.")
-        return []
+    # Todos os setores sempre têm processos — se a tabela não carregar é erro.
+    # Timeout de 60 s para tolerar variações de latência do SEI.
+    await page.wait_for_selector("#tblProcessosRecebidos", timeout=60_000)
 
     while True:
         print(f"    Página {pagina}...")
@@ -352,9 +347,7 @@ async def main() -> None:
                 await trocar_para_setor(page, sei_base, sigla_sei)
                 processos  = await coletar_todos_processos(page)
                 if not processos:
-                    print(f"  ⚠ {bi_setor}: sem processos em Recebidos — upload ignorado.")
-                    await resetar_pagina()
-                    continue
+                    raise RuntimeError("Extração retornou 0 processos — tabela carregou vazia.")
                 csv_bytes  = montar_csv(processos)
                 await upload_para_bi(bi_url, bi_key, bi_setor, hoje, csv_bytes)
             except PlaywrightTimeout as exc:
