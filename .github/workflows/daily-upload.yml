@@ -10,7 +10,7 @@ name: Upload diário SEI → BI COPAG
 
 on:
   schedule:
-    - cron: "30 11 * * 1-5"   # 08:30 BRT (UTC-3), segunda a sexta
+    - cron: "0 23 * * 1-5"   # 20:00 BRT (UTC-3), segunda a sexta
   workflow_dispatch:            # disparo manual (útil para testes e reprocessamentos)
 
 jobs:
