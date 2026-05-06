@@ -50,6 +50,7 @@ jobs:
           server_port: 465
           username: ${{ secrets.GMAIL_USER }}
           password: ${{ secrets.GMAIL_APP_PASSWORD }}
+          from: ${{ secrets.GMAIL_USER }}
           to: ${{ vars.REPORT_RECIPIENTS }}
           subject: "⚠️ BI COPAG — falha no upload automático (${{ github.run_id }})"
           body: |
