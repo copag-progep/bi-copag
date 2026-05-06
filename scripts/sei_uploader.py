@@ -23,9 +23,9 @@ import asyncio
 import csv
 import io
 import os
-import re
 import sys
 from datetime import date
+from urllib.parse import urlparse
 
 import httpx
 from playwright.async_api import async_playwright, TimeoutError as PlaywrightTimeout
@@ -58,12 +58,20 @@ CABECALHO = [
 # ---------------------------------------------------------------------------
 
 async def fazer_login(page, sei_url: str, sei_user: str, sei_pass: str) -> None:
-    """Faz login no SEI."""
+    """Faz login no SEI.
+
+    A URL de login é sempre /sip/login.php na raiz do domínio,
+    independente do caminho em SEI_URL (ex: /sei).
+    """
+    parsed  = urlparse(sei_url)
+    dominio = f"{parsed.scheme}://{parsed.netloc}"   # ex: https://sei.ufc.br
     login_url = (
-        f"{sei_url}/sip/login.php"
+        f"{dominio}/sip/login.php"
         "?sigla_orgao_sistema=UFC&sigla_sistema=SEI"
     )
-    await page.goto(login_url)
+    print(f"  → Acessando: {login_url}")
+    await page.goto(login_url, wait_until="domcontentloaded")
+    await page.wait_for_selector("#txtUsuario", timeout=30_000)
     await page.fill("#txtUsuario", sei_user)
     await page.fill("#pwdSenha",   sei_pass)
     await page.click("#sbmAcessar")
@@ -71,7 +79,7 @@ async def fazer_login(page, sei_url: str, sei_user: str, sei_pass: str) -> None:
 
     if "login" in page.url.lower():
         raise RuntimeError("Login falhou — verifique SEI_USER e SEI_PASSWORD.")
-    print("  ✓ Login realizado.")
+    print(f"  ✓ Login realizado. URL atual: {page.url}")
 
 
 # ---------------------------------------------------------------------------
