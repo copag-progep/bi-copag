@@ -80,36 +80,46 @@ async def fazer_login(page, sei_url: str, sei_user: str, sei_pass: str) -> None:
 
 async def trocar_para_setor(page, nome_unidade: str) -> None:
     """
-    Clica no link de unidade no topo da tela e seleciona a divisão desejada.
+    Clica no link de unidade no topo da tela e seleciona a divisão pelo
+    radio button da linha correspondente.
 
-    O link #lnkInfraUnidade redireciona para a página de seleção de unidade.
-    Nessa página selecionamos a unidade pelo texto exato.
-
-    ⚠️ O seletor da unidade na página de seleção ainda precisa ser confirmado.
-    Ajuste os seletores abaixo conforme a inspeção da página de troca de unidade.
+    Página "Trocar Unidade": tabela com colunas Sigla | Descrição | Órgão.
+    Cada linha tem um radio button à esquerda. Clicar no radio seleciona a
+    unidade (a linha fica destacada em verde/teal) e redireciona de volta
+    ao painel da unidade escolhida.
     """
     await page.click("#lnkInfraUnidade")
     await page.wait_for_load_state("networkidle")
 
-    # Tenta localizar a unidade pelo texto visível
-    # ⚠️ CONFIRMAR: pode ser um <a>, <option> ou <li> — inspecionar a página
-    try:
-        await page.click(f"text={nome_unidade}", timeout=10_000)
-    except PlaywrightTimeout:
-        # Alternativa: procura em um select ou input de busca
-        select = await page.query_selector("select[name*='unidade'], select[id*='unidade']")
-        if select:
-            await page.select_option(select, label=nome_unidade)
-            confirm = await page.query_selector("button[type='submit'], input[type='submit']")
-            if confirm:
-                await confirm.click()
-        else:
-            raise RuntimeError(
-                f"Não foi possível selecionar a unidade '{nome_unidade}'. "
-                "Inspecione a página de troca de unidade e ajuste o seletor."
-            )
+    # Percorre todas as linhas da tabela procurando pela descrição da unidade
+    rows = await page.query_selector_all("table tr")
+    found = False
+    for row in rows:
+        cell_text = (await row.text_content() or "").strip().upper()
+        if nome_unidade.upper() in cell_text:
+            radio = await row.query_selector("input[type='radio']")
+            if radio:
+                await radio.click()
+                found = True
+                break
 
+    if not found:
+        raise RuntimeError(
+            f"Unidade '{nome_unidade}' não encontrada na página de seleção. "
+            "Verifique o nome exato da unidade na variável SETORES do script."
+        )
+
+    # Após clicar no radio, o SEI redireciona automaticamente ao painel.
+    # Se por algum motivo ainda estiver na mesma página, procura botão de confirmação.
     await page.wait_for_load_state("networkidle")
+    if "trocar_unidade" in page.url or "infra_trocar" in page.url:
+        btn = await page.query_selector(
+            "button[type='submit'], input[type='submit'], button:has-text('Selecionar')"
+        )
+        if btn:
+            await btn.click()
+            await page.wait_for_load_state("networkidle")
+
     print(f"  ✓ Unidade trocada para: {nome_unidade}")
 
 
