@@ -213,6 +213,10 @@ async def coletar_todos_processos(page) -> list[dict]:
     todos: list[dict] = []
     pagina = 1
 
+    # Aguarda a tabela de processos aparecer antes de começar a coleta.
+    # O SEI pode fazer navegações internas adicionais após trocar de unidade.
+    await page.wait_for_selector("#tblProcessosRecebidos", timeout=30_000)
+
     while True:
         print(f"    Página {pagina}...")
 
