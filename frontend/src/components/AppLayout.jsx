@@ -3,6 +3,7 @@ import { Outlet, useLocation, useNavigate } from "react-router-dom";
 
 import { useAuth } from "../context/AuthContext";
 import FilterBar from "./FilterBar";
+import NotificationBell from "./NotificationBell";
 import Sidebar from "./Sidebar";
 
 
@@ -83,6 +84,8 @@ export default function AppLayout() {
             >
               ☰ Menu
             </button>
+
+            <NotificationBell />
 
             {/* Barra de busca global */}
             <form onSubmit={handleSearch} style={{ display: "flex", alignItems: "center" }}>

@@ -1,0 +1,34 @@
+name: Alertas de processos críticos — BI COPAG
+
+# Roda de segunda a sexta às 08:30 BRT (início do expediente).
+# Envia e-mail apenas se houver processos com mais de 30 dias sem movimentação.
+# Pode ser disparado manualmente a qualquer momento via "Run workflow".
+
+on:
+  schedule:
+    - cron: "30 11 * * 1-5"   # 08:30 BRT (UTC-3) = 11:30 UTC, dias úteis
+  workflow_dispatch:
+
+jobs:
+  alert:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Instalar dependências
+        run: pip install httpx
+
+      - name: Verificar processos críticos e enviar alerta
+        env:
+          BI_API_URL:         ${{ vars.BI_API_URL }}
+          BI_API_KEY:         ${{ secrets.BI_API_KEY }}
+          GMAIL_USER:         ${{ secrets.GMAIL_USER }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          REPORT_RECIPIENTS:  ${{ vars.REPORT_RECIPIENTS }}
+        run: python scripts/alerts_email.py

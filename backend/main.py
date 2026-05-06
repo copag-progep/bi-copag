@@ -772,6 +772,34 @@ def list_audit_logs(
     }
 
 
+@app.get("/api/alerts/summary")
+def alerts_summary(
+    _: User = Depends(get_current_user_or_api_key),
+    db: Session = Depends(get_db),
+):
+    """Resumo rápido de processos críticos para o sino de notificações.
+    Usa o cache do stale-processes — resposta muito rápida."""
+    stale = get_stale_processes_data(db, AnalyticsFilters())
+    processos = stale.get("processos", [])
+
+    def conta(min_dias: int) -> int:
+        return sum(1 for p in processos if p.get("dias_sem_movimentacao", 0) >= min_dias)
+
+    criticos = sorted(
+        [p for p in processos if p.get("dias_sem_movimentacao", 0) >= 45],
+        key=lambda p: -p.get("dias_sem_movimentacao", 0),
+    )[:8]
+
+    return JSONResponse({
+        "mais_de_30":    conta(30),
+        "mais_de_45":    conta(45),
+        "mais_de_90":    conta(90),
+        "total_badge":   conta(45),
+        "criticos":      criticos,
+        "data_referencia": stale.get("data_referencia"),
+    })
+
+
 @app.get("/api/meta/options", response_model=FilterOptions)
 def filter_options(
     _: User = Depends(get_current_user),
