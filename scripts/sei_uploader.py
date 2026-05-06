@@ -113,7 +113,8 @@ async def trocar_para_setor(page, sei_base: str, nome_unidade: str) -> None:
 
     await page.wait_for_load_state("networkidle")
 
-    # Seleciona a unidade pelo radio button da linha correspondente
+    # Seleciona a unidade pelo radio button da linha correspondente.
+    # Usa JavaScript direto para evitar problemas de visibilidade em headless.
     rows = await page.query_selector_all("table tr")
     found = False
     for row in rows:
@@ -121,7 +122,8 @@ async def trocar_para_setor(page, sei_base: str, nome_unidade: str) -> None:
         if nome_unidade.upper() in cell_text:
             radio = await row.query_selector("input[type='radio']")
             if radio:
-                await radio.click()
+                # dispara click via JS — ignora visibilidade (headless safe)
+                await page.evaluate("el => el.click()", radio)
                 found = True
                 break
 
