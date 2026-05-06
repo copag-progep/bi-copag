@@ -34,13 +34,16 @@ from playwright.async_api import async_playwright, TimeoutError as PlaywrightTim
 # Mapeamento: código do setor no BI → nome exato da unidade no SEI
 # Nomes confirmados na inspeção do DevTools em 06/05/2026
 # ---------------------------------------------------------------------------
+# Coluna 1: código do setor no BI COPAG
+# Coluna 2: sigla exata do label na página de troca de unidade (title="SIGLA")
+# Confirmado via DevTools em 06/05/2026
 SETORES = [
-    ("DIAPE",            "DIVISÃO DE APOSENTADORIA E PENSÕES"),
-    ("DICAT",            "DIVISÃO DE CADASTRO"),
-    ("DIJOR",            "DIVISÃO DE JORNADA DE TRABALHO"),
-    ("DICAF",            "DIVISÃO DE CÁLCULOS E MOVIMENTAÇÕES FINANCEIRAS"),
-    ("DICAF-CHEFIA",     "CHEFIA - DIVISÃO DE CÁLCULOS E MOVIMENTAÇÕES FINANCEIRAS"),
-    ("DICAF-REPOSICOES", "DICAF REPOSIÇÕES ERÁRIO"),
+    ("DIAPE",            "DIAPE"),
+    ("DICAT",            "DICAT"),
+    ("DIJOR",            "DIJOR"),
+    ("DICAF",            "DICAF"),
+    ("DICAF-CHEFIA",     "DICAF-CHEFIA"),
+    ("DICAF-REPOSICOES", "DICAF-REPOSIÇÕES"),   # acento confirmado no title
 ]
 
 # ---------------------------------------------------------------------------
@@ -86,16 +89,20 @@ async def fazer_login(page, sei_url: str, sei_user: str, sei_pass: str) -> None:
 # Troca de unidade
 # ---------------------------------------------------------------------------
 
-async def trocar_para_setor(page, sei_base: str, nome_unidade: str) -> None:
+async def trocar_para_setor(page, sei_base: str, sigla: str) -> None:
     """
-    Navega para a página de troca de unidade e seleciona a divisão pelo
-    radio button da tabela.
+    Navega para a página de troca de unidade e clica no label da sigla-alvo.
 
-    Em modo headless o elemento #lnkInfraUnidade pode estar presente no DOM
-    mas invisível (barra de menu). Por isso extraímos a URL diretamente do
-    atributo onclick e navegamos programaticamente — sem depender de clique.
+    Seletores confirmados via DevTools (06/05/2026):
+      label[title="DIAPE"], label[title="DICAT"], label[title="DIJOR"],
+      label[title="DICAF"], label[title="DICAF-CHEFIA"],
+      label[title="DICAF-REPOSIÇÕES"]
+
+    O clique no label aciona o radio button e o SEI redireciona
+    automaticamente ao painel da divisão — sem botão de confirmação.
     """
-    # Extrai a URL relativa do onclick de #lnkInfraUnidade
+    # 1. Extrai a URL de troca de unidade do onclick (evita clicar em
+    #    elemento que está invisível em headless).
     onclick_url: str | None = await page.evaluate("""
         () => {
             const el = document.getElementById('lnkInfraUnidade');
@@ -108,42 +115,31 @@ async def trocar_para_setor(page, sei_base: str, nome_unidade: str) -> None:
     if onclick_url:
         await page.goto(f"{sei_base}/{onclick_url}", wait_until="domcontentloaded")
     else:
-        # Fallback: força o clique mesmo que o elemento não esteja visível
-        await page.click("#lnkInfraUnidade", force=True)
+        await page.evaluate(
+            "() => { const el = document.getElementById('lnkInfraUnidade'); if (el) el.click(); }"
+        )
 
     await page.wait_for_load_state("networkidle")
 
-    # Seleciona a unidade pelo radio button da linha correspondente.
-    # Usa JavaScript direto para evitar problemas de visibilidade em headless.
-    rows = await page.query_selector_all("table tr")
-    found = False
-    for row in rows:
-        cell_text = (await row.text_content() or "").strip().upper()
-        if nome_unidade.upper() in cell_text:
-            radio = await row.query_selector("input[type='radio']")
-            if radio:
-                # dispara click via JS — ignora visibilidade (headless safe)
-                await page.evaluate("el => el.click()", radio)
-                found = True
-                break
+    # 2. Clica no label da sigla-alvo via JS (ignora visibilidade headless).
+    #    O clique dispara a navegação de volta ao painel — não há submit button.
+    clicked: bool = await page.evaluate(
+        """(sigla) => {
+            const el = document.querySelector('label[title="' + sigla + '"]');
+            if (el) { el.click(); return true; }
+            return false;
+        }""",
+        sigla,
+    )
 
-    if not found:
+    if not clicked:
         raise RuntimeError(
-            f"Unidade '{nome_unidade}' não encontrada na página de seleção."
+            f"Sigla '{sigla}' não encontrada na página de seleção de unidade."
         )
 
+    # 3. Aguarda a navegação de volta ao painel da divisão
     await page.wait_for_load_state("networkidle")
-
-    # Se o SEI não redirecionou automaticamente, procura botão de confirmação
-    if "trocar_unidade" in page.url or "infra_trocar" in page.url:
-        btn = await page.query_selector(
-            "button[type='submit'], input[type='submit']"
-        )
-        if btn:
-            await btn.click()
-            await page.wait_for_load_state("networkidle")
-
-    print(f"  ✓ Unidade: {nome_unidade}")
+    print(f"  ✓ Unidade: {sigla}")
 
 
 # ---------------------------------------------------------------------------
@@ -313,10 +309,10 @@ async def main() -> None:
         print(f"  → SEI base: {sei_base}")
 
         erros: list[str] = []
-        for bi_setor, nome_sei in SETORES:
+        for bi_setor, sigla_sei in SETORES:
             print(f"\n--- {bi_setor} ---")
             try:
-                await trocar_para_setor(page, sei_base, nome_sei)
+                await trocar_para_setor(page, sei_base, sigla_sei)
                 processos  = await coletar_todos_processos(page)
                 if not processos:
                     print("  ⚠ Nenhum processo encontrado — setor ignorado.")
