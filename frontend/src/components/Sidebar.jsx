@@ -15,6 +15,7 @@ const icons = {
   atribuicoes:  { d: ["M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2", "M9 7a4 4 0 100 8 4 4 0 000-8", "M22 21v-2a4 4 0 00-3-3.87", "M16 3.13a4 4 0 010 7.75"] },
   users:        { d: ["M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2", "M9 11a4 4 0 100-8 4 4 0 000 8z", "M23 21v-2a4 4 0 00-3-3.87", "M16 3.13a4 4 0 010 7.75"] },
   admin:        { d: ["M12 2a10 10 0 100 20A10 10 0 0012 2z", "M12 8v4", "M12 16h.01"] },
+  docs:         { d: ["M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z", "M14 2v6h6", "M16 13H8", "M16 17H8", "M10 9H8"] },
   logout:       { d: ["M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4", "M16 17l5-5-5-5", "M21 12H9"] },
 };
 
@@ -49,6 +50,7 @@ const menuItems = [
   { to: "/servidores",          label: "Servidores",           icon: "servidores" },
   { to: "/indicadores-mensais", label: "Indicadores Mensais", icon: "monthly" },
   { to: "/minha-conta",         label: "Minha Conta",          icon: "profile" },
+  { to: "/documentacao",        label: "Documentação",         icon: "docs" },
   { to: "/usuarios-sei",        label: "Usuários SEI",        icon: "users",  adminOnly: true },
   { to: "/administracao",       label: "Administração",       icon: "admin",  adminOnly: true },
 ];

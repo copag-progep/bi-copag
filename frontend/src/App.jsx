@@ -5,6 +5,7 @@ import AppLayout from "./components/AppLayout";
 import LoadingBlock from "./components/LoadingBlock";
 import ProtectedRoute from "./components/ProtectedRoute";
 
+const DocumentacaoPage   = lazy(() => import("./pages/DocumentacaoPage"));
 const LoginPage          = lazy(() => import("./pages/LoginPage"));
 const DashboardPage      = lazy(() => import("./pages/DashboardPage"));
 const UploadPage         = lazy(() => import("./pages/UploadPage"));
@@ -25,6 +26,8 @@ export default function App() {
   return (
     <Suspense fallback={<div className="screen-center"><LoadingBlock label="Carregando..." /></div>}>
       <Routes>
+        {/* Rota pública — sem autenticação necessária */}
+        <Route path="/documentacao" element={<DocumentacaoPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route
           path="/"

@@ -1,0 +1,479 @@
+import "./DocumentacaoPage.css";
+import ArchDiagram from "./documentacao/ArchDiagram";
+import Callout from "./documentacao/Callout";
+import Checklist from "./documentacao/Checklist";
+import DocSection from "./documentacao/DocSection";
+import DocTable from "./documentacao/DocTable";
+import FeatureCard from "./documentacao/FeatureCard";
+import MethodBadge from "./documentacao/MethodBadge";
+import PillTag from "./documentacao/PillTag";
+import TocSidebar from "./documentacao/TocSidebar";
+
+/* ── Dados ─────────────────────────────────────── */
+
+const FEATURES = [
+  { icon: "📊", title: "Dashboard executivo", desc: "KPIs, distribuição por setor/tipo, rankings e evolução diária" },
+  { icon: "↔️", title: "Entradas e saídas", desc: "Comparativo de fluxo entre snapshots consecutivos" },
+  { icon: "⚡", title: "Produtividade", desc: "Processos recebidos, finalizados e tempo médio por servidor" },
+  { icon: "📋", title: "Atribuições", desc: "Carteira completa com flags de criticidade (6 faixas até 90d+)" },
+  { icon: "⚖️", title: "Servidores", desc: "Balanceamento de carga, sobrecarga e perfil longitudinal" },
+  { icon: "🔀", title: "Múltiplos setores", desc: "Detecção de processos em mais de um setor no mesmo dia" },
+  { icon: "📅", title: "Indicadores mensais", desc: "Painel histórico com importação de CSV e lançamento manual" },
+  { icon: "🔍", title: "Busca global", desc: "Histórico completo de movimentações de qualquer protocolo" },
+  { icon: "🔔", title: "Alertas por e-mail", desc: "Notificação automática diária de processos críticos (>30, >45, >90 dias)" },
+  { icon: "🔔", title: "Notificação in-app", desc: "Sino com badge em tempo real de processos ≥45 dias" },
+  { icon: "🤖", title: "Upload automático", desc: "Script Playwright que acessa o SEI e envia dados sem intervenção (20h BRT)" },
+  { icon: "📧", title: "Relatório semanal", desc: "E-mail automático toda sexta com resumo dos indicadores da semana" },
+  { icon: "📄", title: "Exportação PDF / Excel", desc: "Relatório de atribuições com identidade visual Progep/UFC" },
+  { icon: "🔒", title: "Log de auditoria", desc: "Registro de todas as ações críticas: uploads, exclusões, trocas de senha" },
+];
+
+const BACKEND_STACK = {
+  headers: ["Tecnologia", "Versão", "Função"],
+  rows: [
+    ["Python", "3.12", "Linguagem principal"],
+    ["FastAPI", "0.115", "Framework web / API REST"],
+    ["SQLAlchemy", "2.0", "ORM / camada de banco"],
+    ["Alembic", "1.14", "Migrações formais de schema"],
+    ["Pandas", "2.2", "Processamento de CSVs e cálculos analíticos"],
+    ["Passlib + bcrypt", "1.7 / 4.0", "Hash de senhas"],
+    ["python-jose", "3.3", "JWT (tokens de autenticação)"],
+    ["psycopg2-binary", "2.9", "Driver PostgreSQL"],
+    ["openpyxl + xlrd", "—", "Leitura de planilhas Excel"],
+  ],
+};
+
+const FRONTEND_STACK = {
+  headers: ["Tecnologia", "Versão", "Função"],
+  rows: [
+    ["React", "18.3", "Framework UI"],
+    ["Vite", "5.4", "Build tool"],
+    ["React Router", "6.30", "Navegação SPA"],
+    ["Recharts", "2.15", "Gráficos (barras, linhas, pizza)"],
+    ["Axios", "1.8", "Chamadas HTTP para a API"],
+    ["SheetJS (xlsx)", "0.18", "Exportação para Excel"],
+    ["jsPDF + jspdf-autotable", "2.5 / 3.8", "Exportação para PDF"],
+  ],
+};
+
+const SCRIPTS_STACK = {
+  headers: ["Tecnologia", "Função"],
+  rows: [
+    ["Python + Playwright", "Automação do navegador para extração de dados do SEI"],
+    ["httpx", "Chamadas HTTP assíncronas (upload e relatório)"],
+    ["smtplib", "Envio de e-mails via SMTP (Google Workspace)"],
+  ],
+};
+
+const WORKFLOWS = [
+  { name: "keep-alive.yml", freq: "A cada 10 minutos (24h/dia)", desc: "Pinga /api/health para manter o Render ativo. Sem isso, o plano gratuito hiberna após 15 min e gera cold start lento." },
+  { name: "daily-upload.yml", freq: "Seg–Sex 20:00 BRT", desc: "Playwright headless: login no SEI, troca de setor, coleta todas as páginas (100/pág), gera CSV e faz upload via API key. Notifica por e-mail se falhar." },
+  { name: "weekly-report.yml", freq: "Sexta 17:00 BRT", desc: "Coleta dados do dashboard, balanceamento e alertas via API key e envia e-mail HTML com identidade visual Progep/UFC." },
+  { name: "critical-alerts.yml", freq: "Seg–Sex 08:30 BRT", desc: "Verifica processos >30d. NÃO envia e-mail se não houver processos críticos (anti-spam). Destaque especial para situação extrema >90d." },
+];
+
+const MANUTENCAO = [
+  { title: "Upload manual", desc: "Acessar Enviar Relatório → selecionar setor, data e arquivo CSV exportado do SEI." },
+  { title: "Corrigir data de upload", desc: "Em Enviar Relatório, clicar em Editar data na linha do upload. O sistema verifica conflitos automaticamente." },
+  { title: "Remover snapshot incorreto", desc: "Em Enviar Relatório, clicar em Excluir. Todos os processos daquele snapshot são removidos." },
+  { title: "Adicionar servidor ao DE-PARA", desc: "Em Usuários SEI, preencher o formulário. A plataforma sincroniza todos os processos históricos automaticamente." },
+  { title: "Criar novo usuário", desc: "Em Administração, preencher o formulário com nome, e-mail, senha e nível de acesso (admin ou não)." },
+  { title: "Lançar indicadores mensais", desc: "Em Indicadores Mensais → aba Atualização mensal, selecionar setor, ano e mês, preencher os 6 indicadores." },
+  { title: "Verificar processos críticos", desc: "O sino na topbar mostra a contagem de processos ≥45d. Clicar abre o resumo. Detalhes completos em /atribuicoes." },
+  { title: "Consultar log de auditoria", desc: "Em Administração → seção Log de auditoria. Mostra quem fez o quê e quando, com detalhes JSON." },
+];
+
+const CHECKLIST_TRANSICAO = [
+  "Novo coordenador adicionado como admin da organização copag-progep no GitHub",
+  "SEI_USER e SEI_PASSWORD atualizados nos GitHub Secrets",
+  "Workflow daily-upload disparado manualmente e confirmado com sucesso",
+  "Acesso ao Render transferido (painel de variáveis de ambiente)",
+  "Acesso ao Neon DB transferido (console.neon.tech)",
+  "Acesso ao Vercel transferido",
+  "Usuário admin criado no BI para o novo coordenador",
+  "Senha de app do copag@progep.ufc.br compartilhada ou gerada nova",
+  "Novo coordenador testou login no BI e trocou a própria senha",
+  "Antigo coordenador removido da organização GitHub (opcional, por segurança)",
+];
+
+const INFO_CRITICAS = {
+  headers: ["Item", "Valor"],
+  rows: [
+    ["URL do sistema", "https://bi-copag.vercel.app"],
+    ["URL da API", "https://bi-copag-api.onrender.com"],
+    ["Banco de dados", "Neon DB — console.neon.tech — projeto bi-copag"],
+    ["Repositório", "github.com/copag-progep/bi-copag (branch: main)"],
+    ["E-mail institucional", "copag@progep.ufc.br (Google Workspace)"],
+  ],
+};
+
+/* ── Componente principal ──────────────────────── */
+
+export default function DocumentacaoPage() {
+  return (
+    <div className="doc-root">
+
+      {/* ── Hero ── */}
+      <header className="doc-hero">
+        <div className="doc-hero-circle1" />
+        <div className="doc-hero-circle2" />
+        <div className="doc-hero-inner">
+          <div className="doc-hero-badge">SEI BI · COPAG · PROGEP · UFC</div>
+          <h1 className="doc-hero-title">
+            Documentação Técnica<br /><span>BI COPAG</span>
+          </h1>
+          <p className="doc-hero-sub">
+            Plataforma de Business Intelligence para acompanhamento de processos
+            administrativos do SEI. Dashboards, automação, alertas e relatórios
+            para a Coordenadoria de Cadastro e Pagamento da UFC.
+          </p>
+          <div className="doc-hero-meta">
+            <div className="doc-hero-meta-item"><strong>Versão</strong> 2.0</div>
+            <div className="doc-hero-meta-item"><strong>Repositório</strong> <a href="https://github.com/copag-progep/bi-copag" target="_blank" rel="noreferrer">copag-progep/bi-copag</a></div>
+            <div className="doc-hero-meta-item"><strong>Produção</strong> <a href="https://bi-copag.vercel.app" target="_blank" rel="noreferrer">bi-copag.vercel.app</a></div>
+            <div className="doc-hero-meta-item"><strong>Atualizado</strong> Maio 2026</div>
+          </div>
+          <div className="doc-hero-stats">
+            <div className="doc-hero-stat"><strong>12</strong><span>Capítulos</span></div>
+            <div className="doc-hero-stat"><strong>6</strong><span>Tabelas BD</span></div>
+            <div className="doc-hero-stat"><strong>5</strong><span>Workflows</span></div>
+            <div className="doc-hero-stat"><strong>14</strong><span>Funcionalidades</span></div>
+          </div>
+        </div>
+      </header>
+
+      {/* ── Layout ── */}
+      <div className="doc-layout">
+        <TocSidebar />
+
+        <div className="doc-content">
+
+          {/* 01 */}
+          <DocSection id="s01" num="01" eyebrow="Visão geral" title="O que é o BI COPAG">
+            <p>
+              O BI COPAG é uma plataforma web de Business Intelligence desenvolvida internamente
+              para a COPAG da UFC. Transforma os relatórios CSV exportados do SEI em dashboards
+              gerenciais, análises de produtividade, alertas automáticos e relatórios — sem nenhuma
+              infraestrutura paga obrigatória.
+            </p>
+            <p>
+              O SEI não possui visão gerencial nativa. Os relatórios exportados são tabelas brutas,
+              sem análise de tempo de permanência, produtividade por servidor ou alertas de processos
+              parados. O BI COPAG resolve isso.
+            </p>
+            <div className="doc-features-grid">
+              {FEATURES.map((f, i) => <FeatureCard key={i} {...f} />)}
+            </div>
+          </DocSection>
+
+          {/* 02 */}
+          <DocSection id="s02" num="02" eyebrow="Infraestrutura" title="Arquitetura">
+            <p>
+              A plataforma usa quatro serviços conectados: código no GitHub, API no Render,
+              frontend no Vercel e banco no Neon DB. Todo push para <code>main</code> dispara
+              deploy automático no Render e no Vercel simultaneamente.
+            </p>
+            <ArchDiagram />
+            <Callout icon="💡">
+              <strong>Rewrite do Vercel:</strong> toda chamada para <code>/api/*</code> em
+              bi-copag.vercel.app é redirecionada transparentemente para o Render. O usuário
+              nunca vê a URL do backend.
+            </Callout>
+          </DocSection>
+
+          {/* 03 */}
+          <DocSection id="s03" num="03" eyebrow="Tecnologia" title="Stack tecnológica">
+            <h3>Backend</h3>
+            <DocTable {...BACKEND_STACK} />
+            <h3>Frontend</h3>
+            <DocTable {...FRONTEND_STACK} />
+            <h3>Scripts de automação</h3>
+            <DocTable {...SCRIPTS_STACK} />
+          </DocSection>
+
+          {/* 04 */}
+          <DocSection id="s04" num="04" eyebrow="Banco de dados" title="Modelo de dados">
+            <p>6 tabelas gerenciadas pelo Alembic. Na inicialização, o backend executa <code>alembic upgrade head</code> automaticamente.</p>
+
+            {[
+              { name: "users", desc: "Usuários da aplicação BI COPAG", rows: [["id","Integer PK","Identificador único"],["name","String(120)","Nome completo"],["email","String(255) unique","E-mail de login"],["password_hash","String(255)","Hash bcrypt da senha"],["is_admin","Boolean","Privilégios administrativos"],["created_at","DateTime","Data de criação"]] },
+              { name: "uploads", desc: "Metadados de cada snapshot CSV importado. Unicidade: setor + data_relatorio + file_hash.", rows: [["id","Integer PK",""],["setor","String(80)","Sigla do setor (ex: DIAPE)"],["data_relatorio","Date","Data do relatório no SEI"],["data_upload","DateTime","Quando foi importado"],["original_filename","String(255)","Nome do arquivo CSV"],["file_hash","String(128)","SHA-256 (evita duplicatas)"],["total_records","Integer","Quantidade de processos"]] },
+              { name: "processos", desc: "Linhas importadas dos CSVs. Unicidade: protocolo + setor + data_relatorio.", rows: [["id","Integer PK",""],["protocolo","String(120)","Número do processo SEI"],["atribuicao","String(255)","Nome original no CSV"],["atribuicao_normalizada","String(255)","Nome canônico após DE-PARA"],["tipo","String(255)","Tipo do processo"],["setor","String(80)","Setor"],["data_relatorio","Date","Data do snapshot"],["upload_id","FK → uploads",""]] },
+              { name: "sei_users", desc: "DE-PARA entre variações de nome de um servidor e seu nome canônico.", rows: [["id","Integer PK",""],["nome","String(255)","Nome canônico"],["nome_sei","String(255)","Como aparece no CSV"],["usuario_sei","String(255)","Login no SEI"],["nome_key / nome_sei_key / usuario_sei_key","String(255)","Versões normalizadas (sem acentos, lowercase)"]] },
+              { name: "monthly_stats", desc: "Indicadores mensais. Unicidade: setor + indicador + ano + num_mes.", rows: [["id","Integer PK",""],["setor","String(80)",""],["indicador","String(255)",""],["valor","Integer",""],["mes / num_mes / ano / periodo","—","Campos de período"]] },
+              { name: "audit_logs", desc: "Registro de todas as ações críticas realizadas no sistema.", rows: [["id","Integer PK",""],["action","String(100)","Código da ação"],["entity_type / entity_id","String","Objeto afetado"],["details","Text","JSON com detalhes"],["user_email / user_name","String","Responsável pela ação"],["created_at","DateTime",""]] },
+            ].map(({ name, desc, rows }) => (
+              <div key={name}>
+                <h3><code>{name}</code></h3>
+                <p>{desc}</p>
+                <DocTable headers={["Campo", "Tipo", "Descrição"]} rows={rows} />
+              </div>
+            ))}
+
+            <div className="doc-pills-group">
+              <strong style={{ fontSize: "0.82rem", color: "#5a6390", display: "block", marginBottom: 8 }}>Ações registradas no audit_logs:</strong>
+              {["upload.imported","upload.replaced","upload.excluido","upload.data_alterada","usuario.criado","usuario.excluido","senha.alterada"].map((a) => (
+                <PillTag key={a} variant="default"><code>{a}</code></PillTag>
+              ))}
+            </div>
+          </DocSection>
+
+          {/* 05 */}
+          <DocSection id="s05" num="05" eyebrow="API" title="Backend e endpoints">
+            <p>O backend aceita <strong>JWT Bearer Token</strong> (usuários logados) ou <strong>X-Api-Key</strong> (scripts automáticos).</p>
+
+            {[
+              { group: "Saúde e Autenticação", endpoints: [
+                ["GET", "/api/health", "Verifica API e banco"],
+                ["POST", "/api/auth/login", "Retorna token JWT"],
+                ["GET", "/api/auth/me", "Dados do usuário logado"],
+                ["PATCH", "/api/auth/password", "Troca de senha (valida senha atual)"],
+              ]},
+              { group: "Usuários e Uploads", endpoints: [
+                ["GET", "/api/admin/users", "Lista todos os usuários"],
+                ["POST", "/api/admin/users", "Cria novo usuário"],
+                ["DELETE", "/api/admin/users/{id}", "Remove usuário"],
+                ["GET", "/api/uploads", "Lista uploads paginados"],
+                ["POST", "/api/uploads", "Upload manual de CSV (JWT)"],
+                ["POST", "/api/upload-with-key", "Upload automático (API key)"],
+                ["PATCH", "/api/uploads/{id}", "Corrige data de snapshot"],
+                ["DELETE", "/api/uploads/{id}", "Remove snapshot e processos"],
+              ]},
+              { group: "Analytics", endpoints: [
+                ["GET", "/api/meta/options", "Opções de filtro"],
+                ["GET", "/api/analytics/dashboard", "KPIs, distribuições, rankings"],
+                ["GET", "/api/analytics/entries-exits", "Entradas e saídas por setor"],
+                ["GET", "/api/analytics/productivity", "Produtividade por atribuição"],
+                ["GET", "/api/analytics/stale", "Processos parados"],
+                ["GET", "/api/analytics/multi-sector", "Processos em múltiplos setores"],
+                ["GET", "/api/analytics/attributions", "Carteira com dias (paginado, filtros, ordenação)"],
+                ["GET", "/api/analytics/workload-balance", "Balanceamento de carga"],
+                ["GET", "/api/analytics/server-profile", "Perfil longitudinal de servidor"],
+                ["GET", "/api/alerts/summary", "Resumo de processos críticos (sino in-app)"],
+              ]},
+              { group: "Outros", endpoints: [
+                ["GET", "/api/admin/audit-logs", "Log de auditoria paginado"],
+                ["GET", "/api/processes/search", "Busca parcial por protocolo"],
+                ["GET", "/api/monthly-stats", "Indicadores mensais"],
+                ["POST", "/api/admin/monthly-stats/month-entry", "Lança mês manualmente"],
+              ]},
+            ].map(({ group, endpoints }) => (
+              <div key={group}>
+                <h3>{group}</h3>
+                <div className="doc-table-wrapper">
+                  <table className="doc-table">
+                    <tbody>
+                      {endpoints.map(([method, path, desc]) => (
+                        <tr key={path} className="doc-endpoint-row">
+                          <td style={{ width: 70 }}><MethodBadge method={method} /></td>
+                          <td><code>{path}</code></td>
+                          <td style={{ color: "#5a6390", fontSize: "0.82rem" }}>{desc}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ))}
+
+            <Callout icon="⚡">
+              <strong>Cache analítico:</strong> todos os endpoints analíticos usam cache em memória.
+              Chave: (endpoint + assinatura_uploads + filtros). Invalidado automaticamente após
+              qualquer upload. Pré-aquecido em background logo após a invalidação.
+            </Callout>
+          </DocSection>
+
+          {/* 06 */}
+          <DocSection id="s06" num="06" eyebrow="Interface" title="Frontend — páginas e funcionalidades">
+            <p>SPA React com autenticação JWT no <code>localStorage</code>. Carregamento por rota com <code>React.lazy</code> (code splitting).</p>
+
+            <h3>Elementos globais</h3>
+            <p><strong>Topbar:</strong> título dinâmico por rota · busca global de protocolo · sino de notificações com badge e dropdown · chip do usuário.</p>
+            <p><strong>Sidebar:</strong> colapsável (248px → 72px) com ícones SVG · itens admin ocultos para não-admins · chip do usuário e botão Sair no rodapé.</p>
+            <p><strong>FilterBar:</strong> aparece nas páginas analíticas — Data de referência, setor, tipo, atribuição (inclui "Sem atribuição"). Afeta todos os gráficos simultaneamente.</p>
+
+            <h3>Páginas</h3>
+            <div className="doc-features-grid">
+              {[
+                { icon: "📊", title: "/  Dashboard", desc: "KPIs, distribuição por setor/tipo, ranking, evolução diária, tabela de finalizações" },
+                { icon: "📤", title: "/enviar-relatorio", desc: "Upload de CSV + histórico paginado com edição de data e exclusão de snapshots" },
+                { icon: "↔️", title: "/entradas-saidas", desc: "Entradas, saídas, saldo e evolução do fluxo por setor" },
+                { icon: "⚡", title: "/produtividade", desc: "Produção estimada, ranking acumulado e evolução histórica por servidor" },
+                { icon: "🔀", title: "/multiplos-setores", desc: "Protocolos presentes em mais de um setor no mesmo snapshot" },
+                { icon: "📋", title: "/atribuicoes", desc: "Carteira com 6 faixas de criticidade, busca, filtros server-side, exportação PDF e Excel" },
+                { icon: "⚖️", title: "/servidores", desc: "Balanceamento de carga + perfil longitudinal individual por servidor" },
+                { icon: "📅", title: "/indicadores-mensais", desc: "Dashboard histórico + importação de CSV + lançamento manual mensal" },
+                { icon: "🔍", title: "/busca", desc: "Histórico completo de movimentações de um protocolo específico" },
+                { icon: "👤", title: "/minha-conta", desc: "Informações do usuário + formulário de troca de senha" },
+                { icon: "⚙️", title: "/administracao", desc: "Gestão de usuários + log de auditoria paginado (admin only)" },
+                { icon: "🔗", title: "/usuarios-sei", desc: "DE-PARA de nomes + importação em lote (admin only)" },
+              ].map((p, i) => <FeatureCard key={i} {...p} />)}
+            </div>
+
+            <h3>Faixas de criticidade — página /atribuicoes</h3>
+            <div className="doc-pills-group">
+              <PillTag variant="success">&lt;15d — Normal</PillTag>
+              <PillTag variant="warning">15–29d — Atenção</PillTag>
+              <PillTag variant="accent">30–44d — Alerta</PillTag>
+              <PillTag variant="danger">45–59d — Grave</PillTag>
+              <PillTag variant="danger">60–89d — Crítico</PillTag>
+              <PillTag variant="purple">90d+ — Extremo</PillTag>
+            </div>
+          </DocSection>
+
+          {/* 07 */}
+          <DocSection id="s07" num="07" eyebrow="GitHub Actions" title="Automação">
+            <p>5 workflows em <code>.github/workflows/</code>. Todos podem ser disparados manualmente via <code>workflow_dispatch</code>.</p>
+            <div className="doc-workflow-grid">
+              {WORKFLOWS.map((w) => (
+                <div key={w.name} className="doc-workflow-card">
+                  <div className="doc-workflow-name">{w.name}</div>
+                  <div className="doc-workflow-freq">⏰ {w.freq}</div>
+                  <div className="doc-workflow-desc">{w.desc}</div>
+                </div>
+              ))}
+            </div>
+            <Callout icon="🔑">
+              <strong>Troca de coordenador:</strong> basta atualizar <code>SEI_USER</code> e <code>SEI_PASSWORD</code> nos
+              GitHub Secrets em <em>Settings → Secrets and variables → Actions</em>. Nenhum arquivo
+              de código precisa ser alterado. A automação é 100% agnóstica ao usuário.
+            </Callout>
+          </DocSection>
+
+          {/* 08 */}
+          <DocSection id="s08" num="08" eyebrow="Proteção" title="Segurança e auditoria">
+            <h3>Autenticação JWT</h3>
+            <p>Algoritmo HS256, TTL de 720 minutos. Senhas com hash bcrypt (salt automático). Assinado com <code>JWT_SECRET_KEY</code>.</p>
+
+            <h3>API Key para automação</h3>
+            <p>Chave estática em <code>API_UPLOAD_KEY</code> (variável de ambiente). Passada no header <code>X-Api-Key</code>. Aceita nos endpoints de upload e nos analíticos para scripts. Nunca exposta no código.</p>
+
+            <h3>Log de auditoria</h3>
+            <p>Toda ação crítica é registrada com: código da ação, objeto afetado, detalhes em JSON, e-mail e nome do responsável, data/hora. Visível apenas para admins em <strong>Administração → Log de auditoria</strong>.</p>
+
+            <h3>Alembic — migrações versionadas</h3>
+            <p>Novas colunas/tabelas criadas como arquivos em <code>alembic/versions/</code>. Na inicialização, o backend executa <code>alembic upgrade head</code>. Em bancos sem Alembic, sela automaticamente no baseline antes de aplicar migrações novas.</p>
+
+            <h3>CORS</h3>
+            <p>Aceita apenas <code>localhost:5173</code> (dev local) e qualquer subdomínio <code>*.vercel.app</code> (produção).</p>
+          </DocSection>
+
+          {/* 09 */}
+          <DocSection id="s09" num="09" eyebrow="Deploy" title="Configuração de ambiente">
+            <h3>Variáveis no Render (backend)</h3>
+            <DocTable
+              headers={["Variável", "Descrição"]}
+              rows={[
+                ["DATABASE_URL", "String de conexão PostgreSQL (Neon)"],
+                ["JWT_SECRET_KEY", "Chave para assinar tokens JWT"],
+                ["API_UPLOAD_KEY", "Chave para uploads automáticos"],
+                ["DEFAULT_ADMIN_EMAIL", "E-mail do admin padrão"],
+                ["DEFAULT_ADMIN_PASSWORD", "Senha inicial do admin"],
+                ["ACCESS_TOKEN_EXPIRE_MINUTES", "TTL do token (padrão: 720)"],
+                ["AUTO_IMPORT_SAMPLE_DATA", "false em produção"],
+              ]}
+            />
+            <h3>GitHub Secrets</h3>
+            <DocTable
+              headers={["Secret", "Descrição"]}
+              rows={[
+                ["SEI_URL", "URL base do SEI (ex: https://sei.ufc.br/sei)"],
+                ["SEI_USER", "Login SEI do coordenador — atualizar na troca"],
+                ["SEI_PASSWORD", "Senha SEI — atualizar na troca"],
+                ["BI_API_KEY", "Mesma chave que API_UPLOAD_KEY no Render"],
+                ["GMAIL_USER", "copag@progep.ufc.br"],
+                ["GMAIL_APP_PASSWORD", "Senha de app Google (myaccount.google.com)"],
+              ]}
+            />
+            <h3>GitHub Variables</h3>
+            <DocTable
+              headers={["Variable", "Valor"]}
+              rows={[
+                ["BI_API_URL", "https://bi-copag-api.onrender.com"],
+                ["REPORT_RECIPIENTS", "E-mails dos destinatários separados por vírgula"],
+              ]}
+            />
+          </DocSection>
+
+          {/* 10 */}
+          <DocSection id="s10" num="10" eyebrow="Operação" title="Manutenção do dia a dia">
+            <Callout icon="🤖">
+              O upload diário é <strong>totalmente automático às 20:00 BRT</strong>. Se falhar,
+              um e-mail de alerta é enviado automaticamente. Intervenção manual só é necessária
+              em casos excepcionais.
+            </Callout>
+            <div className="doc-grid-2">
+              {MANUTENCAO.map(({ title, desc }) => (
+                <div key={title} className="doc-procedure">
+                  <h4>{title}</h4>
+                  <p>{desc}</p>
+                </div>
+              ))}
+            </div>
+          </DocSection>
+
+          {/* 11 */}
+          <DocSection id="s11" num="11" eyebrow="Transferência" title="Transição para nova gestão">
+            <h3>O que o novo coordenador precisa fazer (≈ 10 minutos)</h3>
+            <ol>
+              <li>Acessar GitHub → <code>copag-progep/bi-copag</code> → <strong>Settings → Secrets and variables → Actions</strong></li>
+              <li>Atualizar <code>SEI_USER</code> com seu login no SEI</li>
+              <li>Atualizar <code>SEI_PASSWORD</code> com sua senha no SEI</li>
+              <li>Disparar <code>daily-upload</code> manualmente e confirmar sucesso nos logs</li>
+              <li>Alterar a própria senha no BI em <strong>Minha Conta</strong></li>
+            </ol>
+            <p style={{ marginTop: 20 }}>
+              <strong>Nenhum arquivo de código precisa ser alterado.</strong> A automação é
+              agnóstica ao usuário — usa apenas as credenciais dos Secrets.
+            </p>
+
+            <h3>Checklist de transferência</h3>
+            <Checklist items={CHECKLIST_TRANSICAO} />
+
+            <h3>Informações críticas de produção</h3>
+            <DocTable {...INFO_CRITICAS} />
+          </DocSection>
+
+          {/* 12 */}
+          <DocSection id="s12" num="12" eyebrow="Evolução" title="Histórico de funcionalidades">
+            {[
+              { title: "Fundação do sistema", items: ["Autenticação JWT + bcrypt","Importação de CSVs (UTF-8, UTF-8-BOM, Latin-1)","Hash SHA-256 para evitar duplicatas","Substituição de snapshot por setor/data","Dashboard com KPIs, distribuição, evolução diária","Entradas e saídas, produtividade, múltiplos setores","Administração de usuários com proteção do último admin"] },
+              { title: "Infraestrutura e qualidade", items: ["Alembic para migrações formais com auto-stamp","Log de auditoria em tabela dedicada","Lifespan context manager (substituiu @app.on_event)","datetime.now(timezone.utc) (substituiu utcnow)","sync_processo_atribuicoes com SQL UPDATE em lote","Cache analítico com invalidação automática","Pré-aquecimento do cache em background","Healthcheck com verificação do banco"] },
+              { title: "Identidade visual Progep/UFC", items: ["Paleta: navy #273168 · laranja #f39320 · amarelo #febb12 · azul #81c7ee","Fonte Plus Jakarta Sans","Sidebar redesenhada com ícones SVG e chip do usuário","Topbar com título dinâmico por rota","StatCards com hover e estrutura vertical","LoginPage com dois painéis e stats decorativos"] },
+              { title: "Performance", items: ["React.lazy + Suspense para code splitting por rota","preconnect e dns-prefetch para o backend","LoadingBlock com spinner e mensagem de servidor iniciando","useAnalyticsData hook com cache stale-while-revalidate (TTL 5 min)","clearAnalyticsCache chamado após upload"] },
+              { title: "Analíticas avançadas", items: ["Página Atribuições com spans consecutivos por setor, 6 faixas de criticidade, filtros server-side, busca por protocolo","Exportação PDF com identidade visual (jsPDF + jspdf-autotable)","Exportação Excel (SheetJS)","Página Servidores: balanceamento por desvio-padrão + perfil longitudinal","Busca global de processo com histórico de movimentações","Filtro Sem atribuição no FilterBar global","Indicadores mensais com dashboard e lançamento manual"] },
+              { title: "Automação (Bloco 4)", items: ["API key para uploads sem JWT","Script SEI Scraper (Playwright headless): login, troca de setor por JS, coleta todas as páginas","Workflow daily-upload (20:00 BRT) com notificação de falha","Workflow weekly-report (sexta 17:00 BRT)","Script de alertas com anti-spam (não envia se sem críticos)","Workflow critical-alerts (08:30 BRT dias úteis)"] },
+              { title: "Alertas e notificações (Bloco 1)", items: ["Endpoint /api/alerts/summary (leve, usa cache)","Sino de notificações na topbar: badge, dropdown top-8, link para /atribuicoes","E-mail de alertas: cards por faixa, tabela dos críticos, destaque para >90d","Não envia e-mail se nenhum processo crítico"] },
+              { title: "Segurança e acesso", items: ["Troca de senha pelo próprio usuário (valida senha atual)","DE-PARA com normalização de identidade (sem acentos, lowercase, case-insensitive)","Autenticação dual (JWT ou API key) nos endpoints analíticos","Página Minha conta com informações e formulário de troca de senha"] },
+            ].map(({ title, items }) => (
+              <div key={title}>
+                <h3>{title}</h3>
+                <ul>{items.map((item) => <li key={item}>{item}</li>)}</ul>
+              </div>
+            ))}
+          </DocSection>
+
+        </div>
+      </div>
+
+      {/* ── Footer ── */}
+      <footer className="doc-footer">
+        <div className="doc-footer-brand">SEI BI · COPAG · PROGEP · UFC</div>
+        <div className="doc-footer-text">
+          Documentação gerada em maio de 2026 para a gestão COPAG/PROGEP/UFC.<br />
+          Desenvolvido com Claude Code (Anthropic) — repositório copag-progep/bi-copag.
+        </div>
+      </footer>
+
+      {/* ── Botão de impressão ── */}
+      <button className="doc-print-btn" onClick={() => window.print()}>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/>
+          <rect x="6" y="14" width="12" height="8"/>
+        </svg>
+        Imprimir / PDF
+      </button>
+
+    </div>
+  );
+}
