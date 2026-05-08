@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import date, datetime
@@ -79,13 +80,23 @@ ATTRIBUTION_FIELDS = ["protocolo", "atribuicao", "tipo", "setor", "data_relatori
 _ANALYTICS_CACHE: dict[tuple[object, ...], dict] = {}
 _CACHE_LOCK = Lock()
 
+_SIG_CACHE: tuple[tuple, float] | None = None
+_SIG_TTL = 5.0  # segundos — evita roundtrip ao banco em requests consecutivos
+
 
 def clear_analytics_cache() -> None:
+    global _SIG_CACHE
     with _CACHE_LOCK:
         _ANALYTICS_CACHE.clear()
+        _SIG_CACHE = None
 
 
 def _uploads_signature(db: Session) -> tuple[object, ...]:
+    global _SIG_CACHE
+    now = time.monotonic()
+    if _SIG_CACHE is not None and now - _SIG_CACHE[1] < _SIG_TTL:
+        return _SIG_CACHE[0]
+
     total_uploads, latest_upload_id, latest_upload_time = (
         db.query(
             func.count(Upload.id),
@@ -93,11 +104,13 @@ def _uploads_signature(db: Session) -> tuple[object, ...]:
             func.max(Upload.data_upload),
         ).one()
     )
-    return (
+    sig = (
         int(total_uploads or 0),
         int(latest_upload_id or 0),
         latest_upload_time.isoformat() if isinstance(latest_upload_time, datetime) else None,
     )
+    _SIG_CACHE = (sig, now)
+    return sig
 
 
 def _cached_response(

@@ -25,6 +25,9 @@ engine_kwargs: dict = {
 if not DATABASE_URL.startswith("sqlite"):
     engine_kwargs["pool_pre_ping"] = True
     engine_kwargs["pool_recycle"] = int(os.getenv("SQLALCHEMY_POOL_RECYCLE", "300"))
+    engine_kwargs["pool_size"] = int(os.getenv("SQLALCHEMY_POOL_SIZE", "3"))
+    engine_kwargs["max_overflow"] = int(os.getenv("SQLALCHEMY_MAX_OVERFLOW", "2"))
+    engine_kwargs["pool_timeout"] = 20
 
 engine = create_engine(DATABASE_URL, **engine_kwargs)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, future=True)
@@ -103,6 +106,8 @@ def ensure_indexes() -> None:
         "CREATE INDEX IF NOT EXISTS ix_processos_atribuicao_data_relatorio ON processos (atribuicao, data_relatorio)",
         "CREATE INDEX IF NOT EXISTS ix_processos_atribuicao_normalizada_data_relatorio ON processos (atribuicao_normalizada, data_relatorio)",
         "CREATE INDEX IF NOT EXISTS ix_processos_protocolo_data_relatorio ON processos (protocolo, data_relatorio)",
+        # Índice de cobertura para as queries analíticas principais — evita heap fetch por linha
+        "CREATE INDEX IF NOT EXISTS ix_processos_covering_analytics ON processos (setor, data_relatorio, protocolo, atribuicao_normalizada, tipo)",
         "CREATE INDEX IF NOT EXISTS ix_sei_users_nome_key ON sei_users (nome_key)",
         "CREATE INDEX IF NOT EXISTS ix_sei_users_nome_sei_key ON sei_users (nome_sei_key)",
         "CREATE INDEX IF NOT EXISTS ix_sei_users_usuario_sei_key ON sei_users (usuario_sei_key)",

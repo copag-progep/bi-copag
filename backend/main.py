@@ -1,10 +1,12 @@
 import json
 import os
+import threading
 from contextlib import asynccontextmanager
 from datetime import date
 
 from fastapi import BackgroundTasks, Depends, FastAPI, File, Form, Header, HTTPException, Query, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
@@ -139,6 +141,7 @@ async def lifespan(app: FastAPI):
             sync_processo_atribuicoes(db)
     finally:
         db.close()
+    threading.Thread(target=precompute_analytics, daemon=True).start()
     yield
 
 
@@ -155,6 +158,7 @@ origins = [
 ]
 origins.extend([origin.strip() for origin in CORS_ORIGINS.split(",") if origin.strip()])
 
+app.add_middleware(GZipMiddleware, minimum_size=512)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
