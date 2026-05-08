@@ -1,12 +1,13 @@
 name: Relatório semanal BI COPAG
 
-# Envia todo final de semana (sexta 17:00 BRT) um e-mail HTML com
+# Envia todo final de semana (sexta 20:00 BRT) um e-mail HTML com
 # os principais indicadores da semana para os destinatários configurados.
 # Pode ser disparado manualmente em qualquer momento.
+# Horário definido após o upload diário (19:00 BRT) para garantir dados atualizados.
 
 on:
   schedule:
-    - cron: "0 20 * * 5"   # sexta-feira 17:00 BRT (UTC-3) = 20:00 UTC
+    - cron: "0 23 * * 5"   # sexta-feira 20:00 BRT (UTC-3) = 23:00 UTC
   workflow_dispatch:
 
 jobs:

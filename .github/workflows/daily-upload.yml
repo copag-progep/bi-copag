@@ -1,6 +1,6 @@
 name: Upload diário SEI → BI COPAG
 
-# Roda automaticamente de segunda a sexta às 20:00 BRT (23:00 UTC).
+# Roda automaticamente de segunda a sexta às 19:00 BRT (22:00 UTC).
 # Pode ser disparado manualmente em qualquer momento via "Run workflow".
 #
 # Para trocar de coordenador:
@@ -10,7 +10,7 @@ name: Upload diário SEI → BI COPAG
 
 on:
   schedule:
-    - cron: "0 23 * * 1-5"   # 20:00 BRT (UTC-3), segunda a sexta
+    - cron: "0 22 * * 1-5"   # 19:00 BRT (UTC-3), segunda a sexta
   workflow_dispatch:            # disparo manual (útil para testes e reprocessamentos)
 
 jobs:
