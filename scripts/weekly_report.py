@@ -74,35 +74,44 @@ def fetch(path: str, **params) -> dict:
 
 def fetch_weekly_flow(report_date: date) -> dict:
     """
-    Retorna totais de entradas e saídas para a semana do relatório e a semana anterior,
-    usando evolucao_fluxo do endpoint entries-exits.
+    Retorna totais de entradas e saídas para a semana do relatório e a semana anterior.
 
-    Inclui a sexta-feira da semana anterior como baseline para que a segunda-feira
-    da semana passada tenha uma comparação correta.
+    Usa duas chamadas separadas ao entries-exits para garantir que cada semana
+    tenha um baseline real ANTES da segunda-feira — evitando o problema em que
+    a segunda-feira vira o primeiro snapshot da série e recebe entradas = carga
+    total (inflado) por falta de um snapshot anterior na janela carregada.
+
+    Janela de cada chamada:
+      this_week : last_friday → report_date   (baseline = sexta passada)
+      prev_week : prev_baseline → last_friday  (baseline = 7 dias antes de prev_mon)
     """
-    this_mon  = report_date - timedelta(days=report_date.weekday())
-    prev_mon  = this_mon - timedelta(weeks=1)
-    baseline  = prev_mon - timedelta(days=3)   # sexta antes da semana passada
+    this_mon      = report_date - timedelta(days=report_date.weekday())
+    prev_mon      = this_mon - timedelta(weeks=1)
+    last_friday   = this_mon - timedelta(days=3)   # sexta da semana passada
+    prev_baseline = prev_mon - timedelta(days=7)   # 7 dias antes de prev_mon
 
-    flow_data = fetch(
+    # Fetch separado para cada semana
+    flow_this = fetch(
         "/api/analytics/entries-exits",
-        data_inicial=baseline.isoformat(),
+        data_inicial=last_friday.isoformat(),
         data_final=report_date.isoformat(),
     )
+    flow_prev = fetch(
+        "/api/analytics/entries-exits",
+        data_inicial=prev_baseline.isoformat(),
+        data_final=last_friday.isoformat(),
+    )
 
-    series = flow_data.get("evolucao_fluxo", [])
-
-    # Conjuntos de datas de cada semana (seg–sex)
     this_week = {str(this_mon + timedelta(days=i)) for i in range(5)}
     prev_week = {str(prev_mon  + timedelta(days=i)) for i in range(5)}
 
-    def _sum(dates: set) -> tuple[int, int]:
+    def _sum_flow(series: list, dates: set) -> tuple[int, int]:
         ent = sum(item["entradas"] for item in series if item["date"] in dates)
         sai = sum(item["saidas"]   for item in series if item["date"] in dates)
         return ent, sai
 
-    this_e, this_s = _sum(this_week)
-    prev_e, prev_s = _sum(prev_week)
+    this_e, this_s = _sum_flow(flow_this.get("evolucao_fluxo", []), this_week)
+    prev_e, prev_s = _sum_flow(flow_prev.get("evolucao_fluxo", []), prev_week)
 
     return {
         "this_entradas": this_e,
@@ -112,7 +121,7 @@ def fetch_weekly_flow(report_date: date) -> dict:
         "semana_ini":     this_mon.strftime("%d/%m"),
         "semana_fim":     report_date.strftime("%d/%m"),
         "semana_ant_ini": prev_mon.strftime("%d/%m"),
-        "semana_ant_fim": (this_mon - timedelta(days=1)).strftime("%d/%m"),
+        "semana_ant_fim": last_friday.strftime("%d/%m"),
     }
 
 
@@ -191,7 +200,11 @@ def build_html(dashboard: dict, balance: dict, stale: dict, flow: dict,
     this_s = flow.get("this_saidas",   0)
     prev_e = flow.get("prev_entradas", 0)
     prev_s = flow.get("prev_saidas",   0)
-    saldo  = this_e - this_s
+    # Saldo baseado em protocolos distintos (dashboard sexta→sexta) para ser
+    # consistente com o KPI "Processos ativos". A soma per-setor (this_e - this_s)
+    # difere porque transferências entre setores geram 1 entrada + 1 saída sem
+    # alterar o total de processos distintos.
+    saldo = delta_ativos_semana if delta_ativos_semana is not None else (this_e - this_s)
     mais_30 = contagens.get("mais_de_30", 0)
     mais_45 = contagens.get("mais_de_45", contagens.get("mais_de_30", 0))
     total_ativos = kpis.get("total_processos_ativos", 0)
