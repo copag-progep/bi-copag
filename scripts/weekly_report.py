@@ -172,7 +172,8 @@ def _section_title(label: str, color: str = "#f39320") -> str:
     )
 
 
-def build_html(dashboard: dict, balance: dict, stale: dict, flow: dict) -> str:
+def build_html(dashboard: dict, balance: dict, stale: dict, flow: dict,
+               delta_ativos_semana: int | None = None) -> str:
     kpis       = dashboard.get("kpis", {})
     setores    = sorted(dashboard.get("por_setor", []), key=lambda x: -x["value"])
     servidores = balance.get("servidores", [])
@@ -195,17 +196,18 @@ def build_html(dashboard: dict, balance: dict, stale: dict, flow: dict) -> str:
     mais_45 = contagens.get("mais_de_45", contagens.get("mais_de_30", 0))
     total_ativos = kpis.get("total_processos_ativos", 0)
     total_serv   = stats_bal.get("total_servidores", 0)
-    delta_total  = stats_bal.get("delta_total")
 
     # ── KPIs ─────────────────────────────────────────────────────────
+    # delta_ativos_semana = total_ativos(esta sexta) - total_ativos(sexta passada)
+    # Fonte: dois fetches do endpoint /dashboard — mesma métrica, período correto.
     delta_ativos = ""
-    if delta_total is not None and delta_total != 0:
-        cor  = "#bf3535" if delta_total > 0 else "#1a7a50"
-        seta = "▲" if delta_total > 0 else "▼"
+    if delta_ativos_semana is not None and delta_ativos_semana != 0:
+        cor  = "#bf3535" if delta_ativos_semana > 0 else "#1a7a50"
+        seta = "▲" if delta_ativos_semana > 0 else "▼"
         delta_ativos = (
             f"<div style='margin-top:6px;display:inline-block;padding:2px 9px;"
             f"border-radius:999px;background:{cor}18;color:{cor};"
-            f"font-size:.72rem;font-weight:700'>{seta} {abs(delta_total)} vs sem. ant.</div>"
+            f"font-size:.72rem;font-weight:700'>{seta} {abs(delta_ativos_semana)} vs sem. ant.</div>"
         )
 
     def _kpi_card(value: str, label: str, accent: str, bg: str, extra: str = "") -> str:
@@ -579,8 +581,25 @@ if __name__ == "__main__":
     print(f"  Esta semana : {flow['this_entradas']} entradas, {flow['this_saidas']} saídas")
     print(f"  Semana ant. : {flow['prev_entradas']} entradas, {flow['prev_saidas']} saídas")
 
+    # Delta semanal real de processos ativos:
+    # compara total_processos_ativos desta sexta vs da sexta passada.
+    # Usa a mesma fonte (endpoint /dashboard) para evitar divergências de escopo
+    # que ocorriam ao usar delta_total do workload-balance (que mede só processos
+    # atribuídos e compara contra o snapshot do dia anterior, não da semana anterior).
+    this_mon    = today - timedelta(days=today.weekday())
+    last_friday = this_mon - timedelta(days=3)
+    print(f"  Buscando dashboard da semana anterior ({last_friday})...")
+    dashboard_prev    = fetch("/api/analytics/dashboard",
+                              data_referencia=last_friday.isoformat())
+    total_atual       = dashboard["kpis"].get("total_processos_ativos", 0)
+    total_prev        = dashboard_prev["kpis"].get("total_processos_ativos", 0)
+    delta_ativos_semana = (total_atual - total_prev) if total_prev else None
+    print(f"  Processos ativos: {total_prev} (sem. ant.) → {total_atual} (atual)"
+          f" = {delta_ativos_semana:+d}" if delta_ativos_semana is not None else
+          f"  Processos ativos: {total_atual} (sem. ant. indisponível)")
+
     print("Gerando HTML do relatório...")
-    html = build_html(dashboard, balance, stale, flow)
+    html = build_html(dashboard, balance, stale, flow, delta_ativos_semana)
 
     print("Enviando e-mail...")
     send_email(html)
