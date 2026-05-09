@@ -18,6 +18,7 @@ Variáveis de ambiente necessárias:
 
 import os
 import smtplib
+import time
 from datetime import date, timedelta
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -29,16 +30,46 @@ import httpx
 # Coleta de dados da API do BI
 # ---------------------------------------------------------------------------
 
+_BASE_URL   = lambda: os.environ["BI_API_URL"]
+_HEADERS    = lambda: {"X-Api-Key": os.environ["BI_API_KEY"]}
+_TIMEOUT    = 120   # segundos por tentativa
+_RETRIES    = 3
+_RETRY_WAIT = 30    # segundos entre tentativas
+
+
+def _warmup() -> None:
+    """Faz um ping leve no health check para acordar o Render antes de buscar dados."""
+    url = f"{_BASE_URL()}/api/health"
+    print(f"  Aquecendo a API ({url})...")
+    for attempt in range(1, _RETRIES + 1):
+        try:
+            r = httpx.get(url, timeout=_TIMEOUT)
+            if r.status_code == 200:
+                print(f"  API respondeu (tentativa {attempt}).")
+                return
+        except httpx.TimeoutException:
+            pass
+        if attempt < _RETRIES:
+            print(f"  API não respondeu — aguardando {_RETRY_WAIT}s antes de tentar novamente...")
+            time.sleep(_RETRY_WAIT)
+    print("  Aviso: API não confirmou health check. Tentando coletar dados mesmo assim.")
+
+
 def fetch(path: str, **params) -> dict:
-    """Chama um endpoint analítico do BI usando API key."""
-    r = httpx.get(
-        f"{os.environ['BI_API_URL']}{path}",
-        params=params,
-        headers={"X-Api-Key": os.environ["BI_API_KEY"]},
-        timeout=60,
-    )
-    r.raise_for_status()
-    return r.json()
+    """Chama um endpoint analítico do BI usando API key, com retry automático."""
+    url = f"{_BASE_URL()}{path}"
+    last_exc: Exception | None = None
+    for attempt in range(1, _RETRIES + 1):
+        try:
+            r = httpx.get(url, params=params, headers=_HEADERS(), timeout=_TIMEOUT)
+            r.raise_for_status()
+            return r.json()
+        except (httpx.TimeoutException, httpx.HTTPStatusError) as exc:
+            last_exc = exc
+            if attempt < _RETRIES:
+                print(f"  Tentativa {attempt} falhou ({type(exc).__name__}) — aguardando {_RETRY_WAIT}s...")
+                time.sleep(_RETRY_WAIT)
+    raise RuntimeError(f"Falha ao buscar {path} após {_RETRIES} tentativas: {last_exc}") from last_exc
 
 
 # ---------------------------------------------------------------------------
@@ -230,6 +261,7 @@ def send_email(html: str) -> None:
 
 if __name__ == "__main__":
     print("Coletando dados do BI COPAG...")
+    _warmup()
     dashboard = fetch("/api/analytics/dashboard")
     balance   = fetch("/api/analytics/workload-balance")
     stale     = fetch("/api/analytics/stale")
