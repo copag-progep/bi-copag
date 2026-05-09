@@ -21,7 +21,7 @@ Plataforma web de Business Intelligence desenvolvida para a **COPAG (Coordenador
 | **Busca global** | Histórico completo de movimentações de qualquer protocolo |
 | **Alertas por e-mail** | Notificação automática diária de processos críticos (>30, >45, >90 dias) |
 | **Notificação in-app** | Sino com contagem em tempo real de processos ≥45 dias |
-| **Upload automático** | Script que acessa o SEI e envia dados sem intervenção humana (20h BRT) |
+| **Upload automático** | Script que acessa o SEI e envia dados sem intervenção humana (19h BRT) |
 | **Relatório semanal** | E-mail automático toda sexta com resumo dos indicadores |
 | **Exportação PDF / Excel** | Relatório de atribuições com identidade visual Progep/UFC |
 | **Log de auditoria** | Registro de todas as ações críticas do sistema |
@@ -41,7 +41,7 @@ Plataforma web de Business Intelligence desenvolvida para a **COPAG (Coordenador
 
 ```
 GitHub (copag-progep/bi-copag)
-    ├── Render     → API FastAPI  (bi-copag-api.onrender.com)
+    ├── Render     → API FastAPI  (sei-bi-copag-andersoncfs-api.onrender.com)
     ├── Vercel     → Frontend     (bi-copag.vercel.app)
     └── Neon DB    → PostgreSQL   (us-east-1 / AWS)
 ```
@@ -106,8 +106,8 @@ Frontend disponível em `http://localhost:5173`
 | Workflow | Frequência | Função |
 |---|---|---|
 | `keep-alive` | A cada 10 min | Mantém o Render ativo (sem cold start) |
-| `daily-upload` | Seg–Sex 20:00 BRT | Upload automático de todos os setores do SEI |
-| `weekly-report` | Sex 17:00 BRT | Relatório gerencial por e-mail |
+| `daily-upload` | Seg–Sex 19:00 BRT | Upload automático de todos os setores do SEI |
+| `weekly-report` | Sex 20:00 BRT | Relatório gerencial por e-mail |
 | `critical-alerts` | Seg–Sex 08:30 BRT | Alerta de processos críticos (só envia se houver) |
 
 **Troca de coordenador:** atualize apenas `SEI_USER` e `SEI_PASSWORD` nos GitHub Secrets. Nenhum código precisa ser alterado.

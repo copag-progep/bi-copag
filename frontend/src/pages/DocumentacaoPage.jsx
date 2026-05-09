@@ -100,7 +100,7 @@ const INFO_CRITICAS = {
   headers: ["Item", "Valor"],
   rows: [
     ["URL do sistema", "https://bi-copag.vercel.app"],
-    ["URL da API", "https://bi-copag-api.onrender.com"],
+    ["URL da API", "https://sei-bi-copag-andersoncfs-api.onrender.com"],
     ["Banco de dados", "Neon DB — console.neon.tech — projeto bi-copag"],
     ["Repositório", "github.com/copag-progep/bi-copag (branch: main)"],
     ["E-mail institucional", "copag@progep.ufc.br (Google Workspace)"],
@@ -389,7 +389,7 @@ export default function DocumentacaoPage() {
             <DocTable
               headers={["Variable", "Valor"]}
               rows={[
-                ["BI_API_URL", "https://bi-copag-api.onrender.com"],
+                ["BI_API_URL", "https://sei-bi-copag-andersoncfs-api.onrender.com"],
                 ["REPORT_RECIPIENTS", "E-mails dos destinatários separados por vírgula"],
               ]}
             />
@@ -398,7 +398,7 @@ export default function DocumentacaoPage() {
           {/* 10 */}
           <DocSection id="s10" num="10" eyebrow="Operação" title="Manutenção do dia a dia">
             <Callout icon="🤖">
-              O upload diário é <strong>totalmente automático às 20:00 BRT</strong>. Se falhar,
+              O upload diário é <strong>totalmente automático às 19:00 BRT</strong>. Se falhar,
               um e-mail de alerta é enviado automaticamente. Intervenção manual só é necessária
               em casos excepcionais.
             </Callout>
