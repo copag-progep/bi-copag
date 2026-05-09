@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import api from "../api/client";
 import DataTable from "../components/DataTable";
 import LoadingBlock from "../components/LoadingBlock";
+import StatCard from "../components/StatCard";
 import { useAuth } from "../context/AuthContext";
 import { normalizeUploadsPayload } from "../utils/uploadsPayload";
 
@@ -43,6 +44,28 @@ function ActionBadge({ action }) {
     </span>
   );
 }
+
+const IcoUsers = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/>
+    <circle cx="9" cy="7" r="4"/>
+    <path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/>
+  </svg>
+);
+const IcoCloud = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/>
+    <path d="M20.39 18.39A5 5 0 0018 9h-1.26A8 8 0 103 16.3"/>
+  </svg>
+);
+const IcoLog = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+    <polyline points="14 2 14 8 20 8"/>
+    <line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
+    <polyline points="10 9 9 9 8 9"/>
+  </svg>
+);
 
 function parseDetails(raw) {
   if (!raw) return null;
@@ -162,12 +185,39 @@ export default function AdminPage() {
 
   return (
     <div className="page-grid">
-      <section className="hero-panel">
-        <div>
+      <section className="hero-panel ms-hero">
+        <div className="ms-hero-body">
           <p className="eyebrow">Administração</p>
           <h1>Gestão de acessos e histórico</h1>
-          <span>Crie novos logins com senha criptografada e acompanhe os uploads mais recentes.</span>
+          <p className="ms-hero-sub">
+            Crie novos logins, acompanhe os snapshots mais recentes e monitore o log de auditoria.
+          </p>
         </div>
+        <div className="ms-hero-kpi">
+          <span className="ms-hero-kpi-value">{loading ? "—" : users.length}</span>
+          <span className="ms-hero-kpi-label">usuários ativos</span>
+        </div>
+      </section>
+
+      <section className="stats-grid stats-grid-3">
+        <StatCard
+          icon={<IcoUsers />}
+          label="Usuários cadastrados"
+          value={loading ? "—" : users.length}
+          hint={loading ? undefined : `${users.filter(u => u.is_admin).length} administrador${users.filter(u => u.is_admin).length !== 1 ? "es" : ""}`}
+        />
+        <StatCard
+          icon={<IcoCloud />}
+          label="Snapshots importados"
+          value={loading ? "—" : uploads.length}
+          hint="Últimos 30 registros"
+        />
+        <StatCard
+          icon={<IcoLog />}
+          label="Eventos de auditoria"
+          value={auditLoading && auditTotal === 0 ? "—" : auditTotal}
+          hint="Total registrado"
+        />
       </section>
 
       <section className="panel">

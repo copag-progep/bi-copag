@@ -8,6 +8,23 @@ import { useFilters } from "../context/FiltersContext";
 import { useAnalyticsData } from "../hooks/useAnalyticsData";
 
 
+const IcoArrowIn = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+    <line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/>
+  </svg>
+);
+const IcoArrowOut = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+    <line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/>
+  </svg>
+);
+const IcoBalance = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+    <line x1="12" y1="20" x2="12" y2="10"/><path d="M18 20V4"/><path d="M6 20v-4"/>
+  </svg>
+);
+
+
 export default function FlowPage() {
   const { toQueryParams } = useFilters();
   const { data, loading, stale, error, retry } = useAnalyticsData(
@@ -19,32 +36,70 @@ export default function FlowPage() {
   if (error) return <ErrorBlock message={error} onRetry={retry} />;
 
   const totalEntradas = (data?.resumo_setorial || []).reduce((acc, item) => acc + item.entradas, 0);
-  const totalSaidas = (data?.resumo_setorial || []).reduce((acc, item) => acc + item.saidas, 0);
-  const totalSaldo = (data?.resumo_setorial || []).reduce((acc, item) => acc + item.saldo, 0);
+  const totalSaidas   = (data?.resumo_setorial || []).reduce((acc, item) => acc + item.saidas, 0);
+  const totalSaldo    = (data?.resumo_setorial || []).reduce((acc, item) => acc + item.saldo, 0);
+  const saldoPositivo = totalSaldo > 0;
 
   return (
     <div className="page-grid">
-      <section className="hero-panel">
-        <div>
+      <section className="hero-panel flow-hero">
+        <div className="ms-hero-body">
           <p className="eyebrow">Entradas e saídas</p>
           <h1>Fluxo diário por setor</h1>
-          <span>
-            Comparação entre {data?.data_anterior || "a data anterior disponível"} e {data?.data_referencia || "a data de referência"}.
-          </span>
-          {stale ? <span className="stale-badge">Atualizando...</span> : null}
+          <div className="flow-hero-dates">
+            <span className="flow-date-from">{data?.data_anterior || "—"}</span>
+            <svg className="flow-arrow" width="18" height="18" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
+            </svg>
+            <span className="flow-date-to">{data?.data_referencia || "—"}</span>
+          </div>
+          {stale && <span className="stale-badge">Atualizando...</span>}
+        </div>
+
+        <div className="flow-hero-metrics">
+          <div className="flow-metric-item flow-metric-in">
+            <span className="flow-metric-val">+{totalEntradas}</span>
+            <span className="flow-metric-lbl">entradas</span>
+          </div>
+          <div className="flow-metric-sep" />
+          <div className="flow-metric-item flow-metric-out">
+            <span className="flow-metric-val">−{totalSaidas}</span>
+            <span className="flow-metric-lbl">saídas</span>
+          </div>
+          <div className="flow-metric-sep" />
+          <div className={`flow-metric-item flow-metric-balance ${saldoPositivo ? "positive" : totalSaldo < 0 ? "negative" : ""}`}>
+            <span className="flow-metric-val">{saldoPositivo ? `+${totalSaldo}` : totalSaldo}</span>
+            <span className="flow-metric-lbl">saldo</span>
+          </div>
         </div>
       </section>
 
-      <section className="stats-grid">
-        <StatCard label="Entradas do dia" value={totalEntradas} />
-        <StatCard label="Saídas do dia" value={totalSaidas} />
-        <StatCard label="Saldo do dia" value={totalSaldo} />
+      <section className="stats-grid stats-grid-3">
+        <StatCard
+          icon={<IcoArrowIn />}
+          label="Entradas do dia"
+          value={totalEntradas}
+          hint="Processos recebidos"
+        />
+        <StatCard
+          icon={<IcoArrowOut />}
+          label="Saídas do dia"
+          value={totalSaidas}
+          hint="Processos despachados"
+        />
+        <StatCard
+          icon={<IcoBalance />}
+          label="Saldo do dia"
+          value={saldoPositivo ? `+${totalSaldo}` : totalSaldo}
+          hint={saldoPositivo ? "Acúmulo de carga" : totalSaldo < 0 ? "Redução de carga" : "Equilíbrio"}
+        />
       </section>
 
       <section className="charts-grid">
         <BarChartCard title="Entradas por setor" data={data?.entradas_por_setor || []} />
-        <BarChartCard title="Saídas por setor" data={data?.saidas_por_setor || []} color="#f39320" />
-        <BarChartCard title="Saldo por setor" data={data?.saldo_por_setor || []} color="#273168" />
+        <BarChartCard title="Saídas por setor"   data={data?.saidas_por_setor || []}  color="#f39320" />
+        <BarChartCard title="Saldo por setor"    data={data?.saldo_por_setor || []}   color="#273168" />
         <LineChartCard
           title="Evolução diária da carga por setor"
           data={data?.evolucao_fluxo || []}
@@ -66,7 +121,18 @@ export default function FlowPage() {
             { key: "setor", label: "Setor" },
             { key: "entradas", label: "Entradas" },
             { key: "saidas", label: "Saídas" },
-            { key: "saldo", label: "Saldo" },
+            {
+              key: "saldo",
+              label: "Saldo",
+              render: (v) => (
+                <span style={{
+                  fontWeight: 700,
+                  color: v > 0 ? "var(--danger)" : v < 0 ? "var(--success)" : "var(--muted)",
+                }}>
+                  {v > 0 ? `+${v}` : v}
+                </span>
+              ),
+            },
             { key: "carga_atual", label: "Carga atual" },
           ]}
           rows={data?.resumo_setorial || []}

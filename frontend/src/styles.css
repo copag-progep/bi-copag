@@ -1511,3 +1511,237 @@ button, input, select { font: inherit; }
     grid-template-columns: 1fr;
   }
 }
+
+
+/* ══════════════════════════════════════════
+   VARIANTE STATS GRID 3 COLUNAS
+══════════════════════════════════════════ */
+.stats-grid-3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+
+/* ══════════════════════════════════════════
+   DASHBOARD — alerta múltiplos setores
+══════════════════════════════════════════ */
+.dash-alert-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: rgba(243, 147, 32, 0.18);
+  border: 1px solid rgba(243, 147, 32, 0.30);
+  color: rgba(240, 244, 255, 0.92);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+
+/* ══════════════════════════════════════════
+   ENTRADAS E SAÍDAS
+══════════════════════════════════════════ */
+.flow-hero {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 32px;
+}
+
+.flow-hero-dates {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 10px 0 4px;
+}
+
+.flow-date-from {
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: rgba(240, 244, 255, 0.78);
+  padding: 5px 12px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+}
+
+.flow-date-to {
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: rgba(254, 187, 18, 0.92);
+  padding: 5px 12px;
+  border-radius: 8px;
+  background: rgba(243, 147, 32, 0.18);
+  border: 1px solid rgba(243, 147, 32, 0.28);
+}
+
+.flow-arrow {
+  color: rgba(240, 244, 255, 0.35);
+  flex-shrink: 0;
+}
+
+.flow-hero-metrics {
+  display: flex;
+  align-items: stretch;
+  flex-shrink: 0;
+  border-radius: var(--radius-lg);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  overflow: hidden;
+}
+
+.flow-metric-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 18px 22px;
+  gap: 5px;
+}
+
+.flow-metric-val {
+  font-size: clamp(1.5rem, 2.5vw, 2rem);
+  font-weight: 800;
+  line-height: 1;
+  color: rgba(240, 244, 255, 0.8);
+}
+
+.flow-metric-lbl {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: rgba(240, 244, 255, 0.45);
+  white-space: nowrap;
+}
+
+.flow-metric-in .flow-metric-val            { color: rgba(52, 211, 153, 0.95); }
+.flow-metric-out .flow-metric-val           { color: rgba(251, 146, 60, 0.95); }
+.flow-metric-balance.negative .flow-metric-val { color: rgba(52, 211, 153, 0.95); }
+.flow-metric-balance.positive .flow-metric-val { color: rgba(251, 146, 60, 0.95); }
+
+.flow-metric-sep {
+  width: 1px;
+  background: rgba(255, 255, 255, 0.08);
+  flex-shrink: 0;
+  align-self: stretch;
+}
+
+
+/* ══════════════════════════════════════════
+   PRODUTIVIDADE — destaques e progress bar
+══════════════════════════════════════════ */
+.top-producers-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+  margin-top: 4px;
+}
+
+.producer-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 22px 18px;
+  border-radius: var(--radius-lg);
+  border: 1px solid;
+  text-align: center;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.producer-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+.producer-medal { font-size: 1.7rem; line-height: 1; }
+
+.producer-name {
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: var(--ink);
+  max-width: 18ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.producer-value {
+  font-size: 1.5rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.producer-unit {
+  font-size: 0.75rem;
+  font-weight: 600;
+  opacity: 0.65;
+}
+
+.prod-bar-wrap {
+  position: relative;
+  height: 22px;
+  background: rgba(39, 49, 104, 0.07);
+  border-radius: 999px;
+  overflow: hidden;
+  min-width: 90px;
+  display: flex;
+  align-items: center;
+}
+
+.prod-bar-fill {
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  border-radius: 999px;
+  opacity: 0.72;
+  transition: width 0.35s ease;
+}
+
+.prod-bar-label {
+  position: relative;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--ink);
+  z-index: 1;
+  padding: 0 10px;
+  white-space: nowrap;
+}
+
+
+/* ══════════════════════════════════════════
+   RESPONSIVO — classes novas
+══════════════════════════════════════════ */
+@media (max-width: 1100px) {
+  .stats-grid-3 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .flow-hero {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 20px;
+  }
+
+  .flow-hero-metrics { width: 100%; }
+
+  .top-producers-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 720px) {
+  .stats-grid-3          { grid-template-columns: 1fr; }
+  .top-producers-grid    { grid-template-columns: 1fr; }
+
+  .flow-hero-metrics {
+    flex-direction: column;
+    border-radius: var(--radius-lg);
+  }
+
+  .flow-metric-sep {
+    width: 100%;
+    height: 1px;
+    align-self: auto;
+  }
+}
