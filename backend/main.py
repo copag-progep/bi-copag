@@ -837,7 +837,7 @@ def entries_exits(
     setor: str | None = None,
     tipo: str | None = None,
     atribuicao: str | None = None,
-    _: User = Depends(get_current_user),
+    _: User = Depends(get_current_user_or_api_key),
     db: Session = Depends(get_db),
 ):
     filters = build_filters(data_referencia, data_inicial, data_final, setor, tipo, atribuicao)
