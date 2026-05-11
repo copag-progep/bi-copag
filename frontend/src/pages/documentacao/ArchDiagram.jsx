@@ -53,9 +53,9 @@ export default function ArchDiagram() {
 
       {tier("GitHub Actions", "5 workflows automáticos", [
         "keep-alive — a cada 10 min",
-        "daily-upload — Seg–Sex 20:00 BRT",
-        "weekly-report — Sex 17:00 BRT",
-        "critical-alerts — Seg–Sex 08:30 BRT",
+        "daily-upload — Seg–Sex 19:00 BRT",
+        "weekly-report — Sex 20:00 BRT",
+        "critical-alerts — Sex 21:00 BRT",
       ], "#81c7ee")}
     </div>
   );

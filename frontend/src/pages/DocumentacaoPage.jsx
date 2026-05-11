@@ -20,9 +20,9 @@ const FEATURES = [
   { icon: "🔀", title: "Múltiplos setores", desc: "Detecção de processos em mais de um setor no mesmo dia" },
   { icon: "📅", title: "Indicadores mensais", desc: "Painel histórico com importação de CSV e lançamento manual" },
   { icon: "🔍", title: "Busca global", desc: "Histórico completo de movimentações de qualquer protocolo" },
-  { icon: "🔔", title: "Alertas por e-mail", desc: "Notificação automática diária de processos críticos (>30, >45, >90 dias)" },
+  { icon: "🔔", title: "Alertas por e-mail", desc: "Notificação semanal às sextas, 21:00 BRT, para processos críticos (>30, >45, >90 dias)" },
   { icon: "🔔", title: "Notificação in-app", desc: "Sino com badge em tempo real de processos ≥45 dias" },
-  { icon: "🤖", title: "Upload automático", desc: "Script Playwright que acessa o SEI e envia dados sem intervenção (20h BRT)" },
+  { icon: "🤖", title: "Upload automático", desc: "Script Playwright que acessa o SEI e envia dados sem intervenção (19h BRT)" },
   { icon: "📧", title: "Relatório semanal", desc: "E-mail automático toda sexta com resumo dos indicadores da semana" },
   { icon: "📄", title: "Exportação PDF / Excel", desc: "Relatório de atribuições com identidade visual Progep/UFC" },
   { icon: "🔒", title: "Log de auditoria", desc: "Registro de todas as ações críticas: uploads, exclusões, trocas de senha" },
@@ -67,9 +67,9 @@ const SCRIPTS_STACK = {
 
 const WORKFLOWS = [
   { name: "keep-alive.yml", freq: "A cada 10 minutos (24h/dia)", desc: "Pinga /api/health para manter o Render ativo. Sem isso, o plano gratuito hiberna após 15 min e gera cold start lento." },
-  { name: "daily-upload.yml", freq: "Seg–Sex 20:00 BRT", desc: "Playwright headless: login no SEI, troca de setor, coleta todas as páginas (100/pág), gera CSV e faz upload via API key. Notifica por e-mail se falhar." },
-  { name: "weekly-report.yml", freq: "Sexta 17:00 BRT", desc: "Coleta dados do dashboard, balanceamento e alertas via API key e envia e-mail HTML com identidade visual Progep/UFC." },
-  { name: "critical-alerts.yml", freq: "Seg–Sex 08:30 BRT", desc: "Verifica processos >30d. NÃO envia e-mail se não houver processos críticos (anti-spam). Destaque especial para situação extrema >90d." },
+  { name: "daily-upload.yml", freq: "Seg–Sex 19:00 BRT", desc: "Playwright headless: login no SEI, troca de setor, coleta todas as páginas (100/pág), gera CSV e faz upload via API key. Notifica por e-mail se falhar." },
+  { name: "weekly-report.yml", freq: "Sexta 20:00 BRT", desc: "Coleta dados do dashboard, balanceamento e alertas via API key e envia e-mail HTML com identidade visual Progep/UFC." },
+  { name: "critical-alerts.yml", freq: "Sexta 21:00 BRT", desc: "Verifica processos >30d. NÃO envia e-mail se não houver processos críticos (anti-spam). Destaque especial para situação extrema >90d." },
 ];
 
 const MANUTENCAO = [
@@ -442,7 +442,7 @@ export default function DocumentacaoPage() {
               { title: "Identidade visual Progep/UFC", items: ["Paleta: navy #273168 · laranja #f39320 · amarelo #febb12 · azul #81c7ee","Fonte Plus Jakarta Sans","Sidebar redesenhada com ícones SVG e chip do usuário","Topbar com título dinâmico por rota","StatCards com hover e estrutura vertical","LoginPage com dois painéis e stats decorativos"] },
               { title: "Performance", items: ["React.lazy + Suspense para code splitting por rota","preconnect e dns-prefetch para o backend","LoadingBlock com spinner e mensagem de servidor iniciando","useAnalyticsData hook com cache stale-while-revalidate (TTL 5 min)","clearAnalyticsCache chamado após upload"] },
               { title: "Analíticas avançadas", items: ["Página Atribuições com spans consecutivos por setor, 6 faixas de criticidade, filtros server-side, busca por protocolo","Exportação PDF com identidade visual (jsPDF + jspdf-autotable)","Exportação Excel (SheetJS)","Página Servidores: balanceamento por desvio-padrão + perfil longitudinal","Busca global de processo com histórico de movimentações","Filtro Sem atribuição no FilterBar global","Indicadores mensais com dashboard e lançamento manual"] },
-              { title: "Automação (Bloco 4)", items: ["API key para uploads sem JWT","Script SEI Scraper (Playwright headless): login, troca de setor por JS, coleta todas as páginas","Workflow daily-upload (20:00 BRT) com notificação de falha","Workflow weekly-report (sexta 17:00 BRT)","Script de alertas com anti-spam (não envia se sem críticos)","Workflow critical-alerts (08:30 BRT dias úteis)"] },
+              { title: "Automação (Bloco 4)", items: ["API key para uploads sem JWT","Script SEI Scraper (Playwright headless): login, troca de setor por JS, coleta todas as páginas","Workflow daily-upload (19:00 BRT) com notificação de falha","Workflow weekly-report (sexta 20:00 BRT)","Script de alertas com anti-spam (não envia se sem críticos)","Workflow critical-alerts (sexta 21:00 BRT)"] },
               { title: "Alertas e notificações (Bloco 1)", items: ["Endpoint /api/alerts/summary (leve, usa cache)","Sino de notificações na topbar: badge, dropdown top-8, link para /atribuicoes","E-mail de alertas: cards por faixa, tabela dos críticos, destaque para >90d","Não envia e-mail se nenhum processo crítico"] },
               { title: "Segurança e acesso", items: ["Troca de senha pelo próprio usuário (valida senha atual)","DE-PARA com normalização de identidade (sem acentos, lowercase, case-insensitive)","Autenticação dual (JWT ou API key) nos endpoints analíticos","Página Minha conta com informações e formulário de troca de senha"] },
             ].map(({ title, items }) => (
