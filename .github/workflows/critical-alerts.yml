@@ -1,12 +1,12 @@
 name: Alertas de processos críticos — BI COPAG
 
-# Roda de segunda a sexta às 08:30 BRT (início do expediente).
+# Roda às sextas-feiras às 21:00 BRT (UTC-3).
 # Envia e-mail apenas se houver processos com mais de 30 dias sem movimentação.
 # Pode ser disparado manualmente a qualquer momento via "Run workflow".
 
 on:
   schedule:
-    - cron: "30 11 * * 1-5"   # 08:30 BRT (UTC-3) = 11:30 UTC, dias úteis
+    - cron: "0 0 * * 6"   # sexta 21:00 BRT (UTC-3) = sábado 00:00 UTC
   workflow_dispatch:
 
 jobs:
