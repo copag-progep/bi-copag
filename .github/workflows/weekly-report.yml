@@ -29,7 +29,7 @@ jobs:
 
       - name: Gerar e enviar relatório semanal
         env:
-          BI_API_URL:         ${{ vars.BI_API_URL }}
+          BI_API_URL:         ${{ vars.BI_API_URL || 'https://bi-copag-api.onrender.com' }}
           BI_API_KEY:         ${{ secrets.BI_API_KEY }}
           GMAIL_USER:         ${{ secrets.GMAIL_USER }}          # copag@progep.ufc.br
           GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}

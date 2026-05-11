@@ -38,7 +38,7 @@ jobs:
           SEI_URL:      ${{ secrets.SEI_URL }}
           SEI_USER:     ${{ secrets.SEI_USER }}      # atualizar na troca de coordenador
           SEI_PASSWORD: ${{ secrets.SEI_PASSWORD }}  # atualizar na troca de coordenador
-          BI_API_URL:   ${{ vars.BI_API_URL }}
+          BI_API_URL:   ${{ vars.BI_API_URL || 'https://bi-copag-api.onrender.com' }}
           BI_API_KEY:   ${{ secrets.BI_API_KEY }}
         run: python scripts/sei_uploader.py
 
@@ -62,4 +62,4 @@ jobs:
             Verifique se:
             - O SEI está acessível (sei.ufc.br)
             - As credenciais SEI_USER e SEI_PASSWORD estão corretas nos Secrets
-            - A API do BI está respondendo (health check: ${{ vars.BI_API_URL }}/api/health)
+            - A API do BI está respondendo (health check: ${{ vars.BI_API_URL || 'https://bi-copag-api.onrender.com' }}/api/health)

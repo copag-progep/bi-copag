@@ -30,7 +30,21 @@ import httpx
 # Coleta de dados da API do BI
 # ---------------------------------------------------------------------------
 
-_BASE_URL   = lambda: os.environ["BI_API_URL"]
+DEFAULT_BI_API_URL = "https://bi-copag-api.onrender.com"
+LEGACY_BI_API_URLS = {
+    "https://sei-bi-copag-andersoncfs-api.onrender.com",
+}
+
+
+def _BASE_URL() -> str:
+    url = os.getenv("BI_API_URL", DEFAULT_BI_API_URL).rstrip("/")
+    if url in LEGACY_BI_API_URLS:
+        print(f"  Aviso: BI_API_URL aponta para serviço antigo/suspenso ({url}).")
+        print(f"  Usando API ativa: {DEFAULT_BI_API_URL}")
+        return DEFAULT_BI_API_URL
+    return url
+
+
 _HEADERS    = lambda: {"X-Api-Key": os.environ["BI_API_KEY"]}
 _TIMEOUT    = 120   # segundos por tentativa
 _RETRIES    = 3

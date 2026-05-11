@@ -12,7 +12,7 @@ jobs:
       - name: Ping API health
         run: |
           STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
-            https://sei-bi-copag-andersoncfs-api.onrender.com/api/health)
+            https://bi-copag-api.onrender.com/api/health)
           echo "HTTP status: $STATUS"
           if [ "$STATUS" = "200" ]; then
             echo "API online."

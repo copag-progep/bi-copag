@@ -5,7 +5,7 @@
   "rewrites": [
     {
       "source": "/api/(.*)",
-      "destination": "https://sei-bi-copag-andersoncfs-api.onrender.com/api/$1"
+      "destination": "https://bi-copag-api.onrender.com/api/$1"
     },
     {
       "source": "/(.*)",

@@ -30,6 +30,20 @@ from urllib.parse import urlparse
 import httpx
 from playwright.async_api import async_playwright, TimeoutError as PlaywrightTimeout
 
+DEFAULT_BI_API_URL = "https://bi-copag-api.onrender.com"
+LEGACY_BI_API_URLS = {
+    "https://sei-bi-copag-andersoncfs-api.onrender.com",
+}
+
+
+def bi_base_url() -> str:
+    url = os.getenv("BI_API_URL", DEFAULT_BI_API_URL).rstrip("/")
+    if url in LEGACY_BI_API_URLS:
+        print(f"  Aviso: BI_API_URL aponta para serviço antigo/suspenso ({url}).")
+        print(f"  Usando API ativa: {DEFAULT_BI_API_URL}")
+        return DEFAULT_BI_API_URL
+    return url
+
 # ---------------------------------------------------------------------------
 # Mapeamento: código do setor no BI → nome exato da unidade no SEI
 # Nomes confirmados na inspeção do DevTools em 06/05/2026
@@ -322,7 +336,7 @@ async def main() -> None:
     sei_url  = os.environ["SEI_URL"].rstrip("/")
     sei_user = os.environ["SEI_USER"]
     sei_pass = os.environ["SEI_PASSWORD"]
-    bi_url   = os.environ["BI_API_URL"]
+    bi_url   = bi_base_url()
     bi_key   = os.environ["BI_API_KEY"]
     hoje     = date.today().isoformat()
 

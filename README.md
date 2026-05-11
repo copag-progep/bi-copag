@@ -41,7 +41,7 @@ Plataforma web de Business Intelligence desenvolvida para a **COPAG (Coordenador
 
 ```
 GitHub (copag-progep/bi-copag)
-    ├── Render     → API FastAPI  (sei-bi-copag-andersoncfs-api.onrender.com)
+    ├── Render     → API FastAPI  (bi-copag-api.onrender.com)
     ├── Vercel     → Frontend     (bi-copag.vercel.app)
     └── Neon DB    → PostgreSQL   (us-east-1 / AWS)
 ```

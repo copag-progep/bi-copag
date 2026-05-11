@@ -1,13 +1,6 @@
-databases:
-  - name: sei-bi-copag-andersoncfs-db
-    plan: free
-    databaseName: sei_bi
-    user: sei_bi_user
-    region: virginia
-
 services:
   - type: web
-    name: sei-bi-copag-andersoncfs-api
+    name: bi-copag-api
     runtime: python
     plan: free
     region: virginia
@@ -16,13 +9,13 @@ services:
     healthCheckPath: /api/health
     envVars:
       - key: DATABASE_URL
-        fromDatabase:
-          name: sei-bi-copag-andersoncfs-db
-          property: connectionString
+        sync: false
       - key: PYTHON_VERSION
         value: 3.12.9
       - key: JWT_SECRET_KEY
         generateValue: true
+      - key: API_UPLOAD_KEY
+        sync: false
       - key: DEFAULT_ADMIN_NAME
         value: Anderson CFS
       - key: DEFAULT_ADMIN_EMAIL
@@ -31,5 +24,7 @@ services:
         sync: false
       - key: ACCESS_TOKEN_EXPIRE_MINUTES
         value: "720"
+      - key: CORS_ORIGINS
+        value: https://bi-copag.vercel.app
       - key: AUTO_IMPORT_SAMPLE_DATA
         value: "false"

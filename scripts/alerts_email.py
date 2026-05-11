@@ -18,6 +18,7 @@ Variáveis de ambiente necessárias:
 import os
 import smtplib
 import sys
+import time
 from datetime import date
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -25,14 +26,83 @@ from email.mime.text import MIMEText
 import httpx
 
 
+DEFAULT_BI_API_URL = "https://bi-copag-api.onrender.com"
+LEGACY_BI_API_URLS = {
+    "https://sei-bi-copag-andersoncfs-api.onrender.com",
+}
+TIMEOUT_SECONDS = 120
+RETRIES = 3
+RETRY_WAIT_SECONDS = 30
+
+
+def base_url() -> str:
+    url = os.getenv("BI_API_URL", DEFAULT_BI_API_URL).rstrip("/")
+    if url in LEGACY_BI_API_URLS:
+        print(f"  Aviso: BI_API_URL aponta para serviço antigo/suspenso ({url}).")
+        print(f"  Usando API ativa: {DEFAULT_BI_API_URL}")
+        return DEFAULT_BI_API_URL
+    return url
+
+
+def request_timeout() -> httpx.Timeout:
+    return httpx.Timeout(TIMEOUT_SECONDS, connect=20)
+
+
+def describe_status_error(exc: httpx.HTTPStatusError) -> str:
+    response = exc.response
+    if response.status_code == 503 and response.headers.get("x-render-routing") == "suspend-by-user":
+        return "serviço Render suspenso pelo proprietário"
+    return f"HTTP {response.status_code}"
+
+
+def warmup() -> None:
+    url = f"{base_url()}/api/health"
+    print(f"  Aquecendo a API ({url})...")
+    for attempt in range(1, RETRIES + 1):
+        try:
+            response = httpx.get(url, timeout=request_timeout())
+            response.raise_for_status()
+            print(f"  API respondeu ao health check na tentativa {attempt}.")
+            return
+        except httpx.HTTPStatusError as exc:
+            reason = describe_status_error(exc)
+        except httpx.TimeoutException:
+            reason = "timeout"
+        except httpx.HTTPError as exc:
+            reason = type(exc).__name__
+
+        if attempt < RETRIES:
+            print(f"  Health check falhou ({reason}); nova tentativa em {RETRY_WAIT_SECONDS}s...")
+            time.sleep(RETRY_WAIT_SECONDS)
+
+    print("  Aviso: health check não confirmou disponibilidade. Tentando consultar alertas mesmo assim.")
+
+
 def fetch(path: str) -> dict:
-    r = httpx.get(
-        f"{os.environ['BI_API_URL']}{path}",
-        headers={"X-Api-Key": os.environ["BI_API_KEY"]},
-        timeout=60,
-    )
-    r.raise_for_status()
-    return r.json()
+    url = f"{base_url()}{path}"
+    last_error: str | None = None
+
+    for attempt in range(1, RETRIES + 1):
+        try:
+            r = httpx.get(
+                url,
+                headers={"X-Api-Key": os.environ["BI_API_KEY"]},
+                timeout=request_timeout(),
+            )
+            r.raise_for_status()
+            return r.json()
+        except httpx.HTTPStatusError as exc:
+            last_error = describe_status_error(exc)
+        except httpx.TimeoutException:
+            last_error = "timeout de leitura"
+        except httpx.HTTPError as exc:
+            last_error = type(exc).__name__
+
+        if attempt < RETRIES:
+            print(f"  Tentativa {attempt} falhou ({last_error}); nova tentativa em {RETRY_WAIT_SECONDS}s...")
+            time.sleep(RETRY_WAIT_SECONDS)
+
+    raise RuntimeError(f"Falha ao consultar {path} após {RETRIES} tentativas: {last_error}")
 
 
 def flag_color(dias: int) -> str:
@@ -184,6 +254,7 @@ def send_email(html: str, mais_30: int) -> None:
 
 if __name__ == "__main__":
     print("Consultando alertas no BI COPAG...")
+    warmup()
     summary = fetch("/api/alerts/summary")
 
     mais_30 = summary.get("mais_de_30", 0)
