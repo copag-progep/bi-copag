@@ -1,0 +1,54 @@
+name: Relatório diário BI COPAG — e-mail
+
+# Envia todo dia útil às 19:30 BRT (22:30 UTC) um e-mail HTML compacto com
+# os principais indicadores do dia: ativos, entradas/saídas, fluxo por setor
+# e alertas de processos críticos.
+# Pode ser disparado manualmente a qualquer momento via "Run workflow".
+# Horário definido após o upload diário (19:00 BRT) para garantir dados atualizados.
+
+on:
+  schedule:
+    - cron: "30 22 * * 1-5"   # 19:30 BRT (UTC-3) = 22:30 UTC, seg–sex
+  workflow_dispatch:
+
+jobs:
+  daily-report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout do repositório
+        uses: actions/checkout@v4
+
+      - name: Configurar Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Instalar dependências
+        run: pip install httpx
+
+      - name: Gerar e enviar relatório diário
+        env:
+          BI_API_URL:         ${{ vars.BI_API_URL || 'https://bi-copag-api.onrender.com' }}
+          BI_API_KEY:         ${{ secrets.BI_API_KEY }}
+          GMAIL_USER:         ${{ secrets.GMAIL_USER }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          REPORT_RECIPIENTS:  ${{ vars.REPORT_RECIPIENTS }}
+        run: python scripts/daily_report.py
+
+      - name: Notificar falha por e-mail
+        if: failure()
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          username: ${{ secrets.GMAIL_USER }}
+          password: ${{ secrets.GMAIL_APP_PASSWORD }}
+          from: ${{ secrets.GMAIL_USER }}
+          to: ${{ vars.REPORT_RECIPIENTS }}
+          subject: "⚠️ BI COPAG — falha no relatório diário (${{ github.run_id }})"
+          body: |
+            O relatório diário do BI COPAG falhou.
+
+            Logs completos: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
