@@ -22,6 +22,7 @@ Plataforma web de Business Intelligence desenvolvida para a **COPAG (Coordenador
 | **Alertas por e-mail** | Notificação semanal de processos críticos (>30, >45, >90 dias), às sextas 21:00 BRT |
 | **Notificação in-app** | Sino com contagem em tempo real de processos ≥45 dias |
 | **Upload automático** | Script que acessa o SEI e envia dados sem intervenção humana (19h BRT) |
+| **Relatório diário** | E-mail automático seg–sex às 19:30 BRT com ativos, fluxo por setor e alertas |
 | **Relatório semanal** | E-mail automático toda sexta com resumo dos indicadores |
 | **Exportação PDF / Excel** | Relatório de atribuições com identidade visual Progep/UFC |
 | **Log de auditoria** | Registro de todas as ações críticas do sistema |
@@ -87,6 +88,9 @@ Frontend disponível em `http://localhost:5173`
 | `DEFAULT_ADMIN_EMAIL` | E-mail do admin padrão |
 | `DEFAULT_ADMIN_PASSWORD` | Senha inicial do admin |
 | `AUTO_IMPORT_SAMPLE_DATA` | `false` em produção |
+| `ANALYTICS_LOOKBACK_DAYS` | Janela máxima de histórico analítico (padrão: 120 dias). `0` = sem limite |
+| `DISABLE_STARTUP_PRECOMPUTE` | `false` em produção. `true` desliga o aquecimento de cache na inicialização |
+| `PRECOMPUTE_COOLDOWN_SECS` | Intervalo mínimo entre precomputes consecutivos (padrão: 120 s) |
 
 ### GitHub Secrets (automação)
 
@@ -105,9 +109,10 @@ Frontend disponível em `http://localhost:5173`
 
 | Workflow | Frequência | Função |
 |---|---|---|
-| `keep-alive` | A cada 10 min | Mantém o Render ativo (sem cold start) |
+| `keep-alive` | A cada 10 min | Pinga `/api/ping` para manter o Render ativo (sem cold start) |
 | `daily-upload` | Seg–Sex 19:00 BRT | Upload automático de todos os setores do SEI |
-| `weekly-report` | Sex 20:00 BRT | Relatório gerencial por e-mail |
+| `daily-report` | Seg–Sex 19:30 BRT | E-mail diário com ativos, fluxo por setor e alertas de críticos |
+| `weekly-report` | Sex 20:00 BRT | Relatório gerencial completo por e-mail |
 | `critical-alerts` | Sex 21:00 BRT | Alerta de processos críticos (só envia se houver) |
 
 **Troca de coordenador:** atualize apenas `SEI_USER` e `SEI_PASSWORD` nos GitHub Secrets. Nenhum código precisa ser alterado.

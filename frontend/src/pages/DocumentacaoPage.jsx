@@ -23,6 +23,7 @@ const FEATURES = [
   { icon: "🔔", title: "Alertas por e-mail", desc: "Notificação semanal às sextas, 21:00 BRT, para processos críticos (>30, >45, >90 dias)" },
   { icon: "🔔", title: "Notificação in-app", desc: "Sino com badge em tempo real de processos ≥45 dias" },
   { icon: "🤖", title: "Upload automático", desc: "Script Playwright que acessa o SEI e envia dados sem intervenção (19h BRT)" },
+  { icon: "📨", title: "Relatório diário", desc: "E-mail automático seg–sex às 19:30 BRT com ativos, fluxo do dia por setor e alertas de processos críticos" },
   { icon: "📧", title: "Relatório semanal", desc: "E-mail automático toda sexta com resumo dos indicadores da semana" },
   { icon: "📄", title: "Exportação PDF / Excel", desc: "Relatório de atribuições com identidade visual Progep/UFC" },
   { icon: "🔒", title: "Log de auditoria", desc: "Registro de todas as ações críticas: uploads, exclusões, trocas de senha" },
@@ -66,8 +67,9 @@ const SCRIPTS_STACK = {
 };
 
 const WORKFLOWS = [
-  { name: "keep-alive.yml", freq: "A cada 10 minutos (24h/dia)", desc: "Pinga /api/health para manter o Render ativo. Sem isso, o plano gratuito hiberna após 15 min e gera cold start lento." },
+  { name: "keep-alive.yml", freq: "A cada 10 minutos (24h/dia)", desc: "Pinga /api/ping (endpoint leve sem banco) para manter o Render ativo. Sem isso, o plano gratuito hiberna após 15 min e gera cold start lento." },
   { name: "daily-upload.yml", freq: "Seg–Sex 19:00 BRT", desc: "Playwright headless: login no SEI, troca de setor, coleta todas as páginas (100/pág), gera CSV e faz upload via API key. Notifica por e-mail se falhar." },
+  { name: "daily-report.yml", freq: "Seg–Sex 19:30 BRT", desc: "Coleta /api/reports/daily-summary e envia e-mail HTML compacto com ativos, fluxo do dia por setor e alertas de processos críticos. Dispara 30 min após o upload." },
   { name: "weekly-report.yml", freq: "Sexta 20:00 BRT", desc: "Coleta dados do dashboard, balanceamento e alertas via API key e envia e-mail HTML com identidade visual Progep/UFC." },
   { name: "critical-alerts.yml", freq: "Sexta 21:00 BRT", desc: "Verifica processos >30d. NÃO envia e-mail se não houver processos críticos (anti-spam). Destaque especial para situação extrema >90d." },
 ];
@@ -137,7 +139,7 @@ export default function DocumentacaoPage() {
             <div className="doc-hero-stat"><strong>12</strong><span>Capítulos</span></div>
             <div className="doc-hero-stat"><strong>6</strong><span>Tabelas BD</span></div>
             <div className="doc-hero-stat"><strong>5</strong><span>Workflows</span></div>
-            <div className="doc-hero-stat"><strong>14</strong><span>Funcionalidades</span></div>
+            <div className="doc-hero-stat"><strong>15</strong><span>Funcionalidades</span></div>
           </div>
         </div>
       </header>
@@ -371,6 +373,9 @@ export default function DocumentacaoPage() {
                 ["DEFAULT_ADMIN_PASSWORD", "Senha inicial do admin"],
                 ["ACCESS_TOKEN_EXPIRE_MINUTES", "TTL do token (padrão: 720)"],
                 ["AUTO_IMPORT_SAMPLE_DATA", "false em produção"],
+                ["ANALYTICS_LOOKBACK_DAYS", "Janela máxima de histórico analítico (padrão: 120 dias). 0 = sem limite."],
+                ["DISABLE_STARTUP_PRECOMPUTE", "false em produção. true desliga o aquecimento de cache na inicialização."],
+                ["PRECOMPUTE_COOLDOWN_SECS", "Intervalo mínimo entre precomputes consecutivos (padrão: 120 s)."],
               ]}
             />
             <h3>GitHub Secrets</h3>
