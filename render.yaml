@@ -28,3 +28,7 @@ services:
         value: https://bi-copag.vercel.app
       - key: AUTO_IMPORT_SAMPLE_DATA
         value: "false"
+      - key: ANALYTICS_LOOKBACK_DAYS
+        value: "120"
+      - key: DISABLE_STARTUP_PRECOMPUTE
+        value: "false"

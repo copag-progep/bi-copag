@@ -74,6 +74,7 @@ API_UPLOAD_KEY = os.getenv("API_UPLOAD_KEY", "")
 DEFAULT_ADMIN_EMAIL = os.getenv("DEFAULT_ADMIN_EMAIL", "andersoncfs@ufc.br")
 DEFAULT_ADMIN_PASSWORD = os.getenv("DEFAULT_ADMIN_PASSWORD", "admin123")
 CORS_ORIGINS = os.getenv("CORS_ORIGINS", "")
+DISABLE_STARTUP_PRECOMPUTE = os.getenv("DISABLE_STARTUP_PRECOMPUTE", "false").lower() == "true"
 
 
 def ensure_default_user() -> None:
@@ -105,13 +106,23 @@ def auto_import_workspace_data() -> None:
 
 
 _precompute_running = False
+_last_precompute_started: float = 0.0
+
+# Intervalo mínimo entre execuções consecutivas do precompute.
+# Evita que lotes de uploads (6 setores) disparem 6 ciclos pesados em sequência.
+_PRECOMPUTE_COOLDOWN = float(os.getenv("PRECOMPUTE_COOLDOWN_SECS", "120"))
 
 
 def precompute_analytics() -> None:
-    global _precompute_running
+    global _precompute_running, _last_precompute_started
+    import time as _time
     if _precompute_running:
         return
+    now = _time.monotonic()
+    if now - _last_precompute_started < _PRECOMPUTE_COOLDOWN:
+        return  # cooldown: outra execução recente já está em andamento ou terminou
     _precompute_running = True
+    _last_precompute_started = now
     db = SessionLocal()
     try:
         default_filters = AnalyticsFilters()
@@ -141,7 +152,8 @@ async def lifespan(app: FastAPI):
             sync_processo_atribuicoes(db)
     finally:
         db.close()
-    threading.Thread(target=precompute_analytics, daemon=True).start()
+    if not DISABLE_STARTUP_PRECOMPUTE:
+        threading.Thread(target=precompute_analytics, daemon=True).start()
     yield
 
 
@@ -221,6 +233,12 @@ def get_user_or_404(db: Session, user_id: int) -> User:
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuario nao encontrado.")
     return user
+
+
+@app.get("/api/ping")
+def ping() -> dict:
+    """Endpoint leve para keep-alive — não consulta o banco."""
+    return {"status": "ok"}
 
 
 @app.get("/api/health")

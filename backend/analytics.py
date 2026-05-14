@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+import os
 import time
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from threading import Lock
 
 import pandas as pd
@@ -82,6 +83,11 @@ _CACHE_LOCK = Lock()
 
 _SIG_CACHE: tuple[tuple, float] | None = None
 _SIG_TTL = 5.0  # segundos — evita roundtrip ao banco em requests consecutivos
+
+# Janela máxima de histórico quando nenhum filtro de data é definido.
+# Limita quanto dado é lido do banco em cold starts e no precompute de startup.
+# Ajuste via env var ANALYTICS_LOOKBACK_DAYS (0 = sem limite).
+_ANALYTICS_LOOKBACK_DAYS = int(os.getenv("ANALYTICS_LOOKBACK_DAYS", "120"))
 
 
 def clear_analytics_cache() -> None:
@@ -243,16 +249,40 @@ def _resolve_reference_date(db: Session, filters: AnalyticsFilters) -> date | No
     return eligible[-1] if eligible else dates[-1]
 
 
+def _effective_filters(filters: AnalyticsFilters) -> AnalyticsFilters:
+    """Aplica janela de lookback padrão quando nenhum filtro de data é definido.
+
+    Evita carregar TODO o histórico do banco em consultas sem filtros (cold starts,
+    precompute de startup, dashboard sem filtros). Se data_inicial já está definida
+    pelo usuário, retorna os filtros originais sem modificação.
+    """
+    if filters.data_inicial is not None or _ANALYTICS_LOOKBACK_DAYS <= 0:
+        return filters
+    cutoff = date.today() - timedelta(days=_ANALYTICS_LOOKBACK_DAYS)
+    return AnalyticsFilters(
+        data_referencia=filters.data_referencia,
+        data_inicial=cutoff,
+        data_final=filters.data_final,
+        setor=filters.setor,
+        tipo=filters.tipo,
+        atribuicao=filters.atribuicao,
+    )
+
+
 def _load_dataframe(
     db: Session,
     filters: AnalyticsFilters,
     fields: Sequence[str] | None = None,
     upto_reference: bool = True,
+    apply_lookback: bool = True,
 ) -> tuple[pd.DataFrame, date | None, list[date]]:
-    reference_date = _resolve_reference_date(db, filters)
+    # apply_lookback=False preserva histórico completo para analytics que calculam
+    # duração de processos (stale, atribuições, perfil de servidor).
+    effective = _effective_filters(filters) if apply_lookback else filters
+    reference_date = _resolve_reference_date(db, effective)
     requested_fields = _normalize_fields(fields)
 
-    query = _base_query(db, filters)
+    query = _base_query(db, effective)
     if upto_reference and reference_date:
         query = query.filter(Processo.data_relatorio <= reference_date)
 
@@ -610,7 +640,9 @@ def get_productivity_data(db: Session, filters: AnalyticsFilters) -> dict:
 
 def get_stale_processes_data(db: Session, filters: AnalyticsFilters) -> dict:
     def build() -> dict:
-        frame, reference_date, available_dates = _load_dataframe(db, filters, fields=SPAN_FIELDS)
+        frame, reference_date, available_dates = _load_dataframe(
+            db, filters, fields=SPAN_FIELDS, apply_lookback=False
+        )
         spans = _build_presence_spans(frame, available_dates)
         open_spans = spans[spans["aberto"]] if not spans.empty else spans
         if open_spans.empty:
@@ -681,7 +713,9 @@ def get_multi_sector_data(db: Session, filters: AnalyticsFilters) -> dict:
 
 def get_attributions_data(db: Session, filters: AnalyticsFilters) -> dict:
     def build() -> dict:
-        frame, reference_date, available_dates = _load_dataframe(db, filters, fields=ATTRIBUTION_FIELDS)
+        frame, reference_date, available_dates = _load_dataframe(
+            db, filters, fields=ATTRIBUTION_FIELDS, apply_lookback=False
+        )
 
         if frame.empty or reference_date is None:
             return {
@@ -851,7 +885,9 @@ def get_server_profile(db: Session, filters: AnalyticsFilters) -> dict:
         if not filters.atribuicao:
             return {"encontrado": False, "atribuicao": None}
 
-        frame, reference_date, available_dates = _load_dataframe(db, filters, fields=ASSIGNMENT_FIELDS)
+        frame, reference_date, available_dates = _load_dataframe(
+            db, filters, fields=ASSIGNMENT_FIELDS, apply_lookback=False
+        )
 
         if frame.empty or reference_date is None:
             return {"encontrado": False, "atribuicao": filters.atribuicao}
