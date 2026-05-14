@@ -30,9 +30,9 @@ Plataforma web de Business Intelligence desenvolvida para a **COPAG (Coordenador
 
 ## Stack tecnológica
 
-**Backend:** Python 3.12 · FastAPI · SQLAlchemy 2.0 · Alembic · Pandas · JWT · bcrypt  
-**Frontend:** React 18 · Vite · React Router 6 · Recharts · Axios · jsPDF · SheetJS  
-**Banco de dados:** PostgreSQL (Neon DB)  
+**Backend:** Python 3.12 · FastAPI · SQLAlchemy 2.0 · Alembic · Pandas · JWT · bcrypt
+**Frontend:** React 18 · Vite · React Router 6 · Recharts · Axios · jsPDF · SheetJS
+**Banco de dados:** PostgreSQL (Aiven for PostgreSQL)
 **Automação:** Playwright · httpx · GitHub Actions
 
 ---
@@ -43,7 +43,7 @@ Plataforma web de Business Intelligence desenvolvida para a **COPAG (Coordenador
 GitHub (copag-progep/bi-copag)
     ├── Render     → API FastAPI  (bi-copag-api.onrender.com)
     ├── Vercel     → Frontend     (bi-copag.vercel.app)
-    └── Neon DB    → PostgreSQL   (us-east-1 / AWS)
+    └── Aiven      → PostgreSQL   (bi-copag-db · North America)
 ```
 
 Todo push para `main` dispara deploy automático no Render e no Vercel.
@@ -81,7 +81,7 @@ Frontend disponível em `http://localhost:5173`
 
 | Variável | Descrição |
 |---|---|
-| `DATABASE_URL` | String de conexão PostgreSQL (Neon) |
+| `DATABASE_URL` | String de conexão PostgreSQL (Aiven) |
 | `JWT_SECRET_KEY` | Chave para assinar tokens JWT |
 | `API_UPLOAD_KEY` | Chave para uploads automáticos (scripts) |
 | `DEFAULT_ADMIN_EMAIL` | E-mail do admin padrão |

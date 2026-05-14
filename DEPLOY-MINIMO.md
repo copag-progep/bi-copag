@@ -28,11 +28,10 @@ Suba este projeto para um repositorio GitHub.
    - `DEFAULT_ADMIN_PASSWORD`
 6. Clique em **Deploy Blueprint**
 
-O `render.yaml` cria:
+O `render.yaml` cria/configura:
 
 - 1 web service Python
-- 1 banco Render Postgres gratuito
-- `DATABASE_URL` ligado automaticamente ao banco
+- `DATABASE_URL` como variavel secreta para o banco externo
 - `JWT_SECRET_KEY` gerado automaticamente
 
 ## Passo 3. Deploy do frontend no Vercel
@@ -55,29 +54,26 @@ Tudo isso ja foi preparado por `package.json` na raiz e `vercel.json`.
 - Email: `andersoncfs@ufc.br`
 - Senha: a senha que voce informar no campo `DEFAULT_ADMIN_PASSWORD` do Render
 
-## Limitacao importante do banco gratuito do Render
+## Banco de dados de producao
 
-O Render informa que:
+O banco de producao atual roda no **Aiven for PostgreSQL**, servico `bi-copag-db`, plano `Free-1-1gb`.
 
-- web services gratuitos usam filesystem efemero
-- bancos Postgres gratuitos expiram 30 dias apos a criacao
+Para configurar ou recriar o ambiente, defina no Render:
 
-Isso significa que este fluxo e excelente para subir rapido e gastar zero, mas nao e o ideal para uso institucional continuo sem manutencao.
+- `DATABASE_URL`: Service URI do Aiven com `sslmode=require`
+- `API_UPLOAD_KEY`: mesma chave usada pelos workflows do GitHub
+- `DEFAULT_ADMIN_PASSWORD`: senha inicial para criacao do admin padrao
 
-Se voce criar o banco gratuito em **16 de marco de 2026**, a expiracao esperada sera por volta de **15 de abril de 2026**, salvo mudanca nas regras do Render.
+O backend aceita qualquer PostgreSQL compativel via `DATABASE_URL`; localmente, se essa variavel nao existir, usa SQLite.
 
-## Caminho recomendado depois do primeiro deploy
+## Migracao de banco
 
-Se quiser manter a aplicacao sem essa limitacao de 30 dias, o proximo passo ideal e:
+Use `scripts/migrate_postgres.py` para copiar dados entre bancos PostgreSQL compativeis.
 
-- manter o frontend no Vercel
-- manter o backend no Render
-- trocar apenas o banco para um Postgres gratuito mais duravel, como Neon Postgres
+Exemplo:
 
-O backend ja aceita `DATABASE_URL`, entao essa troca exige pouca alteracao.
-
-Arquivos preparados para isso:
-
-- `MIGRAR-PARA-NEON.md`
-- `render-external-db.yaml`
-- `scripts/migrate_postgres.py`
+```bash
+SOURCE_DATABASE_URL='postgresql+psycopg://...' \
+TARGET_DATABASE_URL='postgresql+psycopg://...' \
+python scripts/migrate_postgres.py --truncate-target
+```

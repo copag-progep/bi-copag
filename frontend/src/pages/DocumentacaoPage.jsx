@@ -88,7 +88,7 @@ const CHECKLIST_TRANSICAO = [
   "SEI_USER e SEI_PASSWORD atualizados nos GitHub Secrets",
   "Workflow daily-upload disparado manualmente e confirmado com sucesso",
   "Acesso ao Render transferido (painel de variáveis de ambiente)",
-  "Acesso ao Neon DB transferido (console.neon.tech)",
+  "Acesso ao Aiven for PostgreSQL transferido (console.aiven.io)",
   "Acesso ao Vercel transferido",
   "Usuário admin criado no BI para o novo coordenador",
   "Senha de app do copag@progep.ufc.br compartilhada ou gerada nova",
@@ -101,7 +101,7 @@ const INFO_CRITICAS = {
   rows: [
     ["URL do sistema", "https://bi-copag.vercel.app"],
     ["URL da API", "https://bi-copag-api.onrender.com"],
-    ["Banco de dados", "Neon DB — console.neon.tech — projeto bi-copag"],
+    ["Banco de dados", "Aiven for PostgreSQL — console.aiven.io — serviço bi-copag-db"],
     ["Repositório", "github.com/copag-progep/bi-copag (branch: main)"],
     ["E-mail institucional", "copag@progep.ufc.br (Google Workspace)"],
   ],
@@ -170,7 +170,7 @@ export default function DocumentacaoPage() {
           <DocSection id="s02" num="02" eyebrow="Infraestrutura" title="Arquitetura">
             <p>
               A plataforma usa quatro serviços conectados: código no GitHub, API no Render,
-              frontend no Vercel e banco no Neon DB. Todo push para <code>main</code> dispara
+              frontend no Vercel e banco no Aiven for PostgreSQL. Todo push para <code>main</code> dispara
               deploy automático no Render e no Vercel simultaneamente.
             </p>
             <ArchDiagram />
@@ -364,7 +364,7 @@ export default function DocumentacaoPage() {
             <DocTable
               headers={["Variável", "Descrição"]}
               rows={[
-                ["DATABASE_URL", "String de conexão PostgreSQL (Neon)"],
+                ["DATABASE_URL", "String de conexão PostgreSQL (Aiven)"],
                 ["JWT_SECRET_KEY", "Chave para assinar tokens JWT"],
                 ["API_UPLOAD_KEY", "Chave para uploads automáticos"],
                 ["DEFAULT_ADMIN_EMAIL", "E-mail do admin padrão"],

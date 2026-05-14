@@ -43,10 +43,10 @@ export default function ArchDiagram() {
 
       <div className="arch-arrow">↓</div>
 
-      {tier("Neon DB", "PostgreSQL · AWS us-east-1", [
-        "Conexão via connection pooler",
+      {tier("Aiven PostgreSQL", "bi-copag-db · North America", [
+        "Conexão via DATABASE_URL no Render",
         "6 tabelas · Alembic migrations",
-        "0.07 / 0.5 GB (plano gratuito)",
+        "Plano Free-1-1gb · PostgreSQL 17",
       ], "#4a148c")}
 
       <div className="arch-arrow">↕</div>
