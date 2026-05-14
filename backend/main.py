@@ -1027,6 +1027,6 @@ def daily_summary(
         "criticos_30d": stale_data.get("contagens", {}).get("mais_de_30", 0),
         "criticos_90d": sum(
             1 for p in processos_parados
-            if p.get("dias_sem_movimentacao", 0) > 90
+            if p.get("dias_sem_movimentacao", 0) >= 90  # >= para alinhar com faixa "extreme" do sistema
         ),
     })
