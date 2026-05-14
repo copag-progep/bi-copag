@@ -4,16 +4,23 @@ from collections.abc import Iterable
 
 from sqlalchemy import MetaData, create_engine, func, inspect, select, text
 
-from backend.models import Processo, Upload, User
 
-
-TABLES = [User.__table__, Upload.__table__, Processo.__table__]
+TABLE_NAMES = ["users", "sei_users", "uploads", "processos", "monthly_stats", "audit_logs"]
+TRUNCATE_ORDER = ["audit_logs", "monthly_stats", "processos", "uploads", "sei_users", "users"]
 INDEX_STATEMENTS = [
     "CREATE INDEX IF NOT EXISTS ix_processos_data_relatorio_setor ON processos (data_relatorio, setor)",
     "CREATE INDEX IF NOT EXISTS ix_processos_setor_data_relatorio ON processos (setor, data_relatorio)",
     "CREATE INDEX IF NOT EXISTS ix_processos_tipo_data_relatorio ON processos (tipo, data_relatorio)",
     "CREATE INDEX IF NOT EXISTS ix_processos_atribuicao_data_relatorio ON processos (atribuicao, data_relatorio)",
+    "CREATE INDEX IF NOT EXISTS ix_processos_atribuicao_normalizada_data_relatorio ON processos (atribuicao_normalizada, data_relatorio)",
     "CREATE INDEX IF NOT EXISTS ix_processos_protocolo_data_relatorio ON processos (protocolo, data_relatorio)",
+    "CREATE INDEX IF NOT EXISTS ix_processos_covering_analytics ON processos (setor, data_relatorio, protocolo, atribuicao_normalizada, tipo)",
+    "CREATE INDEX IF NOT EXISTS ix_sei_users_nome_key ON sei_users (nome_key)",
+    "CREATE INDEX IF NOT EXISTS ix_sei_users_nome_sei_key ON sei_users (nome_sei_key)",
+    "CREATE INDEX IF NOT EXISTS ix_sei_users_usuario_sei_key ON sei_users (usuario_sei_key)",
+    "CREATE INDEX IF NOT EXISTS ix_monthly_stats_periodo_setor ON monthly_stats (periodo, setor)",
+    "CREATE INDEX IF NOT EXISTS ix_monthly_stats_indicador_periodo ON monthly_stats (indicador, periodo)",
+    "CREATE INDEX IF NOT EXISTS ix_audit_logs_created_at ON audit_logs (created_at)",
 ]
 
 
@@ -34,11 +41,19 @@ def build_engine(url: str):
     return create_engine(normalized, **engine_kwargs)
 
 
-def ensure_target_schema(target_engine) -> None:
+def reflect_tables(engine, table_names: list[str]) -> list:
     metadata = MetaData()
-    for table in TABLES:
-        table.to_metadata(metadata)
-    metadata.create_all(target_engine)
+    metadata.reflect(bind=engine, only=table_names)
+    return [metadata.tables[name] for name in table_names]
+
+
+def ensure_target_schema(source_engine, target_engine) -> None:
+    source_metadata = MetaData()
+    source_metadata.reflect(bind=source_engine, only=TABLE_NAMES)
+    target_metadata = MetaData()
+    for table_name in TABLE_NAMES:
+        source_metadata.tables[table_name].to_metadata(target_metadata)
+    target_metadata.create_all(target_engine)
     with target_engine.begin() as connection:
         for statement in INDEX_STATEMENTS:
             connection.execute(text(statement))
@@ -47,7 +62,7 @@ def ensure_target_schema(target_engine) -> None:
 def validate_tables(source_engine) -> None:
     inspector = inspect(source_engine)
     existing_tables = set(inspector.get_table_names())
-    expected = {table.name for table in TABLES}
+    expected = set(TABLE_NAMES)
     missing = expected.difference(existing_tables)
     if missing:
         missing_list = ", ".join(sorted(missing))
@@ -59,8 +74,8 @@ def table_row_count(engine, table) -> int:
         return connection.execute(select(func.count()).select_from(table)).scalar_one()
 
 
-def abort_if_target_not_empty(target_engine) -> None:
-    for table in TABLES:
+def abort_if_target_not_empty(target_engine, target_tables) -> None:
+    for table in target_tables:
         if table_row_count(target_engine, table) > 0:
             raise RuntimeError(
                 "O banco de destino ja possui dados. Use --truncate-target se quiser limpar o destino antes da copia."
@@ -69,8 +84,8 @@ def abort_if_target_not_empty(target_engine) -> None:
 
 def truncate_target(target_engine) -> None:
     with target_engine.begin() as connection:
-        for table in reversed(TABLES):
-            connection.execute(table.delete())
+        for table_name in TRUNCATE_ORDER:
+            connection.execute(text(f"DELETE FROM {table_name}"))
 
 
 def batched_rows(result, batch_size: int) -> Iterable[list[dict]]:
@@ -81,43 +96,30 @@ def batched_rows(result, batch_size: int) -> Iterable[list[dict]]:
         yield [dict(row) for row in rows]
 
 
-def copy_table(source_engine, target_engine, table, batch_size: int) -> int:
+def copy_table(source_engine, target_engine, source_table, target_table, batch_size: int) -> int:
     copied = 0
     with source_engine.connect() as source_connection:
-        result = source_connection.execution_options(stream_results=True).execute(select(table))
+        result = source_connection.execution_options(stream_results=True).execute(select(source_table))
         for batch in batched_rows(result, batch_size):
             with target_engine.begin() as target_connection:
-                target_connection.execute(table.insert(), batch)
+                target_connection.execute(target_table.insert(), batch)
             copied += len(batch)
     return copied
 
 
-def sync_postgres_sequences(target_engine) -> None:
+def sync_postgres_sequences(target_engine, table_names: list[str]) -> None:
     if not str(target_engine.url).startswith("postgresql"):
         return
 
     statements = [
-        """
+        f"""
         SELECT setval(
-            pg_get_serial_sequence('users', 'id'),
-            COALESCE((SELECT MAX(id) FROM users), 1),
-            COALESCE((SELECT MAX(id) FROM users), 0) > 0
+            pg_get_serial_sequence('{table_name}', 'id'),
+            COALESCE((SELECT MAX(id) FROM {table_name}), 1),
+            COALESCE((SELECT MAX(id) FROM {table_name}), 0) > 0
         )
-        """,
         """
-        SELECT setval(
-            pg_get_serial_sequence('uploads', 'id'),
-            COALESCE((SELECT MAX(id) FROM uploads), 1),
-            COALESCE((SELECT MAX(id) FROM uploads), 0) > 0
-        )
-        """,
-        """
-        SELECT setval(
-            pg_get_serial_sequence('processos', 'id'),
-            COALESCE((SELECT MAX(id) FROM processos), 1),
-            COALESCE((SELECT MAX(id) FROM processos), 0) > 0
-        )
-        """,
+        for table_name in table_names
     ]
     with target_engine.begin() as connection:
         for statement in statements:
@@ -151,23 +153,26 @@ def main() -> None:
     target_engine = build_engine(target_url)
 
     validate_tables(source_engine)
-    ensure_target_schema(target_engine)
+    ensure_target_schema(source_engine, target_engine)
+
+    source_tables = reflect_tables(source_engine, TABLE_NAMES)
+    target_tables = reflect_tables(target_engine, TABLE_NAMES)
 
     if args.truncate_target:
         truncate_target(target_engine)
     else:
-        abort_if_target_not_empty(target_engine)
+        abort_if_target_not_empty(target_engine, target_tables)
 
     print(f"Origem: {source_engine.url.render_as_string(hide_password=True)}")
     print(f"Destino: {target_engine.url.render_as_string(hide_password=True)}")
 
-    for table in TABLES:
-        total = table_row_count(source_engine, table)
-        print(f"Copiando {table.name}: {total} registro(s)")
-        copied = copy_table(source_engine, target_engine, table, args.batch_size)
-        print(f"Concluido {table.name}: {copied} registro(s)")
+    for source_table, target_table in zip(source_tables, target_tables):
+        total = table_row_count(source_engine, source_table)
+        print(f"Copiando {source_table.name}: {total} registro(s)")
+        copied = copy_table(source_engine, target_engine, source_table, target_table, args.batch_size)
+        print(f"Concluido {source_table.name}: {copied} registro(s)")
 
-    sync_postgres_sequences(target_engine)
+    sync_postgres_sequences(target_engine, TABLE_NAMES)
     print("Migracao concluida com sucesso.")
 
 
