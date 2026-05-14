@@ -78,23 +78,64 @@ def fetch_summary() -> dict:
 # HTML do e-mail
 # ---------------------------------------------------------------------------
 
-def _sector_rows(setores: list[dict]) -> str:
+def _sector_rows(setores: list[dict], total: int) -> str:
+    """Linhas de setor com mini-barra proporcional de carga."""
     rows = ""
     for i, s in enumerate(setores):
-        bg = "#fafbff" if i % 2 == 0 else "#ffffff"
+        pct     = round(s["ativos"] / max(total, 1) * 100)
+        bar_w   = max(3, pct)
+        bg      = "#fafbff" if i % 2 == 0 else "#ffffff"
         rows += (
-            f"<tr style='background:{bg}'>"
-            f"<td style='padding:8px 12px;font-family:{_FONT};font-weight:700;"
-            f"font-size:.85rem;color:#273168'>{s['setor']}</td>"
-            f"<td style='padding:8px 12px;text-align:right;font-family:{_FONT};"
-            f"font-weight:800;font-size:.9rem;color:#1a2050'>{s['ativos']}</td>"
-            f"<td style='padding:8px 12px;text-align:center;font-family:{_FONT};"
-            f"font-size:.82rem;color:#1a7a50;font-weight:600'>+{s['entradas']}</td>"
-            f"<td style='padding:8px 12px;text-align:center;font-family:{_FONT};"
-            f"font-size:.82rem;color:#d4750e;font-weight:600'>-{s['saidas']}</td>"
-            f"</tr>"
+            f"<table width='100%' cellpadding='0' cellspacing='0'"
+            f" style='margin-bottom:1px;background:{bg};border-radius:6px'>"
+            f"<tr>"
+            f"<td width='90' style='padding:9px 8px 9px 12px;font-family:{_FONT};"
+            f"font-weight:700;font-size:.82rem;color:#273168'>{s['setor']}</td>"
+            f"<td style='padding:9px 6px'>"
+            f"<table width='100%' cellpadding='0' cellspacing='0'><tr>"
+            f"<td width='{bar_w}%' style='background:#273168;height:5px;"
+            f"border-radius:99px;opacity:.55'></td>"
+            f"<td style='height:5px'></td>"
+            f"</tr></table>"
+            f"</td>"
+            f"<td width='48' style='padding:9px 6px;text-align:right;font-family:{_FONT};"
+            f"font-weight:800;font-size:.88rem;color:#1a2050'>{s['ativos']}</td>"
+            f"<td width='38' style='padding:9px 4px;text-align:center;font-family:{_FONT};"
+            f"font-size:.78rem;color:#1a7a50;font-weight:700'>+{s['entradas']}</td>"
+            f"<td width='38' style='padding:9px 12px 9px 4px;text-align:center;"
+            f"font-family:{_FONT};font-size:.78rem;color:#d4750e;font-weight:700'>-{s['saidas']}</td>"
+            f"</tr></table>"
         )
     return rows
+
+
+def _criticos_bloco(c30: int, c90: int) -> str:
+    if c30 == 0:
+        return ""
+    c90_line = ""
+    if c90 > 0:
+        c90_line = (
+            f"<div style='margin-top:7px;padding-top:7px;"
+            f"border-top:1px solid rgba(183,28,28,.14)'>"
+            f"<span style='font-family:{_FONT};font-size:.78rem;color:#b71c1c;font-weight:700'>"
+            f"🔴 Situação extrema (+90 dias):&nbsp;</span>"
+            f"<span style='font-family:{_FONT};font-size:.85rem;font-weight:800;color:#b71c1c'>"
+            f"{c90}</span>"
+            f"</div>"
+        )
+    return (
+        f"<div style='background:#fff8f0;border-left:3px solid #f39320;"
+        f"border-radius:0 8px 8px 0;padding:12px 16px;margin:14px 0'>"
+        f"<div style='font-family:{_FONT};font-size:.72rem;font-weight:700;"
+        f"color:#b85e08;text-transform:uppercase;letter-spacing:.08em;"
+        f"margin-bottom:5px'>⚠&nbsp; Processos parados</div>"
+        f"<div style='font-family:{_FONT};font-size:.82rem;color:#5a6390'>"
+        f"Acima de 30 dias: "
+        f"<strong style='color:#d4750e;font-size:.92rem'>{c30}</strong>"
+        f"</div>"
+        f"{c90_line}"
+        f"</div>"
+    )
 
 
 def _delta_style(delta: int) -> tuple[str, str, str]:
@@ -117,145 +158,117 @@ def build_html(data: dict) -> str:
     c90      = data.get("criticos_90d", 0)
 
     delta_cor, delta_str, delta_label = _delta_style(delta)
-
-    setor_rows = _sector_rows(setores)
-
-    criticos_bloco = ""
-    if c30 > 0:
-        criticos_bloco = f"""
-      <div style="background:#fff8f0;border-left:3px solid #f39320;padding:12px 16px;
-                  border-radius:0 8px 8px 0;margin-bottom:16px">
-        <div style="font-family:{_FONT};font-weight:700;color:#d4750e;
-                    font-size:.85rem;margin-bottom:3px">⚠ Processos parados</div>
-        <div style="font-family:{_FONT};font-size:.8rem;color:#5a6390">
-          Acima de 30 dias: <strong style="color:#d4750e">{c30}</strong>
-          &nbsp;·&nbsp;
-          Acima de 90 dias: <strong style="color:#bf3535">{c90}</strong>
-        </div>
-      </div>"""
+    total_setor = max(sum(s["ativos"] for s in setores), 1)
+    setor_rows  = _sector_rows(setores, total_setor)
+    criticos    = _criticos_bloco(c30, c90)
 
     return f"""<!DOCTYPE html>
 <html lang="pt-BR">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-<body style="margin:0;padding:16px 0;background:#dde0ea;font-family:{_FONT};color:#1a2050">
+<body style="margin:0;padding:20px 0;background:#d8dbe8;font-family:{_FONT};color:#1a2050">
 
-  <div style="max-width:600px;margin:0 auto;background:#ffffff;border-radius:8px;
-              overflow:hidden;box-shadow:0 4px 20px rgba(39,49,104,.16)">
+  <div style="max-width:600px;margin:0 auto;background:#ffffff;border-radius:10px;
+              overflow:hidden;box-shadow:0 8px 32px rgba(39,49,104,.20)">
 
-    <!-- Tarja superior -->
-    <div style="height:3px;background:linear-gradient(90deg,#f39320,#febb12)"></div>
+    <!-- Tarja laranja/dourada -->
+    <div style="height:3px;background:linear-gradient(90deg,#f39320,#febb12,#f39320)"></div>
 
-    <!-- Cabeçalho -->
-    <div style="background:linear-gradient(135deg,#273168 0%,#1c2350 55%,#111840 100%);
-                padding:18px 28px">
+    <!-- Cabeçalho — hero com número grande -->
+    <div style="background:linear-gradient(160deg,#1a2762 0%,#273168 40%,#0f1a44 100%);
+                padding:26px 32px 22px">
+      <!-- Badge institucional -->
+      <div style="font-family:{_FONT};font-size:.58rem;font-weight:700;letter-spacing:.2em;
+                  text-transform:uppercase;color:rgba(254,187,18,.75);margin-bottom:14px">
+        SEI BI &nbsp;·&nbsp; COPAG &nbsp;·&nbsp; PROGEP &nbsp;·&nbsp; UFC
+      </div>
       <table width="100%" cellpadding="0" cellspacing="0">
         <tr>
-          <td style="vertical-align:middle">
-            <div style="font-family:{_FONT};font-size:.62rem;font-weight:700;
-                        letter-spacing:.18em;text-transform:uppercase;
-                        color:rgba(254,187,18,.85);margin-bottom:4px">
-              SEI BI &nbsp;·&nbsp; COPAG &nbsp;·&nbsp; PROGEP &nbsp;·&nbsp; UFC
-            </div>
-            <div style="font-family:{_FONT};font-size:1.1rem;font-weight:800;
-                        color:#ffffff;line-height:1.1">
-              Relatório Diário &nbsp;·&nbsp;
-              <span style="color:rgba(254,187,18,.9)">{ref}</span>
-            </div>
+          <!-- Número principal -->
+          <td style="vertical-align:bottom">
+            <div style="font-family:{_FONT};font-size:3rem;font-weight:800;color:#febb12;
+                        line-height:1;letter-spacing:-.02em">{ativos:,}</div>
+            <div style="font-family:{_FONT};font-size:.65rem;font-weight:700;
+                        text-transform:uppercase;letter-spacing:.14em;
+                        color:rgba(240,244,255,.45);margin-top:5px">Processos ativos</div>
           </td>
-          <td style="text-align:right;vertical-align:middle;white-space:nowrap">
-            <div style="display:inline-block;background:rgba(243,147,32,.18);
-                        border:1px solid rgba(243,147,32,.30);border-radius:8px;
-                        padding:8px 14px;text-align:center">
+          <!-- Saldo + data -->
+          <td style="text-align:right;vertical-align:bottom;padding-bottom:2px">
+            <div style="font-family:{_FONT};font-size:.72rem;color:rgba(240,244,255,.4);
+                        margin-bottom:8px">{ref}</div>
+            <div style="display:inline-block;background:rgba(255,255,255,.08);
+                        border:1px solid rgba(255,255,255,.13);border-radius:7px;
+                        padding:9px 16px;text-align:center">
               <div style="font-family:{_FONT};font-size:1.4rem;font-weight:800;
-                           color:#febb12;line-height:1">{ativos:,}</div>
+                          color:{delta_cor};line-height:1">{delta_str}</div>
               <div style="font-family:{_FONT};font-size:.58rem;font-weight:700;
-                           color:rgba(240,244,255,.50);text-transform:uppercase;
-                           letter-spacing:.12em;margin-top:2px">ativos</div>
+                          color:rgba(240,244,255,.42);text-transform:uppercase;
+                          letter-spacing:.1em;margin-top:3px">{delta_label}</div>
             </div>
           </td>
         </tr>
       </table>
     </div>
-    <div style="height:2px;background:linear-gradient(90deg,#273168,#3d4fa0)"></div>
 
-    <!-- Corpo -->
-    <div style="padding:20px 28px;background:#f8f9fd">
-
-      <!-- KPIs do dia -->
-      <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:16px">
+    <!-- Faixa de fluxo do dia -->
+    <div style="background:#eef0f6;padding:14px 32px">
+      <table width="100%" cellpadding="0" cellspacing="0">
         <tr>
-          <td width="33%" style="padding-right:6px">
-            <div style="background:#ffffff;border-radius:8px;padding:12px 10px;
-                        text-align:center;border-top:2px solid {delta_cor}">
-              <div style="font-family:{_FONT};font-size:1.3rem;font-weight:800;
-                          color:{delta_cor};line-height:1">{delta_str}</div>
-              <div style="font-family:{_FONT};font-size:.62rem;color:#5a6390;
-                          text-transform:uppercase;letter-spacing:.08em;
-                          margin-top:4px">{delta_label}</div>
+          <td width="47%" style="text-align:center;padding:12px 10px;background:#ecfdf5;
+                                  border-radius:8px;border:1px solid rgba(26,122,80,.18)">
+            <div style="font-family:{_FONT};font-size:.6rem;font-weight:700;color:#1a7a50;
+                        text-transform:uppercase;letter-spacing:.1em;margin-bottom:5px">
+              ↑ &nbsp;Entradas
             </div>
+            <div style="font-family:{_FONT};font-size:1.7rem;font-weight:800;
+                        color:#1a7a50;line-height:1">{entradas}</div>
           </td>
-          <td width="33%" style="padding:0 3px">
-            <div style="background:#f0faf5;border-radius:8px;padding:12px 10px;
-                        text-align:center;border-top:2px solid #1a7a50">
-              <div style="font-family:{_FONT};font-size:1.3rem;font-weight:800;
-                          color:#1a7a50;line-height:1">{entradas}</div>
-              <div style="font-family:{_FONT};font-size:.62rem;color:#5a6390;
-                          text-transform:uppercase;letter-spacing:.08em;
-                          margin-top:4px">Entradas</div>
-            </div>
+          <td width="6%" style="text-align:center">
+            <div style="font-family:{_FONT};font-size:.8rem;color:#b0b4c8">→</div>
           </td>
-          <td width="33%" style="padding-left:6px">
-            <div style="background:#fff8f0;border-radius:8px;padding:12px 10px;
-                        text-align:center;border-top:2px solid #f39320">
-              <div style="font-family:{_FONT};font-size:1.3rem;font-weight:800;
-                          color:#d4750e;line-height:1">{saidas}</div>
-              <div style="font-family:{_FONT};font-size:.62rem;color:#5a6390;
-                          text-transform:uppercase;letter-spacing:.08em;
-                          margin-top:4px">Saídas</div>
+          <td width="47%" style="text-align:center;padding:12px 10px;background:#fff8f0;
+                                  border-radius:8px;border:1px solid rgba(243,147,32,.2)">
+            <div style="font-family:{_FONT};font-size:.6rem;font-weight:700;color:#d4750e;
+                        text-transform:uppercase;letter-spacing:.1em;margin-bottom:5px">
+              ↓ &nbsp;Saídas
             </div>
+            <div style="font-family:{_FONT};font-size:1.7rem;font-weight:800;
+                        color:#d4750e;line-height:1">{saidas}</div>
           </td>
         </tr>
       </table>
+    </div>
 
-      <!-- Tabela de setores -->
-      <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:16px;
-             border-radius:8px;border:1px solid #e8eaf0;border-collapse:collapse;overflow:hidden">
-        <thead>
-          <tr style="background:#f5f6fb">
-            <th style="padding:7px 12px;text-align:left;font-family:{_FONT};font-size:.62rem;
-                       color:#5a6390;text-transform:uppercase;letter-spacing:.08em;font-weight:700">Setor</th>
-            <th style="padding:7px 12px;text-align:right;font-family:{_FONT};font-size:.62rem;
-                       color:#5a6390;text-transform:uppercase;letter-spacing:.08em;font-weight:700">Ativos</th>
-            <th style="padding:7px 12px;text-align:center;font-family:{_FONT};font-size:.62rem;
-                       color:#1a7a50;text-transform:uppercase;letter-spacing:.08em;font-weight:700">↑ Ent.</th>
-            <th style="padding:7px 12px;text-align:center;font-family:{_FONT};font-size:.62rem;
-                       color:#d4750e;text-transform:uppercase;letter-spacing:.08em;font-weight:700">↓ Saí.</th>
-          </tr>
-        </thead>
-        <tbody>{setor_rows}</tbody>
-      </table>
+    <!-- Corpo -->
+    <div style="padding:18px 32px 24px;background:#ffffff">
 
-      {criticos_bloco}
+      <!-- Label seção -->
+      <div style="font-family:{_FONT};font-size:.6rem;font-weight:700;text-transform:uppercase;
+                  letter-spacing:.14em;color:#9a9fc0;margin-bottom:10px;padding-bottom:8px;
+                  border-bottom:1px solid #eef0f8">Por setor</div>
 
-      <!-- Botão e rodapé -->
-      <div style="text-align:center;padding-top:4px">
+      <!-- Linhas de setor com barra proporcional -->
+      {setor_rows}
+
+      {criticos}
+
+      <!-- CTA -->
+      <div style="text-align:center;padding-top:16px;margin-top:10px;
+                  border-top:1px solid #eef0f8">
         <a href="https://bi-copag.vercel.app"
            style="display:inline-block;background:linear-gradient(135deg,#273168,#1c2350);
-                  color:#ffffff;text-decoration:none;padding:11px 28px;border-radius:6px;
-                  font-family:{_FONT};font-size:.85rem;font-weight:700">
+                  color:#ffffff;text-decoration:none;padding:11px 32px;border-radius:6px;
+                  font-family:{_FONT};font-size:.85rem;font-weight:700;letter-spacing:.02em">
           Abrir plataforma →
         </a>
-        <div style="font-family:{_FONT};font-size:.7rem;color:#aaa;margin-top:10px">
-          Gerado automaticamente &nbsp;·&nbsp; BI COPAG &nbsp;·&nbsp;
-          <a href="https://bi-copag.vercel.app" style="color:#273168;font-weight:600;
-             text-decoration:none">bi-copag.vercel.app</a>
+        <div style="font-family:{_FONT};font-size:.68rem;color:#bbb;margin-top:9px">
+          bi-copag.vercel.app &nbsp;·&nbsp; Gerado automaticamente às 19:30 BRT
         </div>
       </div>
 
     </div>
 
     <!-- Tarja inferior -->
-    <div style="height:2px;background:linear-gradient(90deg,#273168,#3d4fa0)"></div>
+    <div style="height:3px;background:linear-gradient(90deg,#273168,#3d4fa0,#273168)"></div>
 
   </div>
 </body>
