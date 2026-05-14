@@ -28,7 +28,7 @@ from datetime import date
 from urllib.parse import urlparse
 
 import httpx
-from playwright.async_api import async_playwright, TimeoutError as PlaywrightTimeout
+from playwright.async_api import Error as PlaywrightError, async_playwright, TimeoutError as PlaywrightTimeout
 
 DEFAULT_BI_API_URL = "https://bi-copag-api.onrender.com"
 LEGACY_BI_API_URLS = {
@@ -74,6 +74,23 @@ CABECALHO = [
 # Login
 # ---------------------------------------------------------------------------
 
+def _is_navigation_abort(exc: Exception) -> bool:
+    return "net::ERR_ABORTED" in str(exc)
+
+
+async def goto_tolerante(page, url: str, *, wait_until: str = "domcontentloaded", timeout: int = 30_000) -> None:
+    """Navega tolerando abortos causados por redirecionamentos do SEI."""
+    try:
+        await page.goto(url, wait_until=wait_until, timeout=timeout)
+    except PlaywrightError as exc:
+        if not _is_navigation_abort(exc):
+            raise
+        print("  Aviso: navegação abortada pelo SEI; aguardando página estabilizar...")
+        try:
+            await page.wait_for_load_state("domcontentloaded", timeout=10_000)
+        except PlaywrightTimeout:
+            pass
+
 async def fazer_login(page, sei_url: str, sei_user: str, sei_pass: str) -> None:
     """Faz login no SEI.
 
@@ -87,7 +104,7 @@ async def fazer_login(page, sei_url: str, sei_user: str, sei_pass: str) -> None:
         "?sigla_orgao_sistema=UFC&sigla_sistema=SEI"
     )
     print(f"  → Acessando: {login_url}")
-    await page.goto(login_url, wait_until="domcontentloaded")
+    await goto_tolerante(page, login_url, wait_until="domcontentloaded")
     await page.wait_for_selector("#txtUsuario", timeout=30_000)
     await page.fill("#txtUsuario", sei_user)
     await page.fill("#pwdSenha",   sei_pass)
@@ -127,7 +144,7 @@ async def trocar_para_setor(page, sei_base: str, sigla: str) -> None:
     """)
 
     if onclick_url:
-        await page.goto(f"{sei_base}/{onclick_url}", wait_until="domcontentloaded")
+        await goto_tolerante(page, f"{sei_base}/{onclick_url}", wait_until="domcontentloaded")
     else:
         await page.evaluate(
             "() => { const el = document.getElementById('lnkInfraUnidade'); if (el) el.click(); }"
@@ -164,7 +181,8 @@ async def trocar_para_setor(page, sei_base: str, sigla: str) -> None:
     # em infra_trocar_unidade ao invés de redirecionar ao painel.
     # Nesse caso navegamos manualmente para o painel de controle.
     if "infra_trocar_unidade" in page.url:
-        await page.goto(
+        await goto_tolerante(
+            page,
             f"{sei_base}/controlador.php?acao=procedimento_controlar",
             wait_until="domcontentloaded",
         )
@@ -360,7 +378,7 @@ async def main() -> None:
         async def resetar_pagina() -> None:
             """Navega ao painel principal para garantir estado limpo antes do próximo setor."""
             try:
-                await page.goto(painel_url, wait_until="domcontentloaded")
+                await goto_tolerante(page, painel_url, wait_until="domcontentloaded")
                 await page.wait_for_load_state("networkidle")
             except Exception:
                 pass  # melhor esforço
@@ -380,6 +398,11 @@ async def main() -> None:
                 print(f"  ✗ {msg}")
                 erros.append(msg)
                 await resetar_pagina()   # recupera estado para o próximo setor
+            except PlaywrightError as exc:
+                msg = f"{bi_setor}: erro de navegação no SEI — {exc}"
+                print(f"  ✗ {msg}")
+                erros.append(msg)
+                await resetar_pagina()
             except httpx.HTTPError as exc:
                 msg = f"{bi_setor}: erro no upload — {exc}"
                 print(f"  ✗ {msg}")
