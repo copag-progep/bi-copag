@@ -3,9 +3,14 @@ name: Relatório diário WhatsApp — BI COPAG
 # Dispara todo dia útil às 19:30 BRT (22:30 UTC), 30 min após o upload SEI.
 # Pode ser disparado manualmente a qualquer momento via "Run workflow".
 #
-# Fase 0 (atual): roda em dry-run — gera e exibe a mensagem nos logs da Action,
-# sem tocar a API da Meta. Quando WHATSAPP_TOKEN e WHATSAPP_PHONE_ID forem
-# configurados nos Secrets, o script detecta e envia automaticamente.
+# Fase 0 (atual): WHATSAPP_TOKEN não está configurado → script roda em dry-run
+# automaticamente e exibe a mensagem nos logs da Action.
+#
+# Para ativar o envio real:
+#   1. Submeter template à Meta e aguardar aprovação
+#   2. Descomentar WHATSAPP_TOKEN, WHATSAPP_PHONE_ID e WHATSAPP_RECIPIENTS abaixo
+#   3. Completar o mapeamento de variáveis em send_whatsapp() no script
+# O script detecta WHATSAPP_TOKEN e muda para modo produção sem alterar o comando.
 
 on:
   schedule:
@@ -31,10 +36,10 @@ jobs:
 
       - name: Gerar relatório diário
         env:
-          BI_API_URL:  ${{ vars.BI_API_URL }}
+          BI_API_URL:  ${{ vars.BI_API_URL || 'https://bi-copag-api.onrender.com' }}
           BI_API_KEY:  ${{ secrets.BI_API_KEY }}
-          # Quando o template Meta for aprovado, adicionar:
+          # Quando o template Meta for aprovado, descomentar:
           # WHATSAPP_TOKEN:      ${{ secrets.WHATSAPP_TOKEN }}
           # WHATSAPP_PHONE_ID:   ${{ secrets.WHATSAPP_PHONE_ID }}
           # WHATSAPP_RECIPIENTS: ${{ vars.WHATSAPP_RECIPIENTS }}
-        run: python scripts/whatsapp_report.py --dry-run
+        run: python scripts/whatsapp_report.py

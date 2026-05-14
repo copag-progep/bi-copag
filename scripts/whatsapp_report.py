@@ -49,7 +49,7 @@ def _warmup() -> None:
             if r.status_code == 200:
                 print(f"  API respondeu (tentativa {attempt}).")
                 return
-        except httpx.TimeoutException:
+        except (httpx.TimeoutException, httpx.RequestError):
             pass
         if attempt < _RETRIES:
             print(f"  Aguardando {_RETRY_WAIT}s...")
@@ -65,7 +65,7 @@ def fetch_summary() -> dict:
             r = httpx.get(url, headers=_HEADERS(), timeout=_TIMEOUT)
             r.raise_for_status()
             return r.json()
-        except (httpx.TimeoutException, httpx.HTTPStatusError) as exc:
+        except (httpx.TimeoutException, httpx.HTTPStatusError, httpx.RequestError) as exc:
             last_exc = exc
             if attempt < _RETRIES:
                 print(f"  Tentativa {attempt} falhou ({type(exc).__name__}) — aguardando {_RETRY_WAIT}s...")
