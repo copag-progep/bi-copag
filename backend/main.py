@@ -986,3 +986,47 @@ def multi_sector(
 ):
     filters = build_filters(data_referencia, data_inicial, data_final, setor, tipo, atribuicao)
     return JSONResponse(get_multi_sector_data(db, filters))
+
+
+@app.get("/api/reports/daily-summary")
+def daily_summary(
+    _: User = Depends(get_current_user_or_api_key),
+    db: Session = Depends(get_db),
+):
+    """Resumo diário compacto — usado pelo relatório WhatsApp e scripts externos.
+
+    Agrega dashboard, fluxo do dia e críticos em uma única chamada leve,
+    evitando que scripts externos façam múltiplas requisições analíticas pesadas.
+    """
+    filters = AnalyticsFilters()
+    dashboard_data = get_dashboard_data(db, filters)
+    flow_data      = get_entries_exits_data(db, filters)
+    stale_data     = get_stale_processes_data(db, filters)
+
+    resumo  = flow_data.get("resumo_setorial", [])
+    total_e = sum(s["entradas"] for s in resumo)
+    total_s = sum(s["saidas"]   for s in resumo)
+
+    processos_parados = stale_data.get("processos", [])
+
+    return JSONResponse({
+        "data_referencia": dashboard_data.get("data_referencia"),
+        "total_ativos":    dashboard_data.get("kpis", {}).get("total_processos_ativos", 0),
+        "delta_dia":       total_e - total_s,
+        "entradas_dia":    total_e,
+        "saidas_dia":      total_s,
+        "setores": [
+            {
+                "setor":    s["setor"],
+                "ativos":   s["carga_atual"],
+                "entradas": s["entradas"],
+                "saidas":   s["saidas"],
+            }
+            for s in sorted(resumo, key=lambda x: -x["carga_atual"])
+        ],
+        "criticos_30d": stale_data.get("contagens", {}).get("mais_de_30", 0),
+        "criticos_90d": sum(
+            1 for p in processos_parados
+            if p.get("dias_sem_movimentacao", 0) > 90
+        ),
+    })

@@ -1,0 +1,40 @@
+name: Relatório diário WhatsApp — BI COPAG
+
+# Dispara todo dia útil às 19:30 BRT (22:30 UTC), 30 min após o upload SEI.
+# Pode ser disparado manualmente a qualquer momento via "Run workflow".
+#
+# Fase 0 (atual): roda em dry-run — gera e exibe a mensagem nos logs da Action,
+# sem tocar a API da Meta. Quando WHATSAPP_TOKEN e WHATSAPP_PHONE_ID forem
+# configurados nos Secrets, o script detecta e envia automaticamente.
+
+on:
+  schedule:
+    - cron: "30 22 * * 1-5"   # 19:30 BRT (UTC-3) = 22:30 UTC, seg–sex
+  workflow_dispatch:
+
+jobs:
+  whatsapp-report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout do repositório
+        uses: actions/checkout@v4
+
+      - name: Configurar Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Instalar dependências
+        run: pip install httpx
+
+      - name: Gerar relatório diário
+        env:
+          BI_API_URL:  ${{ vars.BI_API_URL }}
+          BI_API_KEY:  ${{ secrets.BI_API_KEY }}
+          # Quando o template Meta for aprovado, adicionar:
+          # WHATSAPP_TOKEN:      ${{ secrets.WHATSAPP_TOKEN }}
+          # WHATSAPP_PHONE_ID:   ${{ secrets.WHATSAPP_PHONE_ID }}
+          # WHATSAPP_RECIPIENTS: ${{ vars.WHATSAPP_RECIPIENTS }}
+        run: python scripts/whatsapp_report.py --dry-run
