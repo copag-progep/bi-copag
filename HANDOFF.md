@@ -1,8 +1,8 @@
-# HANDOFF - SEI Analytics
+# HANDOFF - AnalyticSEI
 
 ## 1. Objetivo do projeto
 
-Este projeto e o SEI Analytics, uma plataforma de Business Intelligence para acompanhamento de processos administrativos exportados do SEI em CSV.
+Este projeto e o AnalyticSEI, uma plataforma de Business Intelligence para acompanhamento de processos administrativos exportados do SEI em CSV.
 
 Ele cobre quatro frentes principais:
 

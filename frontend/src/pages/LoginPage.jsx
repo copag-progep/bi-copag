@@ -39,8 +39,7 @@ export default function LoginPage() {
               <span className="badge-sub">PROGEP · UFC</span>
             </div>
             <h1>
-              SEI
-              <span>Analytics</span>
+              AnalyticSEI
             </h1>
             <p className="auth-desc">
               Painéis, indicadores e alertas para gestão de processos do SEI.

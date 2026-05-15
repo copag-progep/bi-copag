@@ -25,7 +25,7 @@ export function generateAttributionsExcel({ items, stats, dataReferencia, filter
 
   /* ── Linha de informações ──────────────────────── */
   const infoRows = [
-    ["SEI Analytics — Relatório de Atribuições por Processo"],
+    ["AnalyticSEI — Relatório de Atribuições por Processo"],
     [`Data de referência: ${fmtDate(dataReferencia)}`],
     ...(filtersText ? [[`Filtros: ${filtersText}`]] : []),
     [],

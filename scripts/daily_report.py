@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Relatório diário por e-mail — SEI Analytics
+Relatório diário por e-mail — AnalyticSEI
 ===========================================
 Coleta o resumo diário do endpoint /api/reports/daily-summary e envia um
 e-mail HTML compacto (card de notificação) via Google Workspace.
@@ -9,8 +9,8 @@ Disparado automaticamente seg–sex às 19:30 BRT pelo GitHub Actions,
 30 min após o upload SEI diário.
 
 Variáveis de ambiente:
-    BI_API_URL          URL da API do SEI Analytics
-    BI_API_KEY          API key do SEI Analytics (mesma que API_UPLOAD_KEY no Render)
+    BI_API_URL          URL da API do AnalyticSEI
+    BI_API_KEY          API key do AnalyticSEI (mesma que API_UPLOAD_KEY no Render)
     GMAIL_USER          copag@progep.ufc.br
     GMAIL_APP_PASSWORD  Senha de app Google (myaccount.google.com → Senhas de app)
     REPORT_RECIPIENTS   E-mails separados por vírgula
@@ -187,7 +187,7 @@ def build_html(data: dict) -> str:
       <!-- Badge institucional -->
       <div style="font-family:{_FONT};font-size:.58rem;font-weight:700;letter-spacing:.2em;
                   text-transform:uppercase;color:rgba(254,187,18,.75);margin-bottom:14px">
-        SEI Analytics &nbsp;·&nbsp; COPAG &nbsp;·&nbsp; PROGEP &nbsp;·&nbsp; UFC
+        AnalyticSEI &nbsp;·&nbsp; COPAG &nbsp;·&nbsp; PROGEP &nbsp;·&nbsp; UFC
       </div>
       <table width="100%" cellpadding="0" cellspacing="0">
         <tr>
@@ -293,7 +293,7 @@ def send_email(html: str, ref: str) -> None:
     recipients = os.environ["REPORT_RECIPIENTS"]
 
     msg = MIMEMultipart("alternative")
-    msg["Subject"] = f"📊 SEI Analytics — {ref}"
+    msg["Subject"] = f"📊 AnalyticSEI — {ref}"
     msg["From"]    = gmail_user
     msg["To"]      = recipients
     msg.attach(MIMEText(html, "html", "utf-8"))
@@ -308,7 +308,7 @@ def send_email(html: str, ref: str) -> None:
 # ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
-    print("=== Relatório diário SEI Analytics ===")
+    print("=== Relatório diário AnalyticSEI ===")
 
     print("Acordando API...")
     _warmup()

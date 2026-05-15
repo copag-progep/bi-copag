@@ -1,7 +1,7 @@
-# SEI Analytics — Documento de apresentação para a equipe
+# AnalyticSEI — Documento de apresentação para a equipe
 
 Atualizado em: 14/05/2026  
-Projeto: SEI Analytics — Painéis, indicadores e alertas para gestão de processos do SEI  
+Projeto: AnalyticSEI — Painéis, indicadores e alertas para gestão de processos do SEI  
 Unidade: COPAG / PROGEP / UFC  
 Sistema online: https://bi-copag.vercel.app  
 Repositório: https://github.com/copag-progep/bi-copag
@@ -10,7 +10,7 @@ Repositório: https://github.com/copag-progep/bi-copag
 
 ## 1. Resumo executivo
 
-O SEI Analytics é uma plataforma criada para transformar relatórios do SEI em informação gerencial clara, visual e acionável.
+O AnalyticSEI é uma plataforma criada para transformar relatórios do SEI em informação gerencial clara, visual e acionável.
 
 Hoje, o SEI registra e organiza os processos administrativos, mas não entrega, de forma simples, respostas como:
 
@@ -22,15 +22,15 @@ Hoje, o SEI registra e organiza os processos administrativos, mas não entrega, 
 - Como a produtividade evoluiu ao longo do tempo?
 - Quais indicadores mensais precisam ser acompanhados pela gestão?
 
-O SEI Analytics foi desenvolvido para preencher essa lacuna. Ele pega os relatórios CSV exportados do SEI, organiza esses dados em um banco de dados, calcula indicadores e apresenta os resultados em dashboards, tabelas, gráficos, alertas e e-mails automáticos.
+O AnalyticSEI foi desenvolvido para preencher essa lacuna. Ele pega os relatórios CSV exportados do SEI, organiza esses dados em um banco de dados, calcula indicadores e apresenta os resultados em dashboards, tabelas, gráficos, alertas e e-mails automáticos.
 
-Em termos simples: o SEI é a origem operacional dos processos; o SEI Analytics é a camada de inteligência que ajuda a gestão a enxergar volume, fluxo, produtividade, gargalos e riscos.
+Em termos simples: o SEI é a origem operacional dos processos; o AnalyticSEI é a camada de inteligência que ajuda a gestão a enxergar volume, fluxo, produtividade, gargalos e riscos.
 
 ---
 
-## 2. Por que o SEI Analytics existe
+## 2. Por que o AnalyticSEI existe
 
-Antes do SEI Analytics, a análise dos relatórios do SEI dependia de planilhas, conferências manuais e muito trabalho repetitivo. Isso dificultava a rotina da equipe por alguns motivos:
+Antes do AnalyticSEI, a análise dos relatórios do SEI dependia de planilhas, conferências manuais e muito trabalho repetitivo. Isso dificultava a rotina da equipe por alguns motivos:
 
 - Os relatórios do SEI são tabelas brutas, não painéis gerenciais.
 - A comparação entre dias diferentes exige cruzamento manual de dados.
@@ -38,7 +38,7 @@ Antes do SEI Analytics, a análise dos relatórios do SEI dependia de planilhas,
 - A identificação de acúmulo por servidor ou setor exige agrupamentos manuais.
 - A equipe precisava gastar tempo preparando informação antes de conseguir analisá-la.
 
-O SEI Analytics reduz esse esforço ao automatizar a maior parte do caminho:
+O AnalyticSEI reduz esse esforço ao automatizar a maior parte do caminho:
 
 1. O sistema coleta ou recebe os dados do SEI.
 2. Os dados são padronizados.
@@ -141,11 +141,11 @@ Permite que o usuário visualize seus dados e altere a própria senha.
 
 ---
 
-## 4. Como os dados entram no SEI Analytics
+## 4. Como os dados entram no AnalyticSEI
 
-O SEI Analytics trabalha com snapshots. Um snapshot é uma fotografia da situação dos processos em uma data específica.
+O AnalyticSEI trabalha com snapshots. Um snapshot é uma fotografia da situação dos processos em uma data específica.
 
-Exemplo: se no dia 14/05/2026 o SEI informa que o setor DIAPE possui 300 processos, o SEI Analytics salva esse retrato do dia. No dia seguinte, salva outro retrato. Comparando os dois, o sistema consegue inferir entradas, saídas, permanência e evolução.
+Exemplo: se no dia 14/05/2026 o SEI informa que o setor DIAPE possui 300 processos, o AnalyticSEI salva esse retrato do dia. No dia seguinte, salva outro retrato. Comparando os dois, o sistema consegue inferir entradas, saídas, permanência e evolução.
 
 Existem duas formas de entrada de dados.
 
@@ -158,8 +158,8 @@ Esse script:
 1. Acessa o SEI com as credenciais configuradas no GitHub.
 2. Troca de unidade/setor dentro do SEI.
 3. Coleta as páginas de processos de cada setor monitorado.
-4. Gera os dados no formato esperado pelo SEI Analytics.
-5. Envia esses dados para a API do SEI Analytics.
+4. Gera os dados no formato esperado pelo AnalyticSEI.
+5. Envia esses dados para a API do AnalyticSEI.
 6. Registra o upload no sistema.
 
 Setores monitorados atualmente:
@@ -210,11 +210,11 @@ Isso significa que o upload não é apenas "guardar um arquivo". Ele alimenta to
 
 ## 6. Relatórios e alertas automáticos
 
-O SEI Analytics possui rotinas automáticas configuradas no GitHub Actions.
+O AnalyticSEI possui rotinas automáticas configuradas no GitHub Actions.
 
 | Rotina | Quando roda | O que faz |
 |---|---|---|
-| `daily-upload` | Segunda a sexta, 19:00 BRT | Coleta dados do SEI e envia ao SEI Analytics |
+| `daily-upload` | Segunda a sexta, 19:00 BRT | Coleta dados do SEI e envia ao AnalyticSEI |
 | `daily-report` | Segunda a sexta, 19:30 BRT | Envia e-mail diário compacto com principais indicadores |
 | `weekly-report` | Sexta-feira, 20:00 BRT | Envia relatório semanal gerencial por e-mail |
 | `critical-alerts` | Sexta-feira, 21:00 BRT | Envia alerta se houver processos críticos |
@@ -255,7 +255,7 @@ Essa é uma forma de alerta visual para quem está usando o sistema.
 
 ## 7. Como a plataforma funciona online
 
-O SEI Analytics usa quatro serviços principais na internet:
+O AnalyticSEI usa quatro serviços principais na internet:
 
 | Serviço | Papel no projeto | Explicação simples |
 |---|---|---|
@@ -290,7 +290,7 @@ URL da API: https://bi-copag-api.onrender.com
 
 ### 7.3 Vercel
 
-O Vercel hospeda a parte visual do SEI Analytics.
+O Vercel hospeda a parte visual do AnalyticSEI.
 
 É o endereço que a equipe acessa no navegador:
 
@@ -321,7 +321,7 @@ O projeto antes usava Neon, mas foi migrado para Aiven após o limite gratuito d
 flowchart TD
     A["SEI"] --> B["Relatórios / dados dos processos"]
     B --> C["Upload automático ou manual"]
-    C --> D["API do SEI Analytics no Render"]
+    C --> D["API do AnalyticSEI no Render"]
     D --> E["Banco PostgreSQL na Aiven"]
     E --> D
     D --> F["Frontend no Vercel"]
@@ -333,7 +333,7 @@ flowchart TD
 Em palavras simples:
 
 1. O SEI é a fonte dos processos.
-2. O SEI Analytics coleta ou recebe os dados.
+2. O AnalyticSEI coleta ou recebe os dados.
 3. A API organiza e salva tudo no banco.
 4. O frontend mostra os dados em telas amigáveis.
 5. As automações enviam relatórios e alertas por e-mail.
@@ -350,7 +350,7 @@ Para pessoas que não são da área de tecnologia, vale entender três conceitos
 
 É aquilo que o usuário vê: telas, botões, gráficos, menus, tabelas e filtros.
 
-No SEI Analytics, o frontend foi feito em React e está hospedado na Vercel.
+No AnalyticSEI, o frontend foi feito em React e está hospedado na Vercel.
 
 ### 9.2 Backend
 
@@ -358,13 +358,13 @@ No SEI Analytics, o frontend foi feito em React e está hospedado na Vercel.
 
 Quando o usuário faz login, aplica um filtro, envia um relatório ou abre um gráfico, o frontend pede informações ao backend.
 
-No SEI Analytics, o backend foi feito em Python com FastAPI e está hospedado no Render.
+No AnalyticSEI, o backend foi feito em Python com FastAPI e está hospedado no Render.
 
 ### 9.3 Banco de dados
 
 É o local onde as informações ficam guardadas.
 
-No SEI Analytics, o banco é PostgreSQL e está hospedado na Aiven.
+No AnalyticSEI, o banco é PostgreSQL e está hospedado na Aiven.
 
 Ele guarda tanto dados operacionais, como processos e uploads, quanto dados administrativos, como usuários e logs.
 
@@ -393,7 +393,7 @@ Ele guarda tanto dados operacionais, como processos e uploads, quanto dados admi
 
 ## 11. Segurança e controle de acesso
 
-O SEI Analytics possui controle de acesso por login e senha.
+O AnalyticSEI possui controle de acesso por login e senha.
 
 ### 11.1 Login
 
@@ -437,11 +437,11 @@ Isso ajuda a responder perguntas como:
 
 ## 12. Banco de dados em linguagem simples
 
-O banco do SEI Analytics é formado por seis tabelas principais.
+O banco do AnalyticSEI é formado por seis tabelas principais.
 
 | Tabela | O que guarda | Exemplo de uso |
 |---|---|---|
-| `users` | Usuários do SEI Analytics | Login, permissões e administradores |
+| `users` | Usuários do AnalyticSEI | Login, permissões e administradores |
 | `uploads` | Relatórios enviados | Histórico de arquivos importados por setor e data |
 | `processos` | Linhas dos relatórios do SEI | Cada processo em cada setor e data |
 | `sei_users` | Padronização de nomes | Liga variações do SEI ao nome correto do servidor |
@@ -450,7 +450,7 @@ O banco do SEI Analytics é formado por seis tabelas principais.
 
 ### 12.1 Por que guardar snapshots
 
-O SEI Analytics não guarda apenas "a situação atual". Ele guarda retratos de vários dias.
+O AnalyticSEI não guarda apenas "a situação atual". Ele guarda retratos de vários dias.
 
 Isso é essencial porque permite comparar datas.
 
@@ -604,7 +604,7 @@ Verificar:
 
 - Se o SEI estava disponível.
 - Se as credenciais do SEI continuam válidas.
-- Se a API do SEI Analytics está online.
+- Se a API do AnalyticSEI está online.
 - Se houve mudança na tela do SEI que possa afetar a automação.
 
 Se necessário, fazer upload manual pela tela "Enviar Relatório".
@@ -629,7 +629,7 @@ Depois da troca, recomenda-se disparar manualmente o workflow `daily-upload` par
 | Acompanhar uploads automáticos | Gestão/responsável técnico | Diária |
 | Conferir alertas de falha | Gestão/responsável técnico | Quando houver e-mail de falha |
 | Atualizar credenciais do SEI | Responsável pela coordenação | Quando houver troca de usuário/senha |
-| Manter usuários do SEI Analytics | Administrador do sistema | Quando necessário |
+| Manter usuários do AnalyticSEI | Administrador do sistema | Quando necessário |
 | Conferir limites da Aiven/Render/Vercel | Responsável técnico | Mensal ou quando houver lentidão |
 | Atualizar documentação | Responsável técnico | A cada mudança relevante |
 | Validar indicadores | Equipe de gestão | Continuamente |
@@ -660,9 +660,9 @@ A data do snapshot é essencial. Se um relatório for enviado com data errada, o
 
 O banco já foi migrado do Neon para a Aiven após limite de transferência. Por isso, é importante monitorar consumo.
 
-### 20.5 O SEI Analytics depende dos dados do SEI
+### 20.5 O AnalyticSEI depende dos dados do SEI
 
-Se o relatório exportado/coletado do SEI estiver incompleto, o SEI Analytics refletirá essa limitação.
+Se o relatório exportado/coletado do SEI estiver incompleto, o AnalyticSEI refletirá essa limitação.
 
 ---
 
@@ -698,7 +698,7 @@ Esta é a estrutura principal do repositório, explicada por função.
 ```text
 bi-copag/
 ├── README.md
-├── SEI_ANALYTICS_APRESENTACAO_EQUIPE.md
+├── ANALYTICSEI_APRESENTACAO_EQUIPE.md
 ├── DEPLOY-MINIMO.md
 ├── Dockerfile
 ├── requirements.txt
@@ -767,15 +767,15 @@ bi-copag/
 
 ---
 
-## 23. Como explicar o SEI Analytics em uma apresentação
+## 23. Como explicar o AnalyticSEI em uma apresentação
 
 Uma forma simples de apresentar para a equipe:
 
-> O SEI Analytics é uma camada de inteligência sobre os dados do SEI. Todos os dias, ele coleta os relatórios dos setores, salva uma fotografia da situação dos processos e transforma essas informações em painéis, alertas e relatórios. Com isso, a gestão consegue acompanhar volume, fluxo, produtividade e processos críticos sem depender de planilhas manuais.
+> O AnalyticSEI é uma camada de inteligência sobre os dados do SEI. Todos os dias, ele coleta os relatórios dos setores, salva uma fotografia da situação dos processos e transforma essas informações em painéis, alertas e relatórios. Com isso, a gestão consegue acompanhar volume, fluxo, produtividade e processos críticos sem depender de planilhas manuais.
 
 Uma explicação ainda mais curta:
 
-> O SEI mostra os processos. O SEI Analytics mostra a gestão dos processos.
+> O SEI mostra os processos. O AnalyticSEI mostra a gestão dos processos.
 
 ---
 
@@ -795,7 +795,7 @@ Uma explicação ainda mais curta:
 
 ## 25. Limitações conhecidas
 
-O SEI Analytics é uma ferramenta de apoio gerencial. Algumas limitações devem ser compreendidas:
+O AnalyticSEI é uma ferramenta de apoio gerencial. Algumas limitações devem ser compreendidas:
 
 - Os indicadores dependem da qualidade dos dados exportados/coletados do SEI.
 - A produtividade é inferida por comparação entre snapshots, não por confirmação manual de cada ação realizada.
@@ -813,7 +813,7 @@ Sugestões que podem ser avaliadas futuramente:
 - Fazer o relatório diário disparar apenas após confirmação de sucesso do upload automático.
 - Criar destinatários separados para relatório diário e relatório semanal.
 - Melhorar painéis de consumo do banco para acompanhar limites gratuitos.
-- Criar tela de saúde das automações dentro do próprio SEI Analytics.
+- Criar tela de saúde das automações dentro do próprio AnalyticSEI.
 - Adicionar indicadores de tendência semanal no e-mail diário.
 - Criar rotina de backup/exportação periódica dos dados.
 - Incluir controle mais detalhado de permissões por perfil de usuário.
@@ -822,8 +822,8 @@ Sugestões que podem ser avaliadas futuramente:
 
 ## 27. Conclusão
 
-O SEI Analytics consolida, organiza e apresenta informações que antes ficavam dispersas em relatórios brutos do SEI e planilhas manuais.
+O AnalyticSEI consolida, organiza e apresenta informações que antes ficavam dispersas em relatórios brutos do SEI e planilhas manuais.
 
 Ele oferece uma visão diária e histórica da operação, permite acompanhar produtividade e gargalos, alerta sobre processos críticos e reduz o esforço operacional da equipe.
 
-Mais do que uma ferramenta tecnológica, o SEI Analytics é um instrumento de gestão. Ele ajuda a COPAG a enxergar melhor sua própria rotina, priorizar problemas, acompanhar resultados e preservar conhecimento institucional.
+Mais do que uma ferramenta tecnológica, o AnalyticSEI é um instrumento de gestão. Ele ajuda a COPAG a enxergar melhor sua própria rotina, priorizar problemas, acompanhar resultados e preservar conhecimento institucional.

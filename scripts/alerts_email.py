@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """
-Alertas automáticos de processos críticos — SEI Analytics
+Alertas automáticos de processos críticos — AnalyticSEI
 =====================================================
-Consulta a API do SEI Analytics e envia e-mail quando há processos sem movimentação
+Consulta a API do AnalyticSEI e envia e-mail quando há processos sem movimentação
 há 30+ dias. O e-mail inclui o resumo por faixa e a lista dos mais críticos.
 
 Não envia e-mail se não houver processos com mais de 30 dias.
 
 Variáveis de ambiente necessárias:
-    BI_API_URL          URL da API do SEI Analytics
+    BI_API_URL          URL da API do AnalyticSEI
     BI_API_KEY          API key
     GMAIL_USER          copag@progep.ufc.br
     GMAIL_APP_PASSWORD  Senha de app Google
@@ -218,18 +218,18 @@ def build_html(summary: dict) -> str | None:
       <tbody>{rows}</tbody>
     </table>
 
-    <!-- Link para o SEI Analytics -->
+    <!-- Link para o AnalyticSEI -->
     <p style="text-align:center;margin-top:18px">
       <a href="https://bi-copag.vercel.app/atribuicoes"
          style="background:#273168;color:#fff;padding:10px 22px;
                 border-radius:8px;text-decoration:none;font-weight:700;
                 font-size:.875rem">
-        Ver relatório completo no SEI Analytics →
+        Ver relatório completo no AnalyticSEI →
       </a>
     </p>
 
     <p style="color:#aaa;font-size:.72rem;text-align:center;margin-top:16px">
-      Alerta gerado automaticamente pelo SEI Analytics ·
+      Alerta gerado automaticamente pelo AnalyticSEI ·
       <a href="https://bi-copag.vercel.app" style="color:#273168">bi-copag.vercel.app</a>
     </p>
   </div>
@@ -240,7 +240,7 @@ def send_email(html: str, mais_30: int) -> None:
     gmail_user = os.environ["GMAIL_USER"]
     msg = MIMEMultipart("alternative")
     msg["Subject"] = (
-        f"⚠️ SEI Analytics — {date.today().strftime('%d/%m/%Y')}"
+        f"⚠️ AnalyticSEI — {date.today().strftime('%d/%m/%Y')}"
         f" — {mais_30} processo(s) sem movimentação há 30+ dias"
     )
     msg["From"] = gmail_user
@@ -253,7 +253,7 @@ def send_email(html: str, mais_30: int) -> None:
 
 
 if __name__ == "__main__":
-    print("Consultando alertas no SEI Analytics...")
+    print("Consultando alertas no AnalyticSEI...")
     warmup()
     summary = fetch("/api/alerts/summary")
 

@@ -92,9 +92,9 @@ const CHECKLIST_TRANSICAO = [
   "Acesso ao Render transferido (painel de variáveis de ambiente)",
   "Acesso ao Aiven for PostgreSQL transferido (console.aiven.io)",
   "Acesso ao Vercel transferido",
-  "Usuário admin criado no SEI Analytics para o novo coordenador",
+  "Usuário admin criado no AnalyticSEI para o novo coordenador",
   "Senha de app do copag@progep.ufc.br compartilhada ou gerada nova",
-  "Novo coordenador testou login no SEI Analytics e trocou a própria senha",
+  "Novo coordenador testou login no AnalyticSEI e trocou a própria senha",
   "Antigo coordenador removido da organização GitHub (opcional, por segurança)",
 ];
 
@@ -120,9 +120,9 @@ export default function DocumentacaoPage() {
         <div className="doc-hero-circle1" />
         <div className="doc-hero-circle2" />
         <div className="doc-hero-inner">
-          <div className="doc-hero-badge">SEI Analytics · COPAG · PROGEP · UFC</div>
+          <div className="doc-hero-badge">AnalyticSEI · COPAG · PROGEP · UFC</div>
           <h1 className="doc-hero-title">
-            Documentação Técnica<br /><span>SEI Analytics</span>
+            Documentação Técnica<br /><span>AnalyticSEI</span>
           </h1>
           <p className="doc-hero-sub">
             Painéis, indicadores e alertas para gestão de processos do SEI.
@@ -151,9 +151,9 @@ export default function DocumentacaoPage() {
         <div className="doc-content">
 
           {/* 01 */}
-          <DocSection id="s01" num="01" eyebrow="Visão geral" title="O que é o SEI Analytics">
+          <DocSection id="s01" num="01" eyebrow="Visão geral" title="O que é o AnalyticSEI">
             <p>
-              O SEI Analytics é uma plataforma web de Business Intelligence desenvolvida
+              O AnalyticSEI é uma plataforma web de Business Intelligence desenvolvida
               internamente para a COPAG da UFC. Transforma os relatórios CSV exportados
               do SEI em dashboards gerenciais, análises de produtividade, alertas automáticos
               e relatórios — sem nenhuma infraestrutura paga obrigatória.
@@ -161,7 +161,7 @@ export default function DocumentacaoPage() {
             <p>
               O SEI não possui visão gerencial nativa. Os relatórios exportados são tabelas brutas,
               sem análise de tempo de permanência, produtividade por servidor ou alertas de processos
-              parados. O SEI Analytics resolve isso.
+              parados. O AnalyticSEI resolve isso.
             </p>
             <div className="doc-features-grid">
               {FEATURES.map((f, i) => <FeatureCard key={i} {...f} />)}
@@ -198,7 +198,7 @@ export default function DocumentacaoPage() {
             <p>6 tabelas gerenciadas pelo Alembic. Na inicialização, o backend executa <code>alembic upgrade head</code> automaticamente.</p>
 
             {[
-              { name: "users", desc: "Usuários da aplicação SEI Analytics", rows: [["id","Integer PK","Identificador único"],["name","String(120)","Nome completo"],["email","String(255) unique","E-mail de login"],["password_hash","String(255)","Hash bcrypt da senha"],["is_admin","Boolean","Privilégios administrativos"],["created_at","DateTime","Data de criação"]] },
+              { name: "users", desc: "Usuários da aplicação AnalyticSEI", rows: [["id","Integer PK","Identificador único"],["name","String(120)","Nome completo"],["email","String(255) unique","E-mail de login"],["password_hash","String(255)","Hash bcrypt da senha"],["is_admin","Boolean","Privilégios administrativos"],["created_at","DateTime","Data de criação"]] },
               { name: "uploads", desc: "Metadados de cada snapshot CSV importado. Unicidade: setor + data_relatorio + file_hash.", rows: [["id","Integer PK",""],["setor","String(80)","Sigla do setor (ex: DIAPE)"],["data_relatorio","Date","Data do relatório no SEI"],["data_upload","DateTime","Quando foi importado"],["original_filename","String(255)","Nome do arquivo CSV"],["file_hash","String(128)","SHA-256 (evita duplicatas)"],["total_records","Integer","Quantidade de processos"]] },
               { name: "processos", desc: "Linhas importadas dos CSVs. Unicidade: protocolo + setor + data_relatorio.", rows: [["id","Integer PK",""],["protocolo","String(120)","Número do processo SEI"],["atribuicao","String(255)","Nome original no CSV"],["atribuicao_normalizada","String(255)","Nome canônico após DE-PARA"],["tipo","String(255)","Tipo do processo"],["setor","String(80)","Setor"],["data_relatorio","Date","Data do snapshot"],["upload_id","FK → uploads",""]] },
               { name: "sei_users", desc: "DE-PARA entre variações de nome de um servidor e seu nome canônico.", rows: [["id","Integer PK",""],["nome","String(255)","Nome canônico"],["nome_sei","String(255)","Como aparece no CSV"],["usuario_sei","String(255)","Login no SEI"],["nome_key / nome_sei_key / usuario_sei_key","String(255)","Versões normalizadas (sem acentos, lowercase)"]] },
@@ -425,7 +425,7 @@ export default function DocumentacaoPage() {
               <li>Atualizar <code>SEI_USER</code> com seu login no SEI</li>
               <li>Atualizar <code>SEI_PASSWORD</code> com sua senha no SEI</li>
               <li>Disparar <code>daily-upload</code> manualmente e confirmar sucesso nos logs</li>
-              <li>Alterar a própria senha no SEI Analytics em <strong>Minha Conta</strong></li>
+              <li>Alterar a própria senha no AnalyticSEI em <strong>Minha Conta</strong></li>
             </ol>
             <p style={{ marginTop: 20 }}>
               <strong>Nenhum arquivo de código precisa ser alterado.</strong> A automação é
@@ -463,7 +463,7 @@ export default function DocumentacaoPage() {
 
       {/* ── Footer ── */}
       <footer className="doc-footer">
-        <div className="doc-footer-brand">SEI Analytics · COPAG · PROGEP · UFC</div>
+        <div className="doc-footer-brand">AnalyticSEI · COPAG · PROGEP · UFC</div>
         <div className="doc-footer-text">
           Documentação gerada em maio de 2026 para a gestão COPAG/PROGEP/UFC.<br />
           Desenvolvido com Claude Code (Anthropic) — repositório copag-progep/bi-copag.

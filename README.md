@@ -1,4 +1,4 @@
-# SEI Analytics — Painéis, indicadores e alertas para gestão de processos do SEI
+# AnalyticSEI — Painéis, indicadores e alertas para gestão de processos do SEI
 
 Plataforma web de Business Intelligence desenvolvida para a **COPAG (Coordenadoria de Cadastro e Pagamento)** da **UFC / Pró-Reitoria de Gestão de Pessoas**. Transforma snapshots CSV exportados do SEI em painéis, indicadores, análises de produtividade, alertas automáticos e relatórios.
 
