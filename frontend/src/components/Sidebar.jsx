@@ -75,13 +75,13 @@ export default function Sidebar({ open, collapsed, onClose, onToggleCollapse }) 
       </div>
 
       <div className="brand-panel">
-        <p className="eyebrow">SEI BI</p>
+        <p className="eyebrow">SEI Analytics</p>
         {collapsed ? (
-          <h1 style={{ marginTop: 4 }}>COP</h1>
+          <h1 style={{ marginTop: 4 }}>SEI</h1>
         ) : (
           <>
-            <h1>COPAG</h1>
-            <span>UFC · Monitoramento SEI</span>
+            <h1>Analytics</h1>
+            <span>COPAG · PROGEP · UFC</span>
           </>
         )}
       </div>

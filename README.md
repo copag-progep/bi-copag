@@ -1,6 +1,6 @@
-# BI COPAG — Business Intelligence para Processos do SEI
+# SEI Analytics — Painéis, indicadores e alertas para gestão de processos do SEI
 
-Plataforma web de Business Intelligence desenvolvida para a **COPAG (Coordenadoria de Cadastro e Pagamento)** da **UFC / Pró-Reitoria de Gestão de Pessoas**. Transforma snapshots CSV exportados do SEI em dashboards gerenciais, análises de produtividade, alertas automáticos e relatórios.
+Plataforma web de Business Intelligence desenvolvida para a **COPAG (Coordenadoria de Cadastro e Pagamento)** da **UFC / Pró-Reitoria de Gestão de Pessoas**. Transforma snapshots CSV exportados do SEI em painéis, indicadores, análises de produtividade, alertas automáticos e relatórios.
 
 📖 **[Documentação técnica completa](https://bi-copag.vercel.app/documentacao)**  
 🚀 **[Acesso ao sistema](https://bi-copag.vercel.app)**

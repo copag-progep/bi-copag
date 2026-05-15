@@ -65,7 +65,7 @@ function drawPageHeader(doc, dataReferencia, PW, ML) {
   doc.setFillColor(...ORANGE);
   doc.rect(0, 46, PW, 2.5, "F");
 
-  // Badge "SEI BI"
+  // Badge "SEI Analytics"
   doc.setFillColor(243, 147, 32, 0.18);
   doc.roundedRect(ML, 8, 32, 7.5, 1.5, 1.5, "F");
   doc.setDrawColor(243, 147, 32, 0.5);
@@ -74,7 +74,7 @@ function drawPageHeader(doc, dataReferencia, PW, ML) {
   doc.setTextColor(...YELLOW);
   doc.setFontSize(6.5);
   doc.setFont("helvetica", "bold");
-  doc.text("SEI BI · COPAG · UFC", ML + 16, 13.5, { align: "center" });
+  doc.text("SEI ANALYTICS · COPAG · UFC", ML + 16, 13.5, { align: "center" });
 
   // Título principal
   doc.setTextColor(...WHITE);
@@ -109,7 +109,7 @@ function drawPageFooter(doc, pageNum, totalPages, PW, PH, ML) {
   doc.setFontSize(6.5);
   doc.setFont("helvetica", "normal");
   const gerado = new Date().toLocaleString("pt-BR");
-  doc.text(`SEI BI COPAG  ·  Gerado em: ${gerado}`, ML, PH - 4);
+  doc.text(`SEI Analytics  ·  Gerado em: ${gerado}`, ML, PH - 4);
   doc.text(`${pageNum} / ${totalPages}`, PW - ML, PH - 4, { align: "right" });
 }
 

@@ -7,7 +7,7 @@ param(
 
     [string]$Branch = "",
 
-    [string]$CommitMessage = "chore: publish SEI BI app"
+    [string]$CommitMessage = "chore: publish SEI Analytics app"
 )
 
 $ErrorActionPreference = "Stop"

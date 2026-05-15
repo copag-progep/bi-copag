@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 """
-Relatório gerencial semanal — BI COPAG
+Relatório gerencial semanal — SEI Analytics
 =======================================
-Coleta dados da API do BI via API key, gera um e-mail HTML com os
+Coleta dados da API do SEI Analytics via API key, gera um e-mail HTML com os
 principais indicadores da semana e envia via Google Workspace (smtp.gmail.com).
 
 Disparado automaticamente toda sexta-feira pelo GitHub Actions.
 Pode ser disparado manualmente em qualquer momento via workflow_dispatch.
 
 Variáveis de ambiente necessárias:
-    BI_API_URL          URL da API do BI
+    BI_API_URL          URL da API do SEI Analytics
     BI_API_KEY          API key (mesma configurada no Render como API_UPLOAD_KEY)
     GMAIL_USER          copag@progep.ufc.br
     GMAIL_APP_PASSWORD  Senha de app Google (myaccount.google.com → Segurança → Senhas de app)
@@ -27,7 +27,7 @@ import httpx
 
 
 # ---------------------------------------------------------------------------
-# Coleta de dados da API do BI
+# Coleta de dados da API do SEI Analytics
 # ---------------------------------------------------------------------------
 
 DEFAULT_BI_API_URL = "https://bi-copag-api.onrender.com"
@@ -70,7 +70,7 @@ def _warmup() -> None:
 
 
 def fetch(path: str, **params) -> dict:
-    """Chama um endpoint analítico do BI usando API key, com retry automático."""
+    """Chama um endpoint analítico do SEI Analytics usando API key, com retry automático."""
     url = f"{_BASE_URL()}{path}"
     last_exc: Exception | None = None
     for attempt in range(1, _RETRIES + 1):
@@ -472,7 +472,7 @@ def build_html(dashboard: dict, balance: dict, stale: dict, flow: dict) -> str:
           <td>
             <span style="font-family:{_FONT};font-size:.65rem;font-weight:800;
                          letter-spacing:.2em;text-transform:uppercase;
-                         color:rgba(254,187,18,.85)">SEI BI &nbsp;·&nbsp; COPAG &nbsp;·&nbsp;
+                         color:rgba(254,187,18,.85)">SEI Analytics &nbsp;·&nbsp; COPAG &nbsp;·&nbsp;
                          PROGEP &nbsp;·&nbsp; UFC</span>
           </td>
           <td style="text-align:right">
@@ -536,7 +536,7 @@ def build_html(dashboard: dict, balance: dict, stale: dict, flow: dict) -> str:
           <td style="font-family:{_FONT};font-size:.72rem;color:#9a9fc0;line-height:1.7">
             Gerado automaticamente pelo
             <a href="https://bi-copag.vercel.app"
-               style="color:#273168;font-weight:700;text-decoration:none">BI COPAG</a>
+               style="color:#273168;font-weight:700;text-decoration:none">SEI Analytics</a>
             &nbsp;·&nbsp; Toda sexta-feira às 20h BRT<br>
             Confidencial — exclusivo para gestores da COPAG/PROGEP/UFC.
           </td>
@@ -571,7 +571,7 @@ def send_email(html: str) -> None:
     sem_label = f"{sem_ini.strftime('%d/%m')}–{date.today().strftime('%d/%m/%Y')}"
 
     msg = MIMEMultipart("alternative")
-    msg["Subject"] = f"📊 BI COPAG — Relatório semanal {sem_label}"
+    msg["Subject"] = f"📊 SEI Analytics — Relatório semanal {sem_label}"
     msg["From"]    = gmail_user
     msg["To"]      = recipients
     msg.attach(MIMEText(html, "html", "utf-8"))
@@ -586,7 +586,7 @@ def send_email(html: str) -> None:
 # ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
-    print("Coletando dados do BI COPAG...")
+    print("Coletando dados do SEI Analytics...")
     _warmup()
 
     today = date.today()

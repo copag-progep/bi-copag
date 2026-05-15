@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 
 const SECTIONS = [
-  { id: "s01", num: "01", label: "O que é o BI COPAG" },
+  { id: "s01", num: "01", label: "O que é o SEI Analytics" },
   { id: "s02", num: "02", label: "Arquitetura" },
   { id: "s03", num: "03", label: "Stack tecnológica" },
   { id: "s04", num: "04", label: "Modelo de dados" },

@@ -1,4 +1,4 @@
-name: Relatório diário BI COPAG — e-mail
+name: Relatório diário SEI Analytics — e-mail
 
 # Envia todo dia útil às 19:30 BRT (22:30 UTC) um e-mail HTML compacto com
 # os principais indicadores do dia: ativos, entradas/saídas, fluxo por setor
@@ -47,8 +47,8 @@ jobs:
           password: ${{ secrets.GMAIL_APP_PASSWORD }}
           from: ${{ secrets.GMAIL_USER }}
           to: ${{ vars.REPORT_RECIPIENTS }}
-          subject: "⚠️ BI COPAG — falha no relatório diário (${{ github.run_id }})"
+          subject: "⚠️ SEI Analytics — falha no relatório diário (${{ github.run_id }})"
           body: |
-            O relatório diário do BI COPAG falhou.
+            O relatório diário do SEI Analytics falhou.
 
             Logs completos: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}

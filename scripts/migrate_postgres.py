@@ -128,7 +128,7 @@ def sync_postgres_sequences(target_engine, table_names: list[str]) -> None:
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        description="Copia os dados do SEI BI entre dois bancos compativeis com SQLAlchemy."
+        description="Copia os dados do SEI Analytics entre dois bancos compativeis com SQLAlchemy."
     )
     parser.add_argument("--source-url", default=os.getenv("SOURCE_DATABASE_URL"))
     parser.add_argument("--target-url", default=os.getenv("TARGET_DATABASE_URL") or os.getenv("DATABASE_URL"))

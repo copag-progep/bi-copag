@@ -1,4 +1,4 @@
-name: Relatório semanal BI COPAG
+name: Relatório semanal SEI Analytics
 
 # Envia todo final de semana (sexta 20:00 BRT) um e-mail HTML com
 # os principais indicadores da semana para os destinatários configurados.

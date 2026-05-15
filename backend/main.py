@@ -158,7 +158,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="SEI BI API",
+    title="SEI Analytics API",
     version="1.0.0",
     description="API para importacao de relatorios SEI e analise de processos administrativos.",
     lifespan=lifespan,
@@ -620,7 +620,7 @@ async def upload_snapshot_api_key(
     x_api_key: str = Header(..., alias="X-Api-Key"),
     db: Session = Depends(get_db),
 ) -> UploadResult:
-    """Endpoint para upload automático via API key (sem JWT). Usado pelo script SEI → BI COPAG."""
+    """Endpoint para upload automático via API key (sem JWT). Usado pelo script SEI → SEI Analytics."""
     if not API_UPLOAD_KEY or x_api_key != API_UPLOAD_KEY:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="API key inválida.")
     if setor.upper() not in SETORES:

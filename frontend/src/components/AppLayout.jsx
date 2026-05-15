@@ -57,7 +57,7 @@ export default function AppLayout() {
     }
   }
 
-  const page = pageTitles[pathname] || { eyebrow: "SEI BI", title: "COPAG" };
+  const page = pageTitles[pathname] || { eyebrow: "SEI Analytics", title: "COPAG" };
 
   return (
     <div className={`app-shell ${sidebarCollapsed ? "sidebar-collapsed" : ""}`}>

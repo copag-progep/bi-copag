@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-Upload automático de processos SEI → BI COPAG
+Upload automático de processos SEI → SEI Analytics
 ==============================================
 Navega o SEI com Playwright (Chromium headless), troca de setor clicando
 no link de unidade no topo da tela, percorre TODAS as páginas (100/página)
-e faz upload para a API do BI via API key.
+e faz upload para a API do SEI Analytics via API key.
 
 Credenciais via variáveis de ambiente (GitHub Secrets) — nunca no código.
 
@@ -15,7 +15,7 @@ Variáveis de ambiente necessárias:
     SEI_URL       URL base do SEI    (sem barra final)
     SEI_USER      Login SEI
     SEI_PASSWORD  Senha SEI
-    BI_API_URL    URL da API do BI
+    BI_API_URL    URL da API do SEI Analytics
     BI_API_KEY    API key (variável API_UPLOAD_KEY no Render)
 """
 
@@ -45,10 +45,10 @@ def bi_base_url() -> str:
     return url
 
 # ---------------------------------------------------------------------------
-# Mapeamento: código do setor no BI → nome exato da unidade no SEI
+# Mapeamento: código do setor no SEI Analytics → nome exato da unidade no SEI
 # Nomes confirmados na inspeção do DevTools em 06/05/2026
 # ---------------------------------------------------------------------------
-# Coluna 1: código do setor no BI COPAG
+# Coluna 1: código do setor no SEI Analytics
 # Coluna 2: sigla exata do label na página de troca de unidade (title="SIGLA")
 # Confirmado via DevTools em 06/05/2026
 SETORES = [
@@ -61,7 +61,7 @@ SETORES = [
 ]
 
 # ---------------------------------------------------------------------------
-# Cabeçalho CSV esperado pelo BI COPAG (não alterar)
+# Cabeçalho CSV esperado pelo SEI Analytics (não alterar)
 # ---------------------------------------------------------------------------
 CABECALHO = [
     "ID", "Protocolo", "Atribuicao", "Tipo", "Especificacao",
@@ -309,7 +309,7 @@ async def coletar_todos_processos(page) -> list[dict]:
 # ---------------------------------------------------------------------------
 
 def montar_csv(processos: list[dict]) -> bytes:
-    """Serializa a lista de processos no formato CSV esperado pelo BI COPAG."""
+    """Serializa a lista de processos no formato CSV esperado pelo SEI Analytics."""
     buf = io.StringIO()
     writer = csv.DictWriter(buf, fieldnames=CABECALHO, delimiter=";",
                             extrasaction="ignore")
@@ -319,7 +319,7 @@ def montar_csv(processos: list[dict]) -> bytes:
 
 
 # ---------------------------------------------------------------------------
-# Upload para o BI COPAG
+# Upload para o SEI Analytics
 # ---------------------------------------------------------------------------
 
 async def upload_para_bi(
@@ -358,7 +358,7 @@ async def main() -> None:
     bi_key   = os.environ["BI_API_KEY"]
     hoje     = date.today().isoformat()
 
-    print(f"=== Upload automático SEI → BI COPAG | {hoje} ===\n")
+    print(f"=== Upload automático SEI → SEI Analytics | {hoje} ===\n")
 
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
