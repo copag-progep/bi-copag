@@ -78,6 +78,14 @@ def fetch_summary() -> dict:
 # HTML do e-mail
 # ---------------------------------------------------------------------------
 
+def _format_br_int(value) -> str:
+    """Formata inteiros no padrão brasileiro: 3.320 em vez de 3,320."""
+    try:
+        return f"{int(value):,}".replace(",", ".")
+    except (TypeError, ValueError):
+        return "0"
+
+
 def _sector_rows(setores: list[dict], total: int) -> str:
     """Linhas de setor com mini-barra proporcional de carga."""
     rows = ""
@@ -99,11 +107,11 @@ def _sector_rows(setores: list[dict], total: int) -> str:
             f"</tr></table>"
             f"</td>"
             f"<td width='48' style='padding:9px 6px;text-align:right;font-family:{_FONT};"
-            f"font-weight:800;font-size:.88rem;color:#1a2050'>{s['ativos']}</td>"
+            f"font-weight:800;font-size:.88rem;color:#1a2050'>{_format_br_int(s['ativos'])}</td>"
             f"<td width='38' style='padding:9px 4px;text-align:center;font-family:{_FONT};"
-            f"font-size:.78rem;color:#1a7a50;font-weight:700'>+{s['entradas']}</td>"
+            f"font-size:.78rem;color:#1a7a50;font-weight:700'>+{_format_br_int(s['entradas'])}</td>"
             f"<td width='38' style='padding:9px 12px 9px 4px;text-align:center;"
-            f"font-family:{_FONT};font-size:.78rem;color:#d4750e;font-weight:700'>-{s['saidas']}</td>"
+            f"font-family:{_FONT};font-size:.78rem;color:#d4750e;font-weight:700'>-{_format_br_int(s['saidas'])}</td>"
             f"</tr></table>"
         )
     return rows
@@ -141,10 +149,10 @@ def _criticos_bloco(c30: int, c90: int) -> str:
 def _delta_style(delta: int) -> tuple[str, str, str]:
     """Retorna (cor, seta+valor, rótulo) baseado no saldo do dia."""
     if delta < 0:
-        return "#1a7a50", f"▼{abs(delta)}", "Redução"
+        return "#febb12", f"▼{_format_br_int(abs(delta))}", "Redução"
     if delta > 0:
-        return "#d4750e", f"▲{delta}", "Acúmulo"
-    return "#5a6390", "=", "Equilíbrio"
+        return "#febb12", f"▲{_format_br_int(delta)}", "Acúmulo"
+    return "#febb12", "=", "Equilíbrio"
 
 
 def build_html(data: dict) -> str:
@@ -186,22 +194,22 @@ def build_html(data: dict) -> str:
           <!-- Número principal -->
           <td style="vertical-align:bottom">
             <div style="font-family:{_FONT};font-size:3rem;font-weight:800;color:#febb12;
-                        line-height:1;letter-spacing:-.02em">{ativos:,}</div>
+                        line-height:1;letter-spacing:-.02em">{_format_br_int(ativos)}</div>
             <div style="font-family:{_FONT};font-size:.65rem;font-weight:700;
                         text-transform:uppercase;letter-spacing:.14em;
-                        color:rgba(240,244,255,.45);margin-top:5px">Processos ativos</div>
+                        color:rgba(255,255,255,.78);margin-top:5px">Processos ativos</div>
           </td>
           <!-- Saldo + data -->
           <td style="text-align:right;vertical-align:bottom;padding-bottom:2px">
-            <div style="font-family:{_FONT};font-size:.72rem;color:rgba(240,244,255,.4);
+            <div style="font-family:{_FONT};font-size:.72rem;color:rgba(255,255,255,.88);
                         margin-bottom:8px">{ref}</div>
-            <div style="display:inline-block;background:rgba(255,255,255,.08);
-                        border:1px solid rgba(255,255,255,.13);border-radius:7px;
+            <div style="display:inline-block;background:rgba(254,187,18,.12);
+                        border:1px solid rgba(254,187,18,.42);border-radius:7px;
                         padding:9px 16px;text-align:center">
               <div style="font-family:{_FONT};font-size:1.4rem;font-weight:800;
                           color:{delta_cor};line-height:1">{delta_str}</div>
               <div style="font-family:{_FONT};font-size:.58rem;font-weight:700;
-                          color:rgba(240,244,255,.42);text-transform:uppercase;
+                          color:rgba(255,255,255,.82);text-transform:uppercase;
                           letter-spacing:.1em;margin-top:3px">{delta_label}</div>
             </div>
           </td>
@@ -220,7 +228,7 @@ def build_html(data: dict) -> str:
               ↑ &nbsp;Entradas
             </div>
             <div style="font-family:{_FONT};font-size:1.7rem;font-weight:800;
-                        color:#1a7a50;line-height:1">{entradas}</div>
+                        color:#1a7a50;line-height:1">{_format_br_int(entradas)}</div>
           </td>
           <td width="6%" style="text-align:center">
             <div style="font-family:{_FONT};font-size:.8rem;color:#b0b4c8">→</div>
@@ -232,7 +240,7 @@ def build_html(data: dict) -> str:
               ↓ &nbsp;Saídas
             </div>
             <div style="font-family:{_FONT};font-size:1.7rem;font-weight:800;
-                        color:#d4750e;line-height:1">{saidas}</div>
+                        color:#d4750e;line-height:1">{_format_br_int(saidas)}</div>
           </td>
         </tr>
       </table>
