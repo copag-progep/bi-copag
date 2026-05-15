@@ -224,11 +224,15 @@ button, input, select { font: inherit; }
 
 .auth-copy h1 {
   margin: 0 0 16px;
-  font-size: clamp(2rem, 3.5vw, 3rem);
+  font-size: clamp(2.35rem, 4vw, 3.45rem);
   font-weight: 800;
-  line-height: 1.05;
+  line-height: 0.98;
   color: #fff;
   max-width: 12ch;
+}
+
+.auth-copy h1 span {
+  display: block;
 }
 
 .auth-copy .auth-desc {
