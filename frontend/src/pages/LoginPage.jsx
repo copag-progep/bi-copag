@@ -34,14 +34,13 @@ export default function LoginPage() {
         <div className="auth-copy">
           <div>
             <div className="auth-badge">
-              <span className="badge-title">SEI Analytics</span>
+              <span className="badge-title">COPAG</span>
               <span className="badge-divider" />
-              <span className="badge-sub">COPAG · UFC</span>
+              <span className="badge-sub">PROGEP · UFC</span>
             </div>
-            <h1>Painéis, indicadores e alertas para gestão de processos do SEI</h1>
+            <h1>SEI Analytics</h1>
             <p className="auth-desc">
-              Dashboards, indicadores de produtividade e alertas de processos
-              parados — tudo a partir dos relatórios CSV do SEI.
+              Painéis, indicadores e alertas para gestão de processos do SEI
             </p>
           </div>
           <div className="auth-stats">
