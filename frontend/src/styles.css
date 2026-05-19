@@ -1335,6 +1335,16 @@ button, input, select { font: inherit; }
   color: var(--accent-dark);
 }
 
+.lead-time-unavailable {
+  padding: 16px;
+  border-radius: var(--radius);
+  color: #8a5b00;
+  background: rgba(254, 187, 18, 0.12);
+  border: 1px solid rgba(254, 187, 18, 0.28);
+  font-size: 0.9rem;
+  font-weight: 750;
+}
+
 .lead-time-bars {
   display: grid;
   gap: 8px;

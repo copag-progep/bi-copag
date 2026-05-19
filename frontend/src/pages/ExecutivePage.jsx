@@ -275,7 +275,7 @@ export default function ExecutivePage() {
         </article>
       </section>
 
-      {ltKpis.finalizados > 0 && (
+      {(leadTime.error || ltKpis.finalizados > 0) && (
         <section className="executive-grid">
           <article className="panel executive-lead-time-panel">
             <div className="panel-header">
@@ -284,41 +284,50 @@ export default function ExecutivePage() {
                 <p>Lead time estimado dos processos que saíram da carteira.</p>
               </div>
             </div>
-            <div className="lead-time-metrics">
-              <div className="lead-time-metric">
-                <strong>{ltKpis.media_dias}</strong>
-                <span>média (dias)</span>
+            {leadTime.error ? (
+              <div className="lead-time-unavailable">
+                Lead time indisponível no momento. Os demais indicadores continuam carregados.
               </div>
-              <div className="lead-time-metric">
-                <strong>{ltKpis.mediana_dias}</strong>
-                <span>mediana (dias)</span>
-              </div>
-              <div className="lead-time-metric accent">
-                <strong>{ltKpis.p90_dias}</strong>
-                <span>P90 (dias)</span>
-              </div>
-              <div className="lead-time-metric">
-                <strong>{formatNumber(ltKpis.finalizados)}</strong>
-                <span>finalizados</span>
-              </div>
-            </div>
-            <div className="lead-time-bars">
-              {(ltData.distribuicao_faixas || []).map((item) => {
-                const pct = ltKpis.finalizados ? Math.round((item.quantidade / ltKpis.finalizados) * 100) : 0;
-                return (
-                  <div key={item.faixa} className="lead-time-bar-row">
-                    <span className="lead-time-bar-label">{item.faixa}d</span>
-                    <div className="lead-time-bar-track">
-                      <div className="lead-time-bar-fill" style={{ width: `${pct}%` }} />
-                    </div>
-                    <span className="lead-time-bar-value">{item.quantidade}</span>
+            ) : (
+              <>
+                <div className="lead-time-metrics">
+                  <div className="lead-time-metric">
+                    <strong>{ltKpis.media_dias}</strong>
+                    <span>média (dias)</span>
                   </div>
-                );
-              })}
-            </div>
+                  <div className="lead-time-metric">
+                    <strong>{ltKpis.mediana_dias}</strong>
+                    <span>mediana (dias)</span>
+                  </div>
+                  <div className="lead-time-metric accent">
+                    <strong>{ltKpis.p90_dias}</strong>
+                    <span>P90 (dias)</span>
+                  </div>
+                  <div className="lead-time-metric">
+                    <strong>{formatNumber(ltKpis.finalizados)}</strong>
+                    <span>finalizados</span>
+                  </div>
+                </div>
+                <div className="lead-time-bars">
+                  {(ltData.distribuicao_faixas || []).map((item) => {
+                    const pct = ltKpis.finalizados ? Math.round((item.quantidade / ltKpis.finalizados) * 100) : 0;
+                    return (
+                      <div key={item.faixa} className="lead-time-bar-row">
+                        <span className="lead-time-bar-label">{item.faixa}d</span>
+                        <div className="lead-time-bar-track">
+                          <div className="lead-time-bar-fill" style={{ width: `${pct}%` }} />
+                        </div>
+                        <span className="lead-time-bar-value">{item.quantidade}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            )}
           </article>
 
-          <article className="panel">
+          {!leadTime.error && (
+            <article className="panel">
             <div className="panel-header">
               <div>
                 <h3>Lead time por setor</h3>
@@ -337,6 +346,7 @@ export default function ExecutivePage() {
               emptyMessage="Sem dados de lead time para o período."
             />
           </article>
+          )}
         </section>
       )}
 

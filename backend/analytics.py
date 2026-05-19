@@ -412,31 +412,34 @@ def _previous_date(available_dates: list[date], reference_date: date | None) -> 
 
 
 def _finalized_by_attribution(frame: pd.DataFrame, available_dates: list[date]) -> list[dict]:
-    """Conta saídas por atribuição comparando snapshots consecutivos (leve, sem spans).
+    """Conta saídas por atribuição comparando carteiras consecutivas (leve, sem spans).
 
     Substitui _build_presence_spans no dashboard — usa operações vetorizadas de
-    conjuntos em vez de construir spans Python record-a-record.
+    conjuntos em vez de construir spans Python record-a-record. A chave é
+    protocolo+setor para preservar a semântica de saída da carteira/setor,
+    mesmo quando o protocolo continua presente em outra divisão.
     """
     if frame.empty or len(available_dates) < 2:
         return []
 
     finalized: dict[str, int] = {}
 
-    # Pré-indexar protocolos e DataFrames por dia para evitar filtros repetidos
-    protos_by_day: dict[date, set] = {}
+    # Pré-indexar carteiras e DataFrames por dia para evitar filtros repetidos.
+    keys_by_day: dict[date, set] = {}
     df_by_day: dict[date, pd.DataFrame] = {}
     for day in available_dates:
-        day_df = frame.loc[frame["report_day"] == day, ["protocolo", "atribuicao"]]
-        protos_by_day[day] = set(day_df["protocolo"])
+        day_df = frame.loc[frame["report_day"] == day, ["protocolo", "setor", "atribuicao"]].copy()
+        day_df["wallet_key"] = day_df["protocolo"].astype(str) + "|" + day_df["setor"].astype(str)
+        keys_by_day[day] = set(day_df["wallet_key"])
         df_by_day[day] = day_df
 
     for idx in range(1, len(available_dates)):
         prev_day = available_dates[idx - 1]
         curr_day = available_dates[idx]
-        curr_protos = protos_by_day[curr_day]
+        curr_keys = keys_by_day[curr_day]
         prev_df = df_by_day[prev_day]
 
-        exited = prev_df[~prev_df["protocolo"].isin(curr_protos)]
+        exited = prev_df[~prev_df["wallet_key"].isin(curr_keys)]
         if exited.empty:
             continue
 
@@ -985,7 +988,9 @@ def get_lead_time_data(db: Session, filters: AnalyticsFilters) -> dict:
     importados — não representa o tempo jurídico/administrativo total.
     """
     def build() -> dict:
-        frame, reference_date, available_dates = _load_dataframe(db, filters, fields=SPAN_FIELDS)
+        frame, reference_date, available_dates = _load_dataframe(
+            db, filters, fields=SPAN_FIELDS, apply_lookback=False
+        )
         spans = _build_presence_spans(frame, available_dates)
 
         if spans.empty:
@@ -1006,7 +1011,7 @@ def get_lead_time_data(db: Session, filters: AnalyticsFilters) -> dict:
         }
 
         # --- Distribuição por faixas ---
-        bins = [0, 8, 16, 31, 61, 91, durations.max() + 1]
+        bins = [0, 8, 16, 31, 61, 91, float("inf")]
         labels_faixa = ["0-7", "8-15", "16-30", "31-60", "61-90", "90+"]
         faixas = (
             pd.cut(durations, bins=bins, labels=labels_faixa, right=False)
