@@ -13,4 +13,4 @@ export VITE_PROXY_TARGET="${VITE_PROXY_TARGET:-http://127.0.0.1:8000}"
 
 echo "Subindo frontend local em http://127.0.0.1:5173"
 echo "Proxy /api apontando para ${VITE_PROXY_TARGET}"
-npm run dev:frontend -- --host 127.0.0.1
+npm run dev --workspace frontend -- --host 127.0.0.1
