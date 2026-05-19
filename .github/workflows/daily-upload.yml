@@ -1,4 +1,4 @@
-name: Upload diário SEI → SEI Analytics
+name: Upload diário SEI → AnalyticSEI
 
 # Roda automaticamente de segunda a sexta às 19:00 BRT (22:00 UTC).
 # Pode ser disparado manualmente em qualquer momento via "Run workflow".
@@ -40,7 +40,18 @@ jobs:
           SEI_PASSWORD: ${{ secrets.SEI_PASSWORD }}  # atualizar na troca de coordenador
           BI_API_URL:   ${{ vars.BI_API_URL || 'https://bi-copag-api.onrender.com' }}
           BI_API_KEY:   ${{ secrets.BI_API_KEY }}
+          SEI_UPLOAD_ARTIFACT_DIR: artifacts/sei-upload
+          SEI_UPLOAD_SETOR_RETRIES: "3"
         run: python scripts/sei_uploader.py
+
+      - name: Publicar diagnóstico do SEI
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sei-upload-diagnostics-${{ github.run_id }}
+          path: artifacts/sei-upload/
+          if-no-files-found: ignore
+          retention-days: 7
 
       - name: Notificar falha por e-mail
         if: failure()
@@ -52,14 +63,15 @@ jobs:
           password: ${{ secrets.GMAIL_APP_PASSWORD }}
           from: ${{ secrets.GMAIL_USER }}
           to: ${{ vars.REPORT_RECIPIENTS }}
-          subject: "⚠️ SEI Analytics — falha no upload automático (${{ github.run_id }})"
+          subject: "⚠️ AnalyticSEI — falha no upload automático (${{ github.run_id }})"
           body: |
-            O upload diário de processos SEI → SEI Analytics falhou em ${{ github.event.repository.full_name }}.
+            O upload diário de processos SEI → AnalyticSEI falhou em ${{ github.event.repository.full_name }}.
 
             Data: ${{ github.event.schedule || 'disparo manual' }}
             Logs completos: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+            Diagnósticos: baixe o artifact sei-upload-diagnostics-${{ github.run_id }} na página da execução.
 
             Verifique se:
             - O SEI está acessível (sei.ufc.br)
             - As credenciais SEI_USER e SEI_PASSWORD estão corretas nos Secrets
-            - A API do SEI Analytics está respondendo (health check: ${{ vars.BI_API_URL || 'https://bi-copag-api.onrender.com' }}/api/health)
+            - A API do AnalyticSEI está respondendo (health check: ${{ vars.BI_API_URL || 'https://bi-copag-api.onrender.com' }}/api/health)
