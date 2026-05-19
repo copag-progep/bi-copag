@@ -12,7 +12,8 @@ import TocSidebar from "./documentacao/TocSidebar";
 /* ── Dados ─────────────────────────────────────── */
 
 const FEATURES = [
-  { icon: "📊", title: "Dashboard executivo", desc: "KPIs, distribuição por setor/tipo, rankings e evolução diária" },
+  { icon: "🎯", title: "Central Executiva", desc: "Prioridades do dia, saúde dos dados, KPIs principais e sparklines de tendência" },
+  { icon: "📊", title: "Dashboard principal", desc: "KPIs, distribuição por setor/tipo, rankings e evolução diária" },
   { icon: "↔️", title: "Entradas e saídas", desc: "Comparativo de fluxo entre snapshots consecutivos" },
   { icon: "⚡", title: "Produtividade", desc: "Processos recebidos, finalizados e tempo médio por servidor" },
   { icon: "📋", title: "Atribuições", desc: "Carteira completa com flags de criticidade (6 faixas até 90d+)" },
@@ -292,13 +293,14 @@ export default function DocumentacaoPage() {
             <p>SPA React com autenticação JWT no <code>localStorage</code>. Carregamento por rota com <code>React.lazy</code> (code splitting).</p>
 
             <h3>Elementos globais</h3>
-            <p><strong>Topbar:</strong> título dinâmico por rota · busca global de protocolo · sino de notificações com badge e dropdown · chip do usuário.</p>
+            <p><strong>Topbar:</strong> título dinâmico por rota · badge de frescor dos dados · busca global de protocolo · sino de notificações com badge e dropdown · chip do usuário.</p>
             <p><strong>Sidebar:</strong> colapsável (248px → 72px) com ícones SVG · itens admin ocultos para não-admins · chip do usuário e botão Sair no rodapé.</p>
             <p><strong>FilterBar:</strong> aparece nas páginas analíticas — Data de referência, setor, tipo, atribuição (inclui "Sem atribuição"). Afeta todos os gráficos simultaneamente.</p>
 
             <h3>Páginas</h3>
             <div className="doc-features-grid">
               {[
+                { icon: "🎯", title: "/executivo", desc: "Central de decisão com prioridades do dia, saúde dos dados, cards com sparklines e listas executivas" },
                 { icon: "📊", title: "/  Dashboard", desc: "KPIs, distribuição por setor/tipo, ranking, evolução diária, tabela de finalizações" },
                 { icon: "📤", title: "/enviar-relatorio", desc: "Upload de CSV + histórico paginado com edição de data e exclusão de snapshots" },
                 { icon: "↔️", title: "/entradas-saidas", desc: "Entradas, saídas, saldo e evolução do fluxo por setor" },
@@ -452,7 +454,7 @@ export default function DocumentacaoPage() {
               { title: "Infraestrutura e qualidade", items: ["Alembic para migrações formais com auto-stamp","Log de auditoria em tabela dedicada","Lifespan context manager (substituiu @app.on_event)","datetime.now(timezone.utc) (substituiu utcnow)","sync_processo_atribuicoes com SQL UPDATE em lote","Cache analítico com invalidação automática","Pré-aquecimento do cache em background","Healthcheck com verificação do banco","Endpoint /api/health/data-freshness + badge no topo para avisar dado velho, setor ausente/defasado e queda simples de volume"] },
               { title: "Identidade visual Progep/UFC", items: ["Paleta: navy #273168 · laranja #f39320 · amarelo #febb12 · azul #81c7ee","Fonte Plus Jakarta Sans","Sidebar redesenhada com ícones SVG e chip do usuário","Topbar com título dinâmico por rota","StatCards com hover e estrutura vertical","LoginPage com dois painéis e stats decorativos"] },
               { title: "Performance", items: ["React.lazy + Suspense para code splitting por rota","preconnect e dns-prefetch para o backend","LoadingBlock com spinner e mensagem de servidor iniciando","useAnalyticsData hook com cache stale-while-revalidate (TTL 5 min)","clearAnalyticsCache chamado após upload"] },
-              { title: "Analíticas avançadas", items: ["Página Atribuições com spans consecutivos por setor, 6 faixas de criticidade, filtros server-side, busca por protocolo","Exportação PDF com identidade visual (jsPDF + jspdf-autotable)","Exportação Excel (SheetJS)","Página Servidores: balanceamento por desvio-padrão + perfil longitudinal","Busca global de processo com histórico de movimentações","Filtro Sem atribuição no FilterBar global","Indicadores mensais com dashboard e lançamento manual"] },
+              { title: "Analíticas avançadas", items: ["Central Executiva com prioridades do dia, saúde dos dados e sparklines dos KPIs principais","Página Atribuições com spans consecutivos por setor, 6 faixas de criticidade, filtros server-side, busca por protocolo","Exportação PDF com identidade visual (jsPDF + jspdf-autotable)","Exportação Excel (SheetJS)","Página Servidores: balanceamento por desvio-padrão + perfil longitudinal","Busca global de processo com histórico de movimentações","Filtro Sem atribuição no FilterBar global","Indicadores mensais com dashboard e lançamento manual"] },
               { title: "Automação (Bloco 4)", items: ["API key para uploads sem JWT","Script SEI Scraper (Playwright headless): login, troca de setor por JS, coleta todas as páginas","Workflow daily-upload (19:00 BRT) com notificação de falha","Workflow weekly-report (sexta 20:00 BRT)","Script de alertas com anti-spam (não envia se sem críticos)","Workflow critical-alerts (sexta 21:00 BRT)"] },
               { title: "Alertas e notificações (Bloco 1)", items: ["Endpoint /api/alerts/summary (leve, usa cache)","Sino de notificações na topbar: badge, dropdown top-8, link para /atribuicoes","E-mail de alertas: cards por faixa, tabela dos críticos, destaque para >90d","Não envia e-mail se nenhum processo crítico"] },
               { title: "Segurança e acesso", items: ["Troca de senha pelo próprio usuário (valida senha atual)","DE-PARA com normalização de identidade (sem acentos, lowercase, case-insensitive)","Autenticação dual (JWT ou API key) nos endpoints analíticos","Página Minha conta com informações e formulário de troca de senha"] },

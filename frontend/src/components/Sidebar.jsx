@@ -3,6 +3,7 @@ import { NavLink } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
 const icons = {
+  executive:    { d: ["M4 19V5", "M4 19h16", "M8 15l3-3 3 2 5-7", "M18 7h-4", "M18 7v4"] },
   dashboard:    { d: ["M3 3h7v7H3z", "M14 3h7v7h-7z", "M14 14h7v7h-7z", "M3 14h7v7H3z"] },
   profile:      { d: ["M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2", "M12 11a4 4 0 100-8 4 4 0 000 8z"] },
   servidores:   { d: ["M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2", "M9 7a4 4 0 100 8 4 4 0 000-8z", "M22 21v-2a4 4 0 00-3-3.87", "M16 3.13a4 4 0 010 7.75", "M19 8l2 2-2 2"] },
@@ -41,6 +42,7 @@ function Icon({ name, size = 18 }) {
 }
 
 const menuItems = [
+  { to: "/executivo",           label: "Central Executiva",  icon: "executive" },
   { to: "/",                    label: "Dashboard",           icon: "dashboard", end: true },
   { to: "/enviar-relatorio",    label: "Enviar Relatório",    icon: "upload" },
   { to: "/entradas-saidas",     label: "Entradas e Saídas",   icon: "flow" },

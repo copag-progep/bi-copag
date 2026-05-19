@@ -51,7 +51,7 @@ export default function DashboardPage() {
       <section className="hero-panel ms-hero">
         <div className="ms-hero-body">
           <p className="eyebrow">Dashboard principal</p>
-          <h1>Visão executiva da tramitação</h1>
+          <h1>Visão geral da tramitação de processos</h1>
           <p className="ms-hero-sub">
             Data de referência: {data?.data_referencia || "Sem snapshots importados"}
           </p>

@@ -11,6 +11,7 @@ Plataforma web de Business Intelligence desenvolvida para a **COPAG (Coordenador
 
 | Funcionalidade | Descrição |
 |---|---|
+| **Central Executiva** | Tela única com prioridades do dia, saúde dos dados, KPIs principais e sparklines de tendência |
 | **Dashboard executivo** | KPIs, distribuição por setor/tipo, ranking de atribuições, evolução diária |
 | **Entradas e saídas** | Comparativo de fluxo entre snapshots consecutivos |
 | **Produtividade** | Processos recebidos, finalizados e tempo médio por servidor |

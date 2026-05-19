@@ -7,6 +7,7 @@ import ProtectedRoute from "./components/ProtectedRoute";
 
 const DocumentacaoPage   = lazy(() => import("./pages/DocumentacaoPage"));
 const LoginPage          = lazy(() => import("./pages/LoginPage"));
+const ExecutivePage      = lazy(() => import("./pages/ExecutivePage"));
 const DashboardPage      = lazy(() => import("./pages/DashboardPage"));
 const UploadPage         = lazy(() => import("./pages/UploadPage"));
 const FlowPage           = lazy(() => import("./pages/FlowPage"));
@@ -37,6 +38,7 @@ export default function App() {
             </ProtectedRoute>
           }
         >
+          <Route path="executivo"          element={<ExecutivePage />} />
           <Route index element={<DashboardPage />} />
           <Route path="enviar-relatorio"    element={<UploadPage />} />
           <Route path="entradas-saidas"     element={<FlowPage />} />

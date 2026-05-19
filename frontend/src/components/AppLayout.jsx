@@ -9,6 +9,7 @@ import Sidebar from "./Sidebar";
 
 
 const analyticRoutes = new Set([
+  "/executivo",
   "/",
   "/entradas-saidas",
   "/produtividade",
@@ -18,6 +19,7 @@ const analyticRoutes = new Set([
 ]);
 
 const pageTitles = {
+  "/executivo":            { eyebrow: "Gestão executiva",   title: "Central Executiva" },
   "/":                    { eyebrow: "Visão geral",       title: "Dashboard" },
   "/enviar-relatorio":    { eyebrow: "Gestão de dados",   title: "Enviar Relatório" },
   "/entradas-saidas":     { eyebrow: "Fluxo diário",      title: "Entradas e Saídas" },
