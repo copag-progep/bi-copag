@@ -226,7 +226,9 @@ export default function DocumentacaoPage() {
 
             {[
               { group: "Saúde e Autenticação", endpoints: [
+                ["GET", "/api/ping", "Keep-alive leve, sem consulta ao banco"],
                 ["GET", "/api/health", "Verifica API e banco"],
+                ["GET", "/api/health/data-freshness", "Frescor dos dados: data global, setores ausentes/defasados e alertas de qualidade"],
                 ["POST", "/api/auth/login", "Retorna token JWT"],
                 ["GET", "/api/auth/me", "Dados do usuário logado"],
                 ["PATCH", "/api/auth/password", "Troca de senha (valida senha atual)"],
@@ -376,6 +378,10 @@ export default function DocumentacaoPage() {
                 ["ANALYTICS_LOOKBACK_DAYS", "Janela máxima de histórico analítico (padrão: 120 dias). 0 = sem limite."],
                 ["DISABLE_STARTUP_PRECOMPUTE", "false em produção. true desliga o aquecimento de cache na inicialização."],
                 ["PRECOMPUTE_COOLDOWN_SECS", "Intervalo mínimo entre precomputes consecutivos (padrão: 120 s)."],
+                ["APP_TIMEZONE", "Fuso usado em checagens operacionais. Padrão: America/Fortaleza."],
+                ["DATA_FRESHNESS_OK_MAX_DAYS", "Idade máxima para considerar o dado atualizado. Padrão: 3 dias."],
+                ["DATA_FRESHNESS_CRITICAL_DAYS", "Idade a partir da qual o dado fica crítico. Padrão: 7 dias."],
+                ["DATA_QUALITY_DROP_RATIO", "Queda mínima de volume para alerta simples de qualidade. Padrão: 0.6."],
               ]}
             />
             <h3>GitHub Secrets</h3>
@@ -443,7 +449,7 @@ export default function DocumentacaoPage() {
           <DocSection id="s12" num="12" eyebrow="Evolução" title="Histórico de funcionalidades">
             {[
               { title: "Fundação do sistema", items: ["Autenticação JWT + bcrypt","Importação de CSVs (UTF-8, UTF-8-BOM, Latin-1)","Hash SHA-256 para evitar duplicatas","Substituição de snapshot por setor/data","Dashboard com KPIs, distribuição, evolução diária","Entradas e saídas, produtividade, múltiplos setores","Administração de usuários com proteção do último admin"] },
-              { title: "Infraestrutura e qualidade", items: ["Alembic para migrações formais com auto-stamp","Log de auditoria em tabela dedicada","Lifespan context manager (substituiu @app.on_event)","datetime.now(timezone.utc) (substituiu utcnow)","sync_processo_atribuicoes com SQL UPDATE em lote","Cache analítico com invalidação automática","Pré-aquecimento do cache em background","Healthcheck com verificação do banco"] },
+              { title: "Infraestrutura e qualidade", items: ["Alembic para migrações formais com auto-stamp","Log de auditoria em tabela dedicada","Lifespan context manager (substituiu @app.on_event)","datetime.now(timezone.utc) (substituiu utcnow)","sync_processo_atribuicoes com SQL UPDATE em lote","Cache analítico com invalidação automática","Pré-aquecimento do cache em background","Healthcheck com verificação do banco","Endpoint /api/health/data-freshness + badge no topo para avisar dado velho, setor ausente/defasado e queda simples de volume"] },
               { title: "Identidade visual Progep/UFC", items: ["Paleta: navy #273168 · laranja #f39320 · amarelo #febb12 · azul #81c7ee","Fonte Plus Jakarta Sans","Sidebar redesenhada com ícones SVG e chip do usuário","Topbar com título dinâmico por rota","StatCards com hover e estrutura vertical","LoginPage com dois painéis e stats decorativos"] },
               { title: "Performance", items: ["React.lazy + Suspense para code splitting por rota","preconnect e dns-prefetch para o backend","LoadingBlock com spinner e mensagem de servidor iniciando","useAnalyticsData hook com cache stale-while-revalidate (TTL 5 min)","clearAnalyticsCache chamado após upload"] },
               { title: "Analíticas avançadas", items: ["Página Atribuições com spans consecutivos por setor, 6 faixas de criticidade, filtros server-side, busca por protocolo","Exportação PDF com identidade visual (jsPDF + jspdf-autotable)","Exportação Excel (SheetJS)","Página Servidores: balanceamento por desvio-padrão + perfil longitudinal","Busca global de processo com histórico de movimentações","Filtro Sem atribuição no FilterBar global","Indicadores mensais com dashboard e lançamento manual"] },

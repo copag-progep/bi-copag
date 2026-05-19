@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 
 import { useAuth } from "../context/AuthContext";
+import DataFreshnessBadge from "./DataFreshnessBadge";
 import FilterBar from "./FilterBar";
 import NotificationBell from "./NotificationBell";
 import Sidebar from "./Sidebar";
@@ -84,6 +85,8 @@ export default function AppLayout() {
             >
               ☰ Menu
             </button>
+
+            <DataFreshnessBadge />
 
             <NotificationBell />
 

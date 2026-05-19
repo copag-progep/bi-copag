@@ -21,6 +21,7 @@ Plataforma web de Business Intelligence desenvolvida para a **COPAG (Coordenador
 | **Busca global** | Histórico completo de movimentações de qualquer protocolo |
 | **Alertas por e-mail** | Notificação semanal de processos críticos (>30, >45, >90 dias), às sextas 21:00 BRT |
 | **Notificação in-app** | Sino com contagem em tempo real de processos ≥45 dias |
+| **Saúde dos dados** | Badge de frescor no topo, indicando data de referência, setores ausentes/defasados e alertas de qualidade |
 | **Upload automático** | Script que acessa o SEI e envia dados sem intervenção humana (19h BRT) |
 | **Relatório diário** | E-mail automático seg–sex às 19:30 BRT com ativos, fluxo por setor e alertas |
 | **Relatório semanal** | E-mail automático toda sexta com resumo dos indicadores |
@@ -105,6 +106,10 @@ Por padrão, o frontend local usa o proxy do Vite para encaminhar `/api` para `h
 | `ANALYTICS_LOOKBACK_DAYS` | Janela máxima de histórico analítico (padrão: 120 dias). `0` = sem limite |
 | `DISABLE_STARTUP_PRECOMPUTE` | `false` em produção. `true` desliga o aquecimento de cache na inicialização |
 | `PRECOMPUTE_COOLDOWN_SECS` | Intervalo mínimo entre precomputes consecutivos (padrão: 120 s) |
+| `APP_TIMEZONE` | Fuso usado em checagens operacionais. Padrão: `America/Fortaleza` |
+| `DATA_FRESHNESS_OK_MAX_DAYS` | Idade máxima para considerar o dado atualizado. Padrão: `3` |
+| `DATA_FRESHNESS_CRITICAL_DAYS` | Idade a partir da qual o dado fica crítico. Padrão: `7` |
+| `DATA_QUALITY_DROP_RATIO` | Queda mínima de volume para alerta simples de qualidade. Padrão: `0.6` |
 
 ### GitHub Secrets (automação)
 

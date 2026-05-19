@@ -1,14 +1,16 @@
 import json
 import os
+from statistics import median
 import threading
 from contextlib import asynccontextmanager
-from datetime import date
+from datetime import date, datetime
+from zoneinfo import ZoneInfo
 
 from fastapi import BackgroundTasks, Depends, FastAPI, File, Form, Header, HTTPException, Query, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
-from sqlalchemy import text
+from sqlalchemy import func, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -75,6 +77,10 @@ DEFAULT_ADMIN_EMAIL = os.getenv("DEFAULT_ADMIN_EMAIL", "andersoncfs@ufc.br")
 DEFAULT_ADMIN_PASSWORD = os.getenv("DEFAULT_ADMIN_PASSWORD", "admin123")
 CORS_ORIGINS = os.getenv("CORS_ORIGINS", "")
 DISABLE_STARTUP_PRECOMPUTE = os.getenv("DISABLE_STARTUP_PRECOMPUTE", "false").lower() == "true"
+LOCAL_TIMEZONE = ZoneInfo(os.getenv("APP_TIMEZONE", "America/Fortaleza"))
+FRESHNESS_OK_MAX_DAYS = int(os.getenv("DATA_FRESHNESS_OK_MAX_DAYS", "3"))
+FRESHNESS_CRITICAL_DAYS = int(os.getenv("DATA_FRESHNESS_CRITICAL_DAYS", "7"))
+QUALITY_DROP_RATIO = float(os.getenv("DATA_QUALITY_DROP_RATIO", "0.6"))
 
 
 def ensure_default_user() -> None:
@@ -248,6 +254,131 @@ def healthcheck(db: Session = Depends(get_db)) -> dict:
         return {"status": "ok"}
     except Exception:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database unavailable.")
+
+
+def _iso_datetime(value: datetime | None) -> str | None:
+    return value.isoformat() if isinstance(value, datetime) else None
+
+
+def _freshness_status(age_days: int | None, lagging: list[str], missing: list[str], quality_alerts: list[dict]) -> str:
+    if age_days is None:
+        return "no_data"
+    if age_days > FRESHNESS_CRITICAL_DAYS:
+        return "critical"
+    if missing or lagging or quality_alerts or age_days > FRESHNESS_OK_MAX_DAYS:
+        return "attention"
+    return "ok"
+
+
+@app.get("/api/health/data-freshness")
+def data_freshness(
+    _: User = Depends(get_current_user_or_api_key),
+    db: Session = Depends(get_db),
+):
+    """Resumo de frescor e completude dos snapshots importados.
+
+    A checagem usa somente a tabela de uploads para ser rápida e barata:
+    identifica a data global mais recente, o último snapshot por setor e
+    possíveis setores ausentes/defasados antes de o gestor interpretar os painéis.
+    """
+    reference_date = db.query(func.max(Upload.data_relatorio)).scalar()
+    today = datetime.now(LOCAL_TIMEZONE).date()
+
+    sectors: list[dict] = []
+    missing_sectors: list[str] = []
+    lagging_sectors: list[str] = []
+    current_sectors: list[str] = []
+    quality_alerts: list[dict] = []
+
+    for setor in SETORES:
+        latest = (
+            db.query(Upload)
+            .filter(Upload.setor == setor)
+            .order_by(Upload.data_relatorio.desc(), Upload.data_upload.desc(), Upload.id.desc())
+            .first()
+        )
+
+        if not latest:
+            missing_sectors.append(setor)
+            sectors.append(
+                {
+                    "setor": setor,
+                    "status": "missing",
+                    "data_relatorio": None,
+                    "data_upload": None,
+                    "total_records": 0,
+                    "expected_reference_date": str(reference_date) if reference_date else None,
+                    "quality_alert": None,
+                }
+            )
+            continue
+
+        setor_status = "current" if reference_date and latest.data_relatorio == reference_date else "lagging"
+        if setor_status == "current":
+            current_sectors.append(setor)
+        else:
+            lagging_sectors.append(setor)
+
+        recent_counts = [
+            row[0]
+            for row in (
+                db.query(Upload.total_records)
+                .filter(Upload.setor == setor, Upload.data_relatorio < latest.data_relatorio)
+                .order_by(Upload.data_relatorio.desc(), Upload.data_upload.desc())
+                .limit(5)
+                .all()
+            )
+            if row[0] is not None and row[0] > 0
+        ]
+        baseline = median(recent_counts) if recent_counts else None
+        quality_alert = None
+        if latest.total_records <= 0:
+            quality_alert = {
+                "type": "empty_snapshot",
+                "message": "Snapshot sem registros importados.",
+            }
+        elif baseline and baseline >= 10 and latest.total_records < baseline * QUALITY_DROP_RATIO:
+            quality_alert = {
+                "type": "volume_drop",
+                "message": "Volume muito abaixo do histórico recente.",
+                "baseline_records": int(round(baseline)),
+                "drop_ratio": round(latest.total_records / baseline, 2),
+            }
+
+        if quality_alert:
+            quality_alerts.append({"setor": setor, **quality_alert})
+
+        sectors.append(
+            {
+                "setor": setor,
+                "status": setor_status,
+                "data_relatorio": str(latest.data_relatorio),
+                "data_upload": _iso_datetime(latest.data_upload),
+                "total_records": latest.total_records,
+                "expected_reference_date": str(reference_date) if reference_date else None,
+                "quality_alert": quality_alert,
+            }
+        )
+
+    age_days = (today - reference_date).days if reference_date else None
+    status_label = _freshness_status(age_days, lagging_sectors, missing_sectors, quality_alerts)
+
+    return JSONResponse(
+        {
+            "status": status_label,
+            "data_referencia_global": str(reference_date) if reference_date else None,
+            "hoje": str(today),
+            "idade_dias": age_days,
+            "setores_esperados": SETORES,
+            "setores_em_dia": current_sectors,
+            "setores_defasados": lagging_sectors,
+            "setores_ausentes": missing_sectors,
+            "total_setores_esperados": len(SETORES),
+            "total_setores_em_dia": len(current_sectors),
+            "alertas_qualidade": quality_alerts,
+            "setores": sectors,
+        }
+    )
 
 
 @app.post("/api/auth/login", response_model=Token)

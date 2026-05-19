@@ -723,6 +723,69 @@ button, input, select { font: inherit; }
   flex-shrink: 0;
 }
 
+.freshness-badge {
+  min-height: 38px;
+  max-width: 360px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  box-shadow: var(--shadow);
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.freshness-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--muted);
+  box-shadow: 0 0 0 3px rgba(90, 99, 144, 0.12);
+  flex-shrink: 0;
+}
+
+.freshness-badge.ok {
+  color: var(--success);
+  border-color: rgba(26, 122, 80, 0.22);
+  background: rgba(26, 122, 80, 0.08);
+}
+
+.freshness-badge.ok .freshness-dot {
+  background: var(--success);
+  box-shadow: 0 0 0 3px rgba(26, 122, 80, 0.14);
+}
+
+.freshness-badge.attention,
+.freshness-badge.loading {
+  color: #8a5b00;
+  border-color: rgba(254, 187, 18, 0.34);
+  background: rgba(254, 187, 18, 0.12);
+}
+
+.freshness-badge.attention .freshness-dot,
+.freshness-badge.loading .freshness-dot {
+  background: var(--yellow);
+  box-shadow: 0 0 0 3px rgba(254, 187, 18, 0.18);
+}
+
+.freshness-badge.critical,
+.freshness-badge.no_data {
+  color: var(--danger);
+  border-color: rgba(191, 53, 53, 0.24);
+  background: rgba(191, 53, 53, 0.08);
+}
+
+.freshness-badge.critical .freshness-dot,
+.freshness-badge.no_data .freshness-dot {
+  background: var(--danger);
+  box-shadow: 0 0 0 3px rgba(191, 53, 53, 0.14);
+}
+
 .user-chip {
   padding: 8px 16px;
   border-radius: 10px;
@@ -1503,6 +1566,19 @@ button, input, select { font: inherit; }
   .pagination-bar {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .topbar-actions {
+    width: 100%;
+    align-items: stretch;
+    flex-wrap: wrap;
+  }
+
+  .freshness-badge {
+    width: 100%;
+    max-width: none;
+    justify-content: flex-start;
+    white-space: normal;
   }
 
   .user-chip { width: 100%; text-align: left; }

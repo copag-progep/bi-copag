@@ -148,6 +148,11 @@ Esse é o caminho recomendado para simular dados antes de publicar mudanças. Os
 uploads feitos em `http://127.0.0.1:5173` ficam apenas no banco SQLite local
 `backend/data/analyticsei-local.db` e não alteram o banco de produção da Aiven.
 
+Após os uploads locais, o badge de saúde dos dados no topo da aplicação deve
+refletir a simulação: ele mostra a data global mais recente, quantos setores
+estão em dia e alerta quando os CSVs usados no teste são antigos, incompletos ou
+não cobrem todos os setores esperados.
+
 Evite usar o upload automático real do SEI para testes locais sem necessidade. O objetivo do ambiente local é validar a aplicação, não executar automações contra o SEI.
 
 ## Cuidados Importantes
