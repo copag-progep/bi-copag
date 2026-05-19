@@ -21,6 +21,7 @@ from .analytics import (
     get_dashboard_data,
     get_entries_exits_data,
     get_filter_options,
+    get_lead_time_data,
     get_multi_sector_data,
     get_productivity_data,
     get_server_profile,
@@ -137,6 +138,7 @@ def precompute_analytics() -> None:
         get_entries_exits_data(db, default_filters)
         get_productivity_data(db, default_filters)
         get_stale_processes_data(db, default_filters)
+        get_lead_time_data(db, default_filters)
         get_multi_sector_data(db, default_filters)
         get_attributions_data(db, default_filters)
         get_workload_balance(db, default_filters)
@@ -1021,6 +1023,21 @@ def stale_processes(
 ):
     filters = build_filters(data_referencia, data_inicial, data_final, setor, tipo, atribuicao)
     return JSONResponse(get_stale_processes_data(db, filters))
+
+
+@app.get("/api/analytics/lead-time")
+def lead_time(
+    data_referencia: date | None = None,
+    data_inicial: date | None = None,
+    data_final: date | None = None,
+    setor: str | None = None,
+    tipo: str | None = None,
+    atribuicao: str | None = None,
+    _: User = Depends(get_current_user_or_api_key),
+    db: Session = Depends(get_db),
+):
+    filters = build_filters(data_referencia, data_inicial, data_final, setor, tipo, atribuicao)
+    return JSONResponse(get_lead_time_data(db, filters))
 
 
 @app.get("/api/analytics/attributions")

@@ -944,3 +944,111 @@ def get_server_profile(db: Session, filters: AnalyticsFilters) -> dict:
         }
 
     return _cached_response(db, "server-profile", filters, build)
+
+
+def get_lead_time_data(db: Session, filters: AnalyticsFilters) -> dict:
+    """Lead time estimado: tempo médio de permanência dos processos que saíram de cada carteira.
+
+    Usa spans fechados (aberto == False) de _build_presence_spans para calcular
+    média, mediana, P90 e distribuição por faixas, agrupados por setor, tipo e
+    atribuição.  O indicador depende da qualidade e frequência dos snapshots
+    importados — não representa o tempo jurídico/administrativo total.
+    """
+    def build() -> dict:
+        frame, reference_date, available_dates = _load_dataframe(db, filters, fields=SPAN_FIELDS)
+        spans = _build_presence_spans(frame, available_dates)
+
+        if spans.empty:
+            return _empty_lead_time(reference_date)
+
+        closed = spans[~spans["aberto"]]
+        if closed.empty:
+            return _empty_lead_time(reference_date)
+
+        durations = closed["duracao_dias"]
+
+        # --- KPIs globais ---
+        kpis = {
+            "finalizados": int(len(closed)),
+            "media_dias": round(float(durations.mean()), 1),
+            "mediana_dias": round(float(durations.median()), 1),
+            "p90_dias": round(float(durations.quantile(0.90)), 1),
+        }
+
+        # --- Distribuição por faixas ---
+        bins = [0, 8, 16, 31, 61, 91, durations.max() + 1]
+        labels_faixa = ["0-7", "8-15", "16-30", "31-60", "61-90", "90+"]
+        faixas = (
+            pd.cut(durations, bins=bins, labels=labels_faixa, right=False)
+            .value_counts()
+            .reindex(labels_faixa, fill_value=0)
+        )
+        distribuicao = [{"faixa": label, "quantidade": int(count)} for label, count in faixas.items()]
+
+        # --- Rankings por setor ---
+        ranking_setor = _lead_time_ranking(closed, "setor")
+        ranking_tipo = _lead_time_ranking(closed, "tipo")
+        ranking_atribuicao = _lead_time_ranking(closed, "atribuicao")
+
+        return {
+            "data_referencia": str(reference_date) if reference_date else None,
+            "snapshots_analisados": len(available_dates),
+            "nota_metodologica": (
+                "Lead time estimado com base nos spans de presença entre snapshots "
+                "consecutivos. Apenas processos que saíram da carteira (spans fechados) "
+                "são contabilizados."
+            ),
+            "kpis": kpis,
+            "distribuicao_faixas": distribuicao,
+            "ranking_setor": ranking_setor,
+            "ranking_tipo": ranking_tipo,
+            "ranking_atribuicao": ranking_atribuicao,
+        }
+
+    return _cached_response(db, "lead-time", filters, build)
+
+
+def _lead_time_ranking(closed: pd.DataFrame, group_col: str, top_n: int = 10) -> list[dict]:
+    """Calcula média, mediana, P90 e quantidade de spans fechados agrupados por uma coluna."""
+    grouped = closed.groupby(group_col)["duracao_dias"]
+    stats = grouped.agg(["mean", "median", "count"]).rename(
+        columns={"mean": "media", "median": "mediana", "count": "finalizados"}
+    )
+    stats["p90"] = grouped.quantile(0.90)
+    stats = stats.sort_values("media", ascending=False).head(top_n)
+    return [
+        {
+            "label": str(label),
+            "media_dias": round(float(row["media"]), 1),
+            "mediana_dias": round(float(row["mediana"]), 1),
+            "p90_dias": round(float(row["p90"]), 1),
+            "finalizados": int(row["finalizados"]),
+        }
+        for label, row in stats.iterrows()
+    ]
+
+
+def _empty_lead_time(reference_date: date | None) -> dict:
+    """Resposta padrão quando não há spans fechados para calcular lead time."""
+    return {
+        "data_referencia": str(reference_date) if reference_date else None,
+        "snapshots_analisados": 0,
+        "nota_metodologica": (
+            "Lead time estimado com base nos spans de presença entre snapshots "
+            "consecutivos. Apenas processos que saíram da carteira (spans fechados) "
+            "são contabilizados."
+        ),
+        "kpis": {
+            "finalizados": 0,
+            "media_dias": 0,
+            "mediana_dias": 0,
+            "p90_dias": 0,
+        },
+        "distribuicao_faixas": [
+            {"faixa": f, "quantidade": 0}
+            for f in ["0-7", "8-15", "16-30", "31-60", "61-90", "90+"]
+        ],
+        "ranking_setor": [],
+        "ranking_tipo": [],
+        "ranking_atribuicao": [],
+    }

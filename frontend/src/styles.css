@@ -1297,6 +1297,86 @@ button, input, select { font: inherit; }
 
 
 /* ══════════════════════════════════════════
+   LEAD TIME
+══════════════════════════════════════════ */
+.lead-time-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.lead-time-metric {
+  padding: 14px;
+  border-radius: var(--radius);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+}
+
+.lead-time-metric strong {
+  display: block;
+  color: var(--ink);
+  font-size: 1.4rem;
+  line-height: 1;
+}
+
+.lead-time-metric span {
+  display: block;
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.lead-time-metric.accent strong {
+  color: var(--accent-dark);
+}
+
+.lead-time-bars {
+  display: grid;
+  gap: 8px;
+}
+
+.lead-time-bar-row {
+  display: grid;
+  grid-template-columns: 50px 1fr 40px;
+  align-items: center;
+  gap: 10px;
+}
+
+.lead-time-bar-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--muted);
+  text-align: right;
+}
+
+.lead-time-bar-track {
+  height: 14px;
+  border-radius: 999px;
+  background: var(--primary-light);
+  overflow: hidden;
+}
+
+.lead-time-bar-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--primary), var(--accent));
+  min-width: 2px;
+  transition: width 0.3s ease;
+}
+
+.lead-time-bar-value {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+
+/* ══════════════════════════════════════════
    CHARTS
 ══════════════════════════════════════════ */
 .charts-grid {
@@ -1799,6 +1879,10 @@ button, input, select { font: inherit; }
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .lead-time-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .auth-card { grid-template-columns: 1fr; }
   .auth-copy { display: none; }
   .auth-stats { display: none; }
@@ -1852,8 +1936,9 @@ button, input, select { font: inherit; }
     width: 100%;
   }
 
-  .executive-mini-metrics {
-    grid-template-columns: 1fr;
+  .executive-mini-metrics,
+  .lead-time-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 

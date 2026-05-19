@@ -107,6 +107,7 @@ export default function ExecutivePage() {
   const dashboard = useAnalyticsData("/analytics/dashboard", params);
   const flow = useAnalyticsData("/analytics/entries-exits", params);
   const stale = useAnalyticsData("/analytics/stale", params);
+  const leadTime = useAnalyticsData("/analytics/lead-time", params);
   const [freshness, setFreshness] = useState(null);
 
   useEffect(() => {
@@ -123,11 +124,11 @@ export default function ExecutivePage() {
     };
   }, []);
 
-  if (dashboard.loading || flow.loading || stale.loading) {
+  if (dashboard.loading || flow.loading || stale.loading || leadTime.loading) {
     return <LoadingBlock label="Montando central executiva..." />;
   }
 
-  const firstError = dashboard.error || flow.error || stale.error;
+  const firstError = dashboard.error || flow.error || stale.error || leadTime.error;
   if (firstError) {
     return (
       <ErrorBlock
@@ -136,6 +137,7 @@ export default function ExecutivePage() {
           dashboard.retry();
           flow.retry();
           stale.retry();
+          leadTime.retry();
         }}
       />
     );
@@ -164,6 +166,9 @@ export default function ExecutivePage() {
   });
   const topSectors = [...flowRows].sort((a, b) => b.carga_atual - a.carga_atual).slice(0, 6);
   const criticalProcesses = (staleData.processos || []).slice(0, 5);
+  const ltData = leadTime.data || {};
+  const ltKpis = ltData.kpis || {};
+  const ltSectors = ltData.ranking_setor || [];
 
   return (
     <div className="page-grid executive-page">
@@ -269,6 +274,71 @@ export default function ExecutivePage() {
           </div>
         </article>
       </section>
+
+      {ltKpis.finalizados > 0 && (
+        <section className="executive-grid">
+          <article className="panel executive-lead-time-panel">
+            <div className="panel-header">
+              <div>
+                <h3>Tempo de permanência</h3>
+                <p>Lead time estimado dos processos que saíram da carteira.</p>
+              </div>
+            </div>
+            <div className="lead-time-metrics">
+              <div className="lead-time-metric">
+                <strong>{ltKpis.media_dias}</strong>
+                <span>média (dias)</span>
+              </div>
+              <div className="lead-time-metric">
+                <strong>{ltKpis.mediana_dias}</strong>
+                <span>mediana (dias)</span>
+              </div>
+              <div className="lead-time-metric accent">
+                <strong>{ltKpis.p90_dias}</strong>
+                <span>P90 (dias)</span>
+              </div>
+              <div className="lead-time-metric">
+                <strong>{formatNumber(ltKpis.finalizados)}</strong>
+                <span>finalizados</span>
+              </div>
+            </div>
+            <div className="lead-time-bars">
+              {(ltData.distribuicao_faixas || []).map((item) => {
+                const pct = ltKpis.finalizados ? Math.round((item.quantidade / ltKpis.finalizados) * 100) : 0;
+                return (
+                  <div key={item.faixa} className="lead-time-bar-row">
+                    <span className="lead-time-bar-label">{item.faixa}d</span>
+                    <div className="lead-time-bar-track">
+                      <div className="lead-time-bar-fill" style={{ width: `${pct}%` }} />
+                    </div>
+                    <span className="lead-time-bar-value">{item.quantidade}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </article>
+
+          <article className="panel">
+            <div className="panel-header">
+              <div>
+                <h3>Lead time por setor</h3>
+                <p>Setores com maior tempo médio de permanência.</p>
+              </div>
+            </div>
+            <DataTable
+              columns={[
+                { key: "label", label: "Setor" },
+                { key: "media_dias", label: "Média" },
+                { key: "mediana_dias", label: "Mediana" },
+                { key: "p90_dias", label: "P90" },
+                { key: "finalizados", label: "Saíram" },
+              ]}
+              rows={ltSectors}
+              emptyMessage="Sem dados de lead time para o período."
+            />
+          </article>
+        </section>
+      )}
 
       <section className="executive-grid">
         <article className="panel">
