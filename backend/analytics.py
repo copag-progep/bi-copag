@@ -411,6 +411,42 @@ def _previous_date(available_dates: list[date], reference_date: date | None) -> 
     return previous[-1] if previous else None
 
 
+def _finalized_by_attribution(frame: pd.DataFrame, available_dates: list[date]) -> list[dict]:
+    """Conta saídas por atribuição comparando snapshots consecutivos (leve, sem spans).
+
+    Substitui _build_presence_spans no dashboard — usa operações vetorizadas de
+    conjuntos em vez de construir spans Python record-a-record.
+    """
+    if frame.empty or len(available_dates) < 2:
+        return []
+
+    finalized: dict[str, int] = {}
+
+    # Pré-indexar protocolos e DataFrames por dia para evitar filtros repetidos
+    protos_by_day: dict[date, set] = {}
+    df_by_day: dict[date, pd.DataFrame] = {}
+    for day in available_dates:
+        day_df = frame.loc[frame["report_day"] == day, ["protocolo", "atribuicao"]]
+        protos_by_day[day] = set(day_df["protocolo"])
+        df_by_day[day] = day_df
+
+    for idx in range(1, len(available_dates)):
+        prev_day = available_dates[idx - 1]
+        curr_day = available_dates[idx]
+        curr_protos = protos_by_day[curr_day]
+        prev_df = df_by_day[prev_day]
+
+        exited = prev_df[~prev_df["protocolo"].isin(curr_protos)]
+        if exited.empty:
+            continue
+
+        for atrib, count in exited.groupby("atribuicao").size().items():
+            finalized[atrib] = finalized.get(atrib, 0) + int(count)
+
+    ranked = sorted(finalized.items(), key=lambda x: -x[1])[:10]
+    return [{"label": a, "value": v} for a, v in ranked]
+
+
 def get_dashboard_data(db: Session, filters: AnalyticsFilters) -> dict:
     """KPIs, distribuição por setor/tipo/atribuição e evolução diária de processos ativos."""
     def build() -> dict:
@@ -429,15 +465,9 @@ def get_dashboard_data(db: Session, filters: AnalyticsFilters) -> dict:
             evolution_series = frame.groupby("report_day")["protocolo"].nunique()
             evolution = [{"date": str(day), "value": int(value)} for day, value in evolution_series.items()]
 
-        spans = _build_presence_spans(frame, available_dates)
-        finalized_ranking = []
-        if not spans.empty:
-            finalized = spans[~spans["aberto"]]
-            if not finalized.empty:
-                ranking = (
-                    finalized.groupby("atribuicao")["protocolo"].count().sort_values(ascending=False).head(10)
-                )
-                finalized_ranking = [{"label": key, "value": int(value)} for key, value in ranking.items()]
+        # Ranking de finalizações: usa diferença de conjuntos entre snapshots consecutivos
+        # (muito mais leve que _build_presence_spans que era O(n × grupos) com loops Python)
+        finalized_ranking = _finalized_by_attribution(frame, available_dates)
 
         return {
             "data_referencia": str(reference_date) if reference_date else None,

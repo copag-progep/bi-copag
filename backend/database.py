@@ -25,9 +25,9 @@ engine_kwargs: dict = {
 if not DATABASE_URL.startswith("sqlite"):
     engine_kwargs["pool_pre_ping"] = True
     engine_kwargs["pool_recycle"] = int(os.getenv("SQLALCHEMY_POOL_RECYCLE", "300"))
-    engine_kwargs["pool_size"] = int(os.getenv("SQLALCHEMY_POOL_SIZE", "3"))
-    engine_kwargs["max_overflow"] = int(os.getenv("SQLALCHEMY_MAX_OVERFLOW", "2"))
-    engine_kwargs["pool_timeout"] = 20
+    engine_kwargs["pool_size"] = int(os.getenv("SQLALCHEMY_POOL_SIZE", "5"))
+    engine_kwargs["max_overflow"] = int(os.getenv("SQLALCHEMY_MAX_OVERFLOW", "5"))
+    engine_kwargs["pool_timeout"] = 30
 
 engine = create_engine(DATABASE_URL, **engine_kwargs)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, future=True)

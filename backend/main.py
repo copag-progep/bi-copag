@@ -1,5 +1,6 @@
 import json
 import os
+from collections.abc import Callable
 from statistics import median
 import threading
 from contextlib import asynccontextmanager
@@ -121,6 +122,11 @@ _PRECOMPUTE_COOLDOWN = float(os.getenv("PRECOMPUTE_COOLDOWN_SECS", "120"))
 
 
 def precompute_analytics() -> None:
+    """Pré-computa todos os endpoints analíticos com filtros padrão.
+
+    Libera a conexão do pool entre cada endpoint para não monopolizar
+    o pool durante o cold start (quando requests do usuário competem).
+    """
     global _precompute_running, _last_precompute_started
     import time as _time
     if _precompute_running:
@@ -130,23 +136,29 @@ def precompute_analytics() -> None:
         return  # cooldown: outra execução recente já está em andamento ou terminou
     _precompute_running = True
     _last_precompute_started = now
-    db = SessionLocal()
     try:
         default_filters = AnalyticsFilters()
-        get_filter_options(db)
-        get_dashboard_data(db, default_filters)
-        get_entries_exits_data(db, default_filters)
-        get_productivity_data(db, default_filters)
-        get_stale_processes_data(db, default_filters)
-        get_lead_time_data(db, default_filters)
-        get_multi_sector_data(db, default_filters)
-        get_attributions_data(db, default_filters)
-        get_workload_balance(db, default_filters)
-    except Exception:
-        pass
+        steps: list[Callable] = [
+            lambda db: get_filter_options(db),
+            lambda db: get_dashboard_data(db, default_filters),
+            lambda db: get_entries_exits_data(db, default_filters),
+            lambda db: get_productivity_data(db, default_filters),
+            lambda db: get_stale_processes_data(db, default_filters),
+            lambda db: get_lead_time_data(db, default_filters),
+            lambda db: get_multi_sector_data(db, default_filters),
+            lambda db: get_attributions_data(db, default_filters),
+            lambda db: get_workload_balance(db, default_filters),
+        ]
+        for step in steps:
+            db = SessionLocal()
+            try:
+                step(db)
+            except Exception:
+                pass
+            finally:
+                db.close()
     finally:
         _precompute_running = False
-        db.close()
 
 
 @asynccontextmanager

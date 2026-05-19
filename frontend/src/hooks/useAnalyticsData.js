@@ -70,24 +70,37 @@ export function useAnalyticsData(endpoint, params) {
       setError("");
     }
 
-    api
-      .get(endpoint, { params })
-      .then((response) => {
-        if (!cancelled) {
-          setData(response.data);
-          setStale(false);
+    function doFetch(attempt) {
+      api
+        .get(endpoint, { params })
+        .then((response) => {
+          if (!cancelled) {
+            setData(response.data);
+            setStale(false);
+            setLoading(false);
+            writeCache(cacheKey, response.data);
+          }
+        })
+        .catch((err) => {
+          if (cancelled) return;
+          // Retry automático (1×) para erros transientes (5xx, timeout, rede)
+          const status = err.response?.status;
+          const isRetryable = !status || status >= 500 || err.code === "ECONNABORTED";
+          if (isRetryable && attempt < 1) {
+            setTimeout(() => {
+              if (!cancelled) doFetch(attempt + 1);
+            }, 2000);
+            return;
+          }
           setLoading(false);
-          writeCache(cacheKey, response.data);
-        }
-      })
-      .catch((err) => {
-        if (cancelled) return;
-        setLoading(false);
-        setStale(false);
-        if (!cached) {
-          setError(err.response?.data?.detail || "Falha ao carregar dados.");
-        }
-      });
+          setStale(false);
+          if (!cached) {
+            setError(err.response?.data?.detail || "Falha ao carregar dados.");
+          }
+        });
+    }
+
+    doFetch(0);
 
     return () => {
       cancelled = true;
