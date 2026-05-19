@@ -1,15 +1,21 @@
-name: Relatório diário SEI Analytics — e-mail
+name: Relatório diário AnalyticSEI — e-mail
 
 # Envia todo dia útil às 19:30 BRT (22:30 UTC) um e-mail HTML compacto com
 # os principais indicadores do dia: ativos, entradas/saídas, fluxo por setor
 # e alertas de processos críticos.
 # Pode ser disparado manualmente a qualquer momento via "Run workflow".
 # Horário definido após o upload diário (19:00 BRT) para garantir dados atualizados.
+# O envio só continua se o workflow daily-upload.yml tiver concluído com sucesso
+# no mesmo dia, considerando o horário America/Fortaleza.
 
 on:
   schedule:
     - cron: "30 22 * * 1-5"   # 19:30 BRT (UTC-3) = 22:30 UTC, seg–sex
   workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
 
 jobs:
   daily-report:
@@ -25,10 +31,26 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Verificar upload diário bem-sucedido
+        id: upload_gate
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          UPLOAD_WORKFLOW_FILE: daily-upload.yml
+        run: python scripts/check_daily_upload_success.py
+
+      - name: Ignorar relatório sem upload atualizado
+        if: steps.upload_gate.outputs.upload_ok != 'true'
+        run: |
+          echo "Relatório diário não enviado."
+          echo "Motivo: não existe upload diário bem-sucedido hoje antes deste relatório."
+
       - name: Instalar dependências
+        if: steps.upload_gate.outputs.upload_ok == 'true'
         run: pip install httpx
 
       - name: Gerar e enviar relatório diário
+        if: steps.upload_gate.outputs.upload_ok == 'true'
         env:
           BI_API_URL:         ${{ vars.BI_API_URL || 'https://bi-copag-api.onrender.com' }}
           BI_API_KEY:         ${{ secrets.BI_API_KEY }}
@@ -47,8 +69,8 @@ jobs:
           password: ${{ secrets.GMAIL_APP_PASSWORD }}
           from: ${{ secrets.GMAIL_USER }}
           to: ${{ vars.REPORT_RECIPIENTS }}
-          subject: "⚠️ SEI Analytics — falha no relatório diário (${{ github.run_id }})"
+          subject: "⚠️ AnalyticSEI — falha no relatório diário (${{ github.run_id }})"
           body: |
-            O relatório diário do SEI Analytics falhou.
+            O relatório diário do AnalyticSEI falhou.
 
             Logs completos: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
