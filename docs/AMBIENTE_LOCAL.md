@@ -15,6 +15,18 @@ O objetivo é validar mudanças de tela, API e regras de cálculo em um ambiente
 
 ## Preparação
 
+O backend local exige Python 3.12 ou superior. No Mac com Homebrew:
+
+```bash
+brew install python@3.12
+```
+
+Confira se ficou disponível:
+
+```bash
+python3.12 --version
+```
+
 Copie o exemplo de variáveis locais:
 
 ```bash
