@@ -12,10 +12,11 @@ import TocSidebar from "./documentacao/TocSidebar";
 /* ── Dados ─────────────────────────────────────── */
 
 const FEATURES = [
-  { icon: "🎯", title: "Central Executiva", desc: "Prioridades do dia, saúde dos dados, KPIs principais e sparklines de tendência" },
+  { icon: "🎯", title: "Central Executiva", desc: "Prioridades do dia, saúde dos dados, KPIs principais, sparklines e tempo de permanência" },
   { icon: "📊", title: "Dashboard principal", desc: "KPIs, distribuição por setor/tipo, rankings e evolução diária" },
   { icon: "↔️", title: "Entradas e saídas", desc: "Comparativo de fluxo entre snapshots consecutivos" },
   { icon: "⚡", title: "Produtividade", desc: "Processos recebidos, finalizados e tempo médio por servidor" },
+  { icon: "⏱️", title: "Tempo de permanência", desc: "Lead time estimado com média, mediana, P90, faixas por duração e ranking por setor" },
   { icon: "📋", title: "Atribuições", desc: "Carteira completa com flags de criticidade (6 faixas até 90d+)" },
   { icon: "⚖️", title: "Servidores", desc: "Balanceamento de carga, sobrecarga e perfil longitudinal" },
   { icon: "🔀", title: "Múltiplos setores", desc: "Detecção de processos em mais de um setor no mesmo dia" },
@@ -70,7 +71,7 @@ const SCRIPTS_STACK = {
 const WORKFLOWS = [
   { name: "keep-alive.yml", freq: "A cada 10 minutos (24h/dia)", desc: "Pinga /api/ping (endpoint leve sem banco) para manter o Render ativo. Sem isso, o plano gratuito hiberna após 15 min e gera cold start lento." },
   { name: "daily-upload.yml", freq: "Seg–Sex 19:00 BRT", desc: "Playwright headless: login no SEI, troca de setor, coleta todas as páginas (100/pág), gera CSV e faz upload via API key. Notifica por e-mail se falhar." },
-  { name: "daily-report.yml", freq: "Seg–Sex 19:30 BRT", desc: "Coleta /api/reports/daily-summary e envia e-mail HTML compacto com ativos, fluxo do dia por setor e alertas de processos críticos. Dispara 30 min após o upload." },
+  { name: "daily-report.yml", freq: "Seg–Sex 19:30 BRT", desc: "Antes de enviar, executa check_daily_upload_success.py para confirmar sucesso do daily-upload no dia. Se estiver OK, coleta /api/reports/daily-summary e envia e-mail HTML compacto." },
   { name: "weekly-report.yml", freq: "Sexta 20:00 BRT", desc: "Coleta dados do dashboard, balanceamento e alertas via API key e envia e-mail HTML com identidade visual Progep/UFC." },
   { name: "critical-alerts.yml", freq: "Sexta 21:00 BRT", desc: "Verifica processos >30d. NÃO envia e-mail se não houver processos críticos (anti-spam). Destaque especial para situação extrema >90d." },
 ];
@@ -254,6 +255,7 @@ export default function DocumentacaoPage() {
                 ["GET", "/api/analytics/attributions", "Carteira com dias (paginado, filtros, ordenação)"],
                 ["GET", "/api/analytics/workload-balance", "Balanceamento de carga"],
                 ["GET", "/api/analytics/server-profile", "Perfil longitudinal de servidor"],
+                ["GET", "/api/analytics/lead-time", "Lead time estimado: média, mediana, P90, faixas por duração e rankings por setor/tipo/atribuição"],
                 ["GET", "/api/alerts/summary", "Resumo de processos críticos (sino in-app)"],
               ]},
               { group: "Outros", endpoints: [
@@ -284,7 +286,9 @@ export default function DocumentacaoPage() {
             <Callout icon="⚡">
               <strong>Cache analítico:</strong> todos os endpoints analíticos usam cache em memória.
               Chave: (endpoint + assinatura_uploads + filtros). Invalidado automaticamente após
-              qualquer upload. Pré-aquecido em background logo após a invalidação.
+              qualquer upload. O pré-aquecimento em background roda em modo leve por padrão:
+              endpoints históricos pesados, como processos parados, atribuições e lead time, só
+              entram no precompute se <code>PRECOMPUTE_HEAVY_ANALYTICS=true</code>.
             </Callout>
           </DocSection>
 
@@ -300,7 +304,7 @@ export default function DocumentacaoPage() {
             <h3>Páginas</h3>
             <div className="doc-features-grid">
               {[
-                { icon: "🎯", title: "/executivo", desc: "Central de decisão com prioridades do dia, saúde dos dados, cards com sparklines e listas executivas" },
+                { icon: "🎯", title: "/executivo", desc: "Central de decisão com prioridades do dia, saúde dos dados, cards com sparklines, lead time e listas executivas" },
                 { icon: "📊", title: "/  Dashboard", desc: "KPIs, distribuição por setor/tipo, ranking, evolução diária, tabela de finalizações" },
                 { icon: "📤", title: "/enviar-relatorio", desc: "Upload de CSV + histórico paginado com edição de data e exclusão de snapshots" },
                 { icon: "↔️", title: "/entradas-saidas", desc: "Entradas, saídas, saldo e evolução do fluxo por setor" },
@@ -325,6 +329,13 @@ export default function DocumentacaoPage() {
               <PillTag variant="danger">60–89d — Crítico</PillTag>
               <PillTag variant="purple">90d+ — Extremo</PillTag>
             </div>
+
+            <Callout icon="⏱️">
+              <strong>Central Executiva:</strong> a página carrega primeiro os indicadores leves
+              (dashboard e fluxo), depois busca processos críticos e lead time separadamente. Assim,
+              um endpoint pesado ou lento não derruba a tela inteira. O timeout padrão das chamadas
+              analíticas é de 90 segundos, com 120 segundos nos blocos históricos mais pesados.
+            </Callout>
           </DocSection>
 
           {/* 07 */}
@@ -379,7 +390,7 @@ export default function DocumentacaoPage() {
                 ["AUTO_IMPORT_SAMPLE_DATA", "false em produção"],
                 ["ANALYTICS_LOOKBACK_DAYS", "Janela máxima de histórico analítico (padrão: 120 dias). 0 = sem limite."],
                 ["DISABLE_STARTUP_PRECOMPUTE", "false em produção. true desliga o aquecimento de cache na inicialização."],
-                ["PRECOMPUTE_HEAVY_ANALYTICS", "false por padrão. true inclui endpoints pesados de histórico completo no precompute."],
+                ["PRECOMPUTE_HEAVY_ANALYTICS", "false por padrão. true inclui endpoints pesados de histórico completo no precompute, como processos parados, atribuições e lead time."],
                 ["PRECOMPUTE_COOLDOWN_SECS", "Intervalo mínimo entre precomputes consecutivos (padrão: 120 s)."],
                 ["APP_TIMEZONE", "Fuso usado em checagens operacionais. Padrão: America/Fortaleza."],
                 ["DATA_FRESHNESS_OK_MAX_DAYS", "Idade máxima para considerar o dado atualizado. Padrão: 3 dias."],
@@ -414,7 +425,8 @@ export default function DocumentacaoPage() {
             <Callout icon="🤖">
               O upload diário é <strong>totalmente automático às 19:00 BRT</strong>. Se falhar,
               um e-mail de alerta é enviado automaticamente. Intervenção manual só é necessária
-              em casos excepcionais.
+              em casos excepcionais. O relatório diário das 19:30 também verifica esse sucesso antes
+              de enviar, evitando e-mail com dados desatualizados quando o upload do dia falha.
             </Callout>
             <div className="doc-grid-2">
               {MANUTENCAO.map(({ title, desc }) => (
@@ -452,11 +464,11 @@ export default function DocumentacaoPage() {
           <DocSection id="s12" num="12" eyebrow="Evolução" title="Histórico de funcionalidades">
             {[
               { title: "Fundação do sistema", items: ["Autenticação JWT + bcrypt","Importação de CSVs (UTF-8, UTF-8-BOM, Latin-1)","Hash SHA-256 para evitar duplicatas","Substituição de snapshot por setor/data","Dashboard com KPIs, distribuição, evolução diária","Entradas e saídas, produtividade, múltiplos setores","Administração de usuários com proteção do último admin"] },
-              { title: "Infraestrutura e qualidade", items: ["Alembic para migrações formais com auto-stamp","Log de auditoria em tabela dedicada","Lifespan context manager (substituiu @app.on_event)","datetime.now(timezone.utc) (substituiu utcnow)","sync_processo_atribuicoes com SQL UPDATE em lote","Cache analítico com invalidação automática","Pré-aquecimento do cache em background","Healthcheck com verificação do banco","Endpoint /api/health/data-freshness + badge no topo para avisar dado velho, setor ausente/defasado e queda simples de volume"] },
+              { title: "Infraestrutura e qualidade", items: ["Alembic para migrações formais com auto-stamp","Log de auditoria em tabela dedicada","Lifespan context manager (substituiu @app.on_event)","datetime.now(timezone.utc) (substituiu utcnow)","sync_processo_atribuicoes com SQL UPDATE em lote","Cache analítico com invalidação automática","Pré-aquecimento leve do cache em background, com endpoints históricos pesados controlados por PRECOMPUTE_HEAVY_ANALYTICS","Healthcheck com verificação do banco","Endpoint /api/health/data-freshness + badge no topo para avisar dado velho, setor ausente/defasado e queda simples de volume"] },
               { title: "Identidade visual Progep/UFC", items: ["Paleta: navy #273168 · laranja #f39320 · amarelo #febb12 · azul #81c7ee","Fonte Plus Jakarta Sans","Sidebar redesenhada com ícones SVG e chip do usuário","Topbar com título dinâmico por rota","StatCards com hover e estrutura vertical","LoginPage com dois painéis e stats decorativos"] },
               { title: "Performance", items: ["React.lazy + Suspense para code splitting por rota","preconnect e dns-prefetch para o backend","LoadingBlock com spinner e mensagem de servidor iniciando","useAnalyticsData hook com cache stale-while-revalidate (TTL 5 min)","clearAnalyticsCache chamado após upload"] },
-              { title: "Analíticas avançadas", items: ["Central Executiva com prioridades do dia, saúde dos dados e sparklines dos KPIs principais","Página Atribuições com spans consecutivos por setor, 6 faixas de criticidade, filtros server-side, busca por protocolo","Exportação PDF com identidade visual (jsPDF + jspdf-autotable)","Exportação Excel (SheetJS)","Página Servidores: balanceamento por desvio-padrão + perfil longitudinal","Busca global de processo com histórico de movimentações","Filtro Sem atribuição no FilterBar global","Indicadores mensais com dashboard e lançamento manual"] },
-              { title: "Automação (Bloco 4)", items: ["API key para uploads sem JWT","Script SEI Scraper (Playwright headless): login, troca de setor por JS, coleta todas as páginas","Workflow daily-upload (19:00 BRT) com notificação de falha","Workflow weekly-report (sexta 20:00 BRT)","Script de alertas com anti-spam (não envia se sem críticos)","Workflow critical-alerts (sexta 21:00 BRT)"] },
+              { title: "Analíticas avançadas", items: ["Central Executiva com prioridades do dia, saúde dos dados, sparklines dos KPIs principais e carregamento escalonado","Lead time estimado dos processos que saíram da carteira, com média, mediana, P90, faixas por duração e ranking por setor/tipo/atribuição","Página Atribuições com spans consecutivos por setor, 6 faixas de criticidade, filtros server-side, busca por protocolo","Exportação PDF com identidade visual (jsPDF + jspdf-autotable)","Exportação Excel (SheetJS)","Página Servidores: balanceamento por desvio-padrão + perfil longitudinal","Busca global de processo com histórico de movimentações","Filtro Sem atribuição no FilterBar global","Indicadores mensais com dashboard e lançamento manual"] },
+              { title: "Automação (Bloco 4)", items: ["API key para uploads sem JWT","Script SEI Scraper (Playwright headless): login, troca de setor por JS, coleta todas as páginas","Workflow daily-upload (19:00 BRT) com notificação de falha","Workflow daily-report (19:30 BRT) bloqueado por check_daily_upload_success.py quando o upload do dia não concluiu com sucesso","Workflow weekly-report (sexta 20:00 BRT)","Script de alertas com anti-spam (não envia se sem críticos)","Workflow critical-alerts (sexta 21:00 BRT)"] },
               { title: "Alertas e notificações (Bloco 1)", items: ["Endpoint /api/alerts/summary (leve, usa cache)","Sino de notificações na topbar: badge, dropdown top-8, link para /atribuicoes","E-mail de alertas: cards por faixa, tabela dos críticos, destaque para >90d","Não envia e-mail se nenhum processo crítico"] },
               { title: "Segurança e acesso", items: ["Troca de senha pelo próprio usuário (valida senha atual)","DE-PARA com normalização de identidade (sem acentos, lowercase, case-insensitive)","Autenticação dual (JWT ou API key) nos endpoints analíticos","Página Minha conta com informações e formulário de troca de senha"] },
             ].map(({ title, items }) => (

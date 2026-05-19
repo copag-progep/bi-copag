@@ -53,6 +53,12 @@ O objetivo não é substituir o SEI. O objetivo é complementar o SEI com visão
 
 ## 3. O que o sistema entrega na prática
 
+### Central Executiva
+
+É a tela de decisão rápida do gestor. Ela reúne, em uma única página, os principais indicadores do dia, prioridades, saúde dos dados, tendências pequenas nos cartões e o tempo de permanência dos processos que saíram da carteira.
+
+Essa tela foi pensada para responder rapidamente: "O que merece minha atenção agora?"
+
 ### 3.1 Dashboard executivo
 
 É a visão geral do sistema. Mostra indicadores principais, como total de processos ativos, distribuição por setor, distribuição por tipo de processo, ranking de atribuições e evolução diária do volume de processos.
@@ -75,6 +81,23 @@ Serve para entender o fluxo diário, não apenas o estoque de processos.
 Analisa movimentações por atribuição/servidor, com foco em produção estimada, entradas, carga atual e evolução.
 
 Nos gráficos, o sistema usa iniciais dos nomes para facilitar a leitura visual, mas mantém o nome completo disponível ao passar o mouse.
+
+### Tempo de permanência / lead time
+
+O sistema calcula o tempo estimado que os processos permaneceram em uma carteira antes de sair dela.
+
+Em linguagem simples: se um processo apareceu nos snapshots de um setor durante vários dias e depois deixou de aparecer, o sistema entende que aquele ciclo foi finalizado naquele setor. A duração desse ciclo entra no cálculo de permanência.
+
+Os principais indicadores dessa análise são:
+
+| Indicador | Como interpretar |
+|---|---|
+| Média | Soma dos dias de permanência dividida pelo total de processos finalizados |
+| Mediana | Valor central da lista; metade dos processos ficou abaixo desse tempo e metade ficou acima |
+| P90 | Percentil 90; 90% dos processos foram finalizados até esse prazo e 10% demoraram mais |
+| Finalizados | Quantidade de processos que saíram da carteira e entraram no cálculo |
+
+O P90 é útil porque mostra a "cauda" do prazo. Mesmo que a média esteja boa, um P90 alto indica que existe um grupo menor de processos demorando muito mais do que os demais.
 
 ### 3.4 Processos parados
 
@@ -200,7 +223,7 @@ Depois que um relatório é enviado, o sistema executa uma sequência de etapas:
 5. Salva cada processo na tabela de processos.
 6. Normaliza nomes de atribuição quando houver cadastro no DE-PARA.
 7. Limpa o cache analítico.
-8. Recalcula indicadores em segundo plano.
+8. Limpa o cache e pré-aquece os indicadores leves em segundo plano.
 9. Atualiza telas e relatórios.
 10. Registra a ação no log de auditoria.
 
@@ -215,7 +238,7 @@ O AnalyticSEI possui rotinas automáticas configuradas no GitHub Actions.
 | Rotina | Quando roda | O que faz |
 |---|---|---|
 | `daily-upload` | Segunda a sexta, 19:00 BRT | Coleta dados do SEI e envia ao AnalyticSEI |
-| `daily-report` | Segunda a sexta, 19:30 BRT | Envia e-mail diário compacto com principais indicadores |
+| `daily-report` | Segunda a sexta, 19:30 BRT | Confirma se o upload do dia teve sucesso e, se estiver tudo certo, envia e-mail diário compacto com principais indicadores |
 | `weekly-report` | Sexta-feira, 20:00 BRT | Envia relatório semanal gerencial por e-mail |
 | `critical-alerts` | Sexta-feira, 21:00 BRT | Envia alerta se houver processos críticos |
 | `keep-alive` | A cada 10 minutos | Mantém a API acordada no Render |
@@ -234,6 +257,8 @@ O relatório diário é um e-mail compacto, pensado para leitura rápida. Ele mo
 - Link para abrir a plataforma.
 
 Ele roda às 19:30 para dar tempo de o upload automático das 19:00 terminar.
+
+Antes de enviar, o workflow verifica se o `daily-upload` do mesmo dia concluiu com sucesso. Se o upload falhar, o relatório diário não é enviado, evitando que a equipe receba indicadores desatualizados como se fossem dados novos.
 
 ### 6.2 Relatório semanal
 
@@ -374,6 +399,7 @@ Ele guarda tanto dados operacionais, como processos e uploads, quanto dados admi
 
 | Tela | Para que serve |
 |---|---|
+| Central Executiva | Visão rápida das prioridades do dia, saúde dos dados, tendências e tempo de permanência |
 | Dashboard | Visão geral da situação dos processos |
 | Enviar Relatório | Upload manual e histórico de uploads |
 | Entradas e Saídas | Análise do fluxo diário por setor |
@@ -547,7 +573,17 @@ Algumas análises que dependem do histórico completo, como processos parados, p
 
 Após uploads, o sistema pode aquecer os cálculos em segundo plano. Para evitar várias execuções pesadas em sequência, existe um intervalo mínimo entre precomputes.
 
-### 15.4 Keep-alive leve
+Hoje esse aquecimento roda em modo leve por padrão. Ele prioriza indicadores mais usados e evita recalcular automaticamente consultas históricas mais pesadas, como processos parados, atribuições e lead time.
+
+Se for necessário incluir esses cálculos pesados no aquecimento automático, a variável `PRECOMPUTE_HEAVY_ANALYTICS` pode ser configurada como `true` no Render. O padrão recomendado continua sendo `false`, para reduzir consumo do banco e evitar lentidão.
+
+### 15.4 Carregamento escalonado da Central Executiva
+
+A Central Executiva carrega primeiro os dados mais leves, como dashboard e fluxo diário. Depois busca, separadamente, processos críticos e lead time.
+
+Isso evita que uma consulta histórica mais demorada impeça a tela inteira de abrir. Na prática, o gestor vê os principais dados primeiro e os blocos mais pesados aparecem em seguida.
+
+### 15.5 Keep-alive leve
 
 O Render em plano gratuito pode hibernar quando fica sem uso. Para reduzir lentidão no primeiro acesso, existe uma rotina que chama `/api/ping` a cada 10 minutos.
 
@@ -804,7 +840,7 @@ O AnalyticSEI é uma ferramenta de apoio gerencial. Algumas limitações devem s
 - A produtividade é inferida por comparação entre snapshots, não por confirmação manual de cada ação realizada.
 - Se o SEI mudar sua interface, a automação de coleta pode precisar de ajuste.
 - Serviços gratuitos podem ter limites de uso, lentidão ou indisponibilidades temporárias.
-- O relatório diário às 19:30 pressupõe que o upload das 19:00 terminou com sucesso.
+- O relatório diário às 19:30 depende do upload das 19:00; se o upload do dia não tiver sucesso, o envio é bloqueado automaticamente.
 - O sistema não substitui conferência formal em casos sensíveis ou processos específicos.
 
 ---
@@ -813,7 +849,6 @@ O AnalyticSEI é uma ferramenta de apoio gerencial. Algumas limitações devem s
 
 Sugestões que podem ser avaliadas futuramente:
 
-- Fazer o relatório diário disparar apenas após confirmação de sucesso do upload automático.
 - Criar destinatários separados para relatório diário e relatório semanal.
 - Melhorar painéis de consumo do banco para acompanhar limites gratuitos.
 - Criar tela de saúde das automações dentro do próprio AnalyticSEI.

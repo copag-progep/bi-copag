@@ -41,7 +41,7 @@ Ponto importante:
 - o codigo nao depende de um provedor especifico de banco
 - localmente ele usa SQLite se `DATABASE_URL` nao estiver definida
 - em producao ele usa o banco apontado por `DATABASE_URL`
-- se o ambiente produtivo estiver hoje no Neon, isso acontece porque o `DATABASE_URL` configurado no Render aponta para o Neon
+- atualmente o `DATABASE_URL` de producao aponta para o PostgreSQL da Aiven
 - isso nao fica hardcoded no codigo
 
 
@@ -120,23 +120,26 @@ Detalhes importantes:
 - para SQLite usa `check_same_thread=False`
 - para bancos nao-SQLite usa `pool_pre_ping=True`
 - para bancos nao-SQLite usa `pool_recycle` configuravel por `SQLALCHEMY_POOL_RECYCLE`
+- para bancos nao-SQLite usa `SQLALCHEMY_POOL_SIZE`, `SQLALCHEMY_MAX_OVERFLOW` e `pool_timeout=30`
 
 ### 5.2 Evolucao de schema
 
-Nao existe Alembic ou outro framework formal de migrations.
+O projeto usa Alembic para migracoes formais e mantem uma camada pragmatica de compatibilidade.
 
-Em vez disso, o projeto usa:
+Na inicializacao, `init_db()` executa:
 
+- `run_migrations()`
 - `Base.metadata.create_all(...)`
 - `ensure_schema_updates()`
 - `ensure_indexes()`
 
-Hoje, `ensure_schema_updates()` garante pelo menos a existencia de:
+`run_migrations()` executa `alembic upgrade head`. Em bancos existentes sem a tabela `alembic_version`, o sistema sela automaticamente no baseline `0001` antes de aplicar migracoes novas.
+
+Hoje, `ensure_schema_updates()` ainda garante pelo menos a existencia de:
 
 - coluna `atribuicao_normalizada` em `processos`
 
-Isso significa que a evolucao de schema e pragmatica, mas menos formal.
-Para manutencao futura, se o projeto crescer muito, vale considerar Alembic.
+Isso significa que a evolucao de schema e formalizada por Alembic, mas preserva compatibilidade com bancos antigos por meio das rotinas auxiliares.
 
 
 ## 6. Modelo de dados
@@ -499,6 +502,30 @@ Entrega:
 
 `get_multi_sector_data()` detecta protocolos que aparecem em mais de um setor no mesmo snapshot.
 
+### 11.9 Lead time / tempo de permanencia
+
+`get_lead_time_data()` calcula o tempo estimado de permanencia dos processos que sairam de uma carteira.
+
+Como o SEI exporta snapshots e nao um log transacional completo, o calculo e inferido por spans de presenca:
+
+- o processo aparece em snapshots consecutivos de um setor/atribuicao
+- depois deixa de aparecer naquela carteira
+- esse intervalo fechado e tratado como um ciclo finalizado
+
+Entrega:
+
+- media de dias
+- mediana de dias
+- P90, ou percentil 90
+- total de processos finalizados usados no calculo
+- distribuicao por faixas de duracao
+- ranking por setor, tipo e atribuicao
+
+Observacao importante:
+
+- P90 significa que 90% dos processos finalizaram ate aquele prazo e 10% demoraram mais
+- esse indicador usa historico completo quando necessario, para nao distorcer duracoes antigas
+
 
 ## 12. Indicadores mensais
 
@@ -577,6 +604,11 @@ As principais rotas estao em `backend/main.py`.
 - `GET /api/analytics/productivity`
 - `GET /api/analytics/stale`
 - `GET /api/analytics/multi-sector`
+- `GET /api/analytics/attributions`
+- `GET /api/analytics/workload-balance`
+- `GET /api/analytics/server-profile`
+- `GET /api/analytics/lead-time`
+- `GET /api/alerts/summary`
 
 
 ## 14. Regras importantes do endpoint de uploads
@@ -632,15 +664,21 @@ Arquivo:
 Rotas principais:
 
 - `/login`
+- `/executivo`
 - `/`
 - `/enviar-relatorio`
 - `/entradas-saidas`
 - `/produtividade`
 - `/processos-parados`
 - `/multiplos-setores`
+- `/atribuicoes`
+- `/servidores`
+- `/busca`
 - `/indicadores-mensais`
 - `/usuarios-sei`
 - `/administracao`
+- `/minha-conta`
+- `/documentacao`
 - `/logout`
 
 As rotas internas usam `ProtectedRoute`.
@@ -665,6 +703,8 @@ Fluxo:
 Detalhe de performance:
 
 - se ja existir usuario em cache no `localStorage`, o `loading` inicial nao bloqueia a interface desnecessariamente
+- o timeout padrao das chamadas analiticas no frontend e de 90 segundos
+- endpoints historicos mais pesados podem usar timeout especifico maior, como 120 segundos
 
 
 ## 17. Filtros globais no frontend
@@ -695,7 +735,7 @@ Comportamento:
 
 - sidebar lateral com recolhimento
 - rolagem propria da sidebar em telas menores
-- topbar com identificacao do usuario logado
+- topbar com identificacao do usuario logado, badge de frescor dos dados, busca global e sino de notificacoes
 - barra de filtros visivel apenas em rotas analiticas
 
 
@@ -713,7 +753,30 @@ Responsabilidade:
 - chamada de login
 - redirecionamento para dashboard
 
-### 19.2 Dashboard
+### 19.2 Central Executiva
+
+Arquivo:
+
+- `frontend/src/pages/ExecutivePage.jsx`
+
+Consome:
+
+- `/analytics/dashboard`
+- `/analytics/entries-exits`
+- `/analytics/stale`
+- `/analytics/lead-time`
+- `/health/data-freshness`
+
+Entrega:
+
+- prioridades do dia
+- saude/frescor dos dados
+- cards de KPI com sparklines
+- tempo de permanencia com media, mediana, P90 e faixas
+- ranking de lead time por setor
+- carregamento escalonado para evitar que endpoints pesados derrubem a tela inteira
+
+### 19.3 Dashboard
 
 Arquivo:
 
@@ -730,7 +793,7 @@ Entrega:
 - ranking de atribuicoes
 - evolucao diaria
 
-### 19.3 Entradas e saidas
+### 19.4 Entradas e saidas
 
 Arquivo:
 
@@ -740,7 +803,7 @@ Consome:
 
 - `/analytics/entries-exits`
 
-### 19.4 Produtividade
+### 19.5 Produtividade
 
 Arquivo:
 
@@ -755,7 +818,7 @@ Observacao:
 - nomes longos de atribuicao sao abreviados para iniciais nos graficos
 - o nome completo continua acessivel por hover
 
-### 19.5 Processos parados
+### 19.6 Processos parados
 
 Arquivo:
 
@@ -769,7 +832,7 @@ Observacao:
 
 - a tabela de processos criticos esta paginada em 50 itens por pagina
 
-### 19.6 Processos em multiplos setores
+### 19.7 Processos em multiplos setores
 
 Arquivo:
 
@@ -779,7 +842,7 @@ Consome:
 
 - `/analytics/multi-sector`
 
-### 19.7 Enviar relatorio
+### 19.8 Enviar relatorio
 
 Arquivo:
 
@@ -799,7 +862,7 @@ Recursos:
 - edicao de data do snapshot
 - exclusao de snapshot
 
-### 19.8 Administracao
+### 19.9 Administracao
 
 Arquivo:
 
@@ -812,7 +875,7 @@ Consome:
 - `DELETE /admin/users/{id}`
 - `GET /uploads`
 
-### 19.9 Usuarios SEI
+### 19.10 Usuarios SEI
 
 Arquivo:
 
@@ -825,7 +888,7 @@ Consome:
 - `POST /admin/sei-users/import-rows`
 - `DELETE /admin/sei-users/{id}`
 
-### 19.10 Indicadores mensais
+### 19.11 Indicadores mensais
 
 Arquivo:
 
@@ -873,10 +936,18 @@ Variaveis relevantes:
 - `DEFAULT_ADMIN_PASSWORD`
 - `AUTO_IMPORT_SAMPLE_DATA`
 - `SQLALCHEMY_POOL_RECYCLE`
+- `ANALYTICS_LOOKBACK_DAYS`
+- `DISABLE_STARTUP_PRECOMPUTE`
+- `PRECOMPUTE_HEAVY_ANALYTICS`
+- `PRECOMPUTE_COOLDOWN_SECS`
+- `APP_TIMEZONE`
+- `DATA_FRESHNESS_OK_MAX_DAYS`
+- `DATA_FRESHNESS_CRITICAL_DAYS`
+- `DATA_QUALITY_DROP_RATIO`
 
 Observacao:
 
-- o comentario do arquivo ja menciona uso com Postgres externo/Neon
+- o comentario do arquivo menciona uso com Postgres externo/Aiven
 
 ### 21.2 Frontend
 
@@ -932,25 +1003,34 @@ Arquivo:
 O blueprint versionado descreve:
 
 - um web service Python
-- um banco Postgres do proprio Render
-- injecao automatica de `DATABASE_URL` a partir desse banco
+- plano gratuito
+- regiao `virginia`
+- healthcheck em `/api/health`
+- variaveis de ambiente da API
 
 Variaveis declaradas:
 
 - `DATABASE_URL`
 - `PYTHON_VERSION`
 - `JWT_SECRET_KEY`
+- `API_UPLOAD_KEY`
 - `DEFAULT_ADMIN_NAME`
 - `DEFAULT_ADMIN_EMAIL`
 - `DEFAULT_ADMIN_PASSWORD`
 - `ACCESS_TOKEN_EXPIRE_MINUTES`
+- `CORS_ORIGINS`
 - `AUTO_IMPORT_SAMPLE_DATA=false`
+- `ANALYTICS_LOOKBACK_DAYS=120`
+- `DISABLE_STARTUP_PRECOMPUTE=false`
+- `PRECOMPUTE_HEAVY_ANALYTICS=false`
+- `PRECOMPUTE_COOLDOWN_SECS=120`
 
 Importante para manutencao:
 
-- o `render.yaml` versionado ainda descreve banco do Render
-- se a producao atual usa Neon, isso deve estar ajustado no painel do Render ou em outra configuracao fora do repositorio
-- sempre validar no painel qual `DATABASE_URL` esta efetivamente em uso
+- o banco de producao atual e externo ao Render
+- `DATABASE_URL` deve apontar para o PostgreSQL da Aiven
+- `DATABASE_URL`, `API_UPLOAD_KEY` e `DEFAULT_ADMIN_PASSWORD` usam `sync: false`, portanto precisam existir no painel do Render
+- sempre validar no painel qual `DATABASE_URL` esta efetivamente em uso antes de qualquer migracao ou troca de banco
 
 
 ## 24. Deploy no Vercel
@@ -1016,7 +1096,7 @@ Objetivo:
 Casos de uso:
 
 - SQLite local -> Postgres
-- banco antigo -> Neon
+- banco antigo -> Aiven
 - banco Render -> banco externo
 
 ### 26.2 Publicacao automatizada no GitHub
@@ -1029,22 +1109,46 @@ Objetivo:
 
 - publicar arquivos do projeto diretamente via API do GitHub
 
+### 26.3 Automacoes do GitHub Actions
+
+Arquivos principais:
+
+- `.github/workflows/daily-upload.yml`
+- `.github/workflows/daily-report.yml`
+- `.github/workflows/weekly-report.yml`
+- `.github/workflows/critical-alerts.yml`
+- `.github/workflows/keep-alive.yml`
+
+Regras atuais:
+
+- `daily-upload` roda de segunda a sexta as 19:00 BRT
+- `daily-report` roda de segunda a sexta as 19:30 BRT
+- antes de enviar o e-mail diario, `daily-report` executa `scripts/check_daily_upload_success.py`
+- se o upload automatico do dia nao concluiu com sucesso, o e-mail diario nao e enviado
+- `weekly-report` roda sexta as 20:00 BRT
+- `critical-alerts` roda sexta as 21:00 BRT e evita envio quando nao ha criticos
+- `keep-alive` chama `/api/ping`, endpoint leve sem banco
+
 
 ## 27. Pontos criticos para manutencao
 
 ### 27.1 Migracoes de schema
 
-Hoje nao ha Alembic.
-Mudancas estruturais precisam ser bem pensadas para nao quebrar bases ja existentes.
+O projeto usa Alembic para migracoes versionadas.
+
+Na inicializacao da API, o backend executa `alembic upgrade head`. Em bancos existentes sem historico Alembic, o sistema faz auto-stamp do baseline antes de aplicar migracoes novas.
+
+Mudancas estruturais ainda precisam ser bem pensadas para nao quebrar bases ja existentes.
 
 ### 27.2 Coerencia entre repositorio e ambiente
 
-O repositrio sugere Render DB no `render.yaml`, mas o ambiente real pode estar em Neon.
+O repositorio declara a API no Render, mas o banco real fica fora do Render.
 O mantenedor deve validar:
 
 - `DATABASE_URL` no Render
+- credenciais e host do banco Aiven
 - comando de build no Vercel
-- variaveis de ambiente de ambos
+- variaveis de ambiente do Render, Vercel e GitHub Actions
 
 ### 27.3 Performance
 
@@ -1073,22 +1177,38 @@ Configuracao descrita pelo codigo e pela documentacao do projeto:
 - GitHub hospeda o codigo
 - Render hospeda a API FastAPI
 - Render fornece variaveis de ambiente da API
+- Aiven hospeda o banco PostgreSQL de producao
 - Vercel hospeda o frontend React
 - Vercel faz rewrite de `/api` para o Render
 - o banco em runtime e o que estiver em `DATABASE_URL`
 
-Se a operacao atual estiver em Neon:
+Na operacao atual:
 
-- o Neon nao precisa aparecer explicitamente no codigo
-- basta `DATABASE_URL` no Render apontar para o Neon
+- o banco principal e Aiven for PostgreSQL
+- o Neon foi substituido apos limite de transferencia mensal
+- a aplicacao nao depende de codigo especifico da Aiven; a troca e feita pela `DATABASE_URL`
 
 
 ## 29. Estrutura completa do projeto
 
 ```text
 bi-copag/
+├── .github/
+│   └── workflows/
+│       ├── critical-alerts.yml
+│       ├── daily-report.yml
+│       ├── daily-upload.yml
+│       ├── keep-alive.yml
+│       └── weekly-report.yml
+├── alembic/
+│   ├── env.py
+│   ├── script.py.mako
+│   └── versions/
+│       ├── 0001_baseline.py
+│       └── 0002_add_audit_logs.py
 ├── .dockerignore
 ├── .env.example
+├── .env.local.example
 ├── .gitignore
 ├── Dockerfile
 ├── README.md
@@ -1114,6 +1234,7 @@ bi-copag/
 │   └── sei_users.py
 ├── frontend/
 │   ├── .env.example
+│   ├── .env.local.example
 │   ├── index.html
 │   ├── package.json
 │   ├── vercel.json
@@ -1131,32 +1252,56 @@ bi-copag/
 │       ├── components/
 │       │   ├── AppLayout.jsx
 │       │   ├── ChartPanel.jsx
+│       │   ├── DataFreshnessBadge.jsx
 │       │   ├── DataTable.jsx
+│       │   ├── ErrorBlock.jsx
 │       │   ├── FilterBar.jsx
 │       │   ├── LoadingBlock.jsx
+│       │   ├── NotificationBell.jsx
 │       │   ├── ProtectedRoute.jsx
 │       │   ├── Sidebar.jsx
+│       │   ├── SparklineCard.jsx
 │       │   └── StatCard.jsx
 │       ├── context/
 │       │   ├── AuthContext.jsx
 │       │   └── FiltersContext.jsx
+│       ├── hooks/
+│       │   └── useAnalyticsData.js
 │       ├── pages/
+│       │   ├── AccountPage.jsx
 │       │   ├── AdminPage.jsx
+│       │   ├── AttributionsPage.jsx
 │       │   ├── DashboardPage.jsx
+│       │   ├── DocumentacaoPage.css
+│       │   ├── DocumentacaoPage.jsx
+│       │   ├── ExecutivePage.jsx
 │       │   ├── FlowPage.jsx
 │       │   ├── LoginPage.jsx
 │       │   ├── LogoutPage.jsx
 │       │   ├── MonthlyStatsPage.jsx
 │       │   ├── MultiSectorPage.jsx
+│       │   ├── ProcessSearchPage.jsx
 │       │   ├── ProductivityPage.jsx
 │       │   ├── SeiUsersPage.jsx
+│       │   ├── ServidoresPage.jsx
 │       │   ├── StaleProcessesPage.jsx
-│       │   └── UploadPage.jsx
+│       │   ├── UploadPage.jsx
+│       │   └── documentacao/
 │       └── utils/
+│           ├── attributionsExcel.js
+│           ├── attributionsPdf.js
+│           ├── uploadsPayload.js
 │           └── userNameFormatter.js
 └── scripts/
+    ├── alerts_email.py
+    ├── check_daily_upload_success.py
+    ├── daily_report.py
+    ├── dev_backend.sh
+    ├── dev_frontend.sh
     ├── migrate_postgres.py
-    └── publish-github.ps1
+    ├── publish-github.ps1
+    ├── sei_uploader.py
+    └── weekly_report.py
 ```
 
 
@@ -1166,7 +1311,8 @@ Recomendacoes praticas:
 
 1. validar no painel do Render qual `DATABASE_URL` esta realmente em uso
 2. validar no painel da Vercel qual comando de build esta configurado
-3. documentar oficialmente se o banco de producao esta no Neon
-4. considerar Alembic para migracoes futuras
-5. considerar materializacao ou precomputacao se o volume historico crescer muito
-6. manter testes manuais cuidadosos em upload, filtros, analytics e administracao, porque sao os fluxos mais sensiveis do produto
+3. confirmar periodicamente os limites e consumo do banco Aiven
+4. manter migracoes Alembic para qualquer alteracao estrutural de banco
+5. manter `PRECOMPUTE_HEAVY_ANALYTICS=false` salvo necessidade operacional clara
+6. considerar materializacao ou precomputacao seletiva se o volume historico crescer muito
+7. manter testes locais cuidadosos em upload, filtros, analytics e administracao, porque sao os fluxos mais sensiveis do produto

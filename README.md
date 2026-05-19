@@ -15,6 +15,7 @@ Plataforma web de Business Intelligence desenvolvida para a **COPAG (Coordenador
 | **Dashboard executivo** | KPIs, distribuição por setor/tipo, ranking de atribuições, evolução diária |
 | **Entradas e saídas** | Comparativo de fluxo entre snapshots consecutivos |
 | **Produtividade** | Processos recebidos, finalizados e tempo médio por servidor |
+| **Tempo de permanência** | Lead time estimado dos processos que saíram da carteira, com média, mediana, P90, faixas por duração e ranking por setor |
 | **Atribuições** | Carteira completa com flags de criticidade por tempo (6 faixas até 90d+) |
 | **Servidores** | Balanceamento de carga, classificação de sobrecarga, perfil longitudinal |
 | **Múltiplos setores** | Detecção de processos em mais de um setor no mesmo dia |
@@ -106,7 +107,7 @@ Por padrão, o frontend local usa o proxy do Vite para encaminhar `/api` para `h
 | `AUTO_IMPORT_SAMPLE_DATA` | `false` em produção |
 | `ANALYTICS_LOOKBACK_DAYS` | Janela máxima de histórico analítico (padrão: 120 dias). `0` = sem limite |
 | `DISABLE_STARTUP_PRECOMPUTE` | `false` em produção. `true` desliga o aquecimento de cache na inicialização |
-| `PRECOMPUTE_HEAVY_ANALYTICS` | `false` por padrão. `true` inclui endpoints pesados de histórico completo no precompute |
+| `PRECOMPUTE_HEAVY_ANALYTICS` | `false` por padrão. `true` inclui endpoints pesados de histórico completo no precompute, como processos parados, atribuições e lead time |
 | `PRECOMPUTE_COOLDOWN_SECS` | Intervalo mínimo entre precomputes consecutivos (padrão: 120 s) |
 | `APP_TIMEZONE` | Fuso usado em checagens operacionais. Padrão: `America/Fortaleza` |
 | `DATA_FRESHNESS_OK_MAX_DAYS` | Idade máxima para considerar o dado atualizado. Padrão: `3` |
@@ -132,7 +133,7 @@ Por padrão, o frontend local usa o proxy do Vite para encaminhar `/api` para `h
 |---|---|---|
 | `keep-alive` | A cada 10 min | Pinga `/api/ping` para manter o Render ativo (sem cold start) |
 | `daily-upload` | Seg–Sex 19:00 BRT | Upload automático de todos os setores do SEI |
-| `daily-report` | Seg–Sex 19:30 BRT | E-mail diário com ativos, fluxo por setor e alertas de críticos |
+| `daily-report` | Seg–Sex 19:30 BRT | E-mail diário com ativos, fluxo por setor e alertas de críticos. Antes de enviar, confirma se o `daily-upload` do dia concluiu com sucesso |
 | `weekly-report` | Sex 20:00 BRT | Relatório gerencial completo por e-mail |
 | `critical-alerts` | Sex 21:00 BRT | Alerta de processos críticos (só envia se houver) |
 
