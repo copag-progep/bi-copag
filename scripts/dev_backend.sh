@@ -93,5 +93,6 @@ echo "Login local padrão: ${DEFAULT_ADMIN_EMAIL:-admin.local@ufc.br} / ${DEFAUL
   --reload-exclude "node_modules/*" \
   --reload-exclude "frontend/node_modules/*" \
   --reload-exclude "frontend/dist/*" \
+  --loop asyncio \
   --host 127.0.0.1 \
   --port 8000
