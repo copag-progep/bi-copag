@@ -1,3 +1,4 @@
+"""Importação de snapshots CSV do SEI: leitura, normalização, dedup por hash e persistência no banco."""
 from __future__ import annotations
 
 import hashlib

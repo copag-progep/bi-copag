@@ -1,3 +1,4 @@
+"""Indicadores mensais do SEI: importação via CSV, upsert individual e validação de período/indicador."""
 from __future__ import annotations
 
 import unicodedata

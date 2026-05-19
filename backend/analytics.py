@@ -98,6 +98,7 @@ def clear_analytics_cache() -> None:
 
 
 def _uploads_signature(db: Session) -> tuple[object, ...]:
+    """Retorna uma tupla (total, max_id, max_timestamp) usada como chave de invalidação do cache."""
     global _SIG_CACHE
     now = time.monotonic()
     if _SIG_CACHE is not None and now - _SIG_CACHE[1] < _SIG_TTL:
@@ -125,6 +126,7 @@ def _cached_response(
     filters: AnalyticsFilters | None,
     builder: Callable[[], dict],
 ) -> dict:
+    """Retorna resposta do cache ou executa builder e armazena. Invalida automaticamente quando uploads mudam."""
     key = (
         cache_name,
         _uploads_signature(db),
@@ -240,6 +242,7 @@ def _available_dates(db: Session, filters: AnalyticsFilters | None = None) -> li
 
 
 def _resolve_reference_date(db: Session, filters: AnalyticsFilters) -> date | None:
+    """Determina a data de referência: a solicitada (ou a mais recente disponível) dentro dos filtros."""
     dates = _available_dates(db, filters)
     if not dates:
         return None
@@ -276,6 +279,7 @@ def _load_dataframe(
     upto_reference: bool = True,
     apply_lookback: bool = True,
 ) -> tuple[pd.DataFrame, date | None, list[date]]:
+    """Carrega processos do banco como DataFrame, resolve data de referência e lista de datas disponíveis."""
     # apply_lookback=False preserva histórico completo para analytics que calculam
     # duração de processos (stale, atribuições, perfil de servidor).
     effective = _effective_filters(filters) if apply_lookback else filters
@@ -327,6 +331,7 @@ def _assignments_by_date_and_atribuicao(frame: pd.DataFrame) -> dict[tuple[date,
 
 
 def _span_record(start: dict, end: dict, available_dates: list[date], idx_map: dict[date, int]) -> dict:
+    """Monta um registro de permanência (span) a partir de dois pontos extremos de presença consecutiva."""
     start_day = start.get("report_day") or pd.Timestamp(start["data_relatorio"]).date()
     end_day = end.get("report_day") or pd.Timestamp(end["data_relatorio"]).date()
     end_idx = idx_map[end_day]
@@ -349,6 +354,11 @@ def _span_record(start: dict, end: dict, available_dates: list[date], idx_map: d
 
 
 def _build_presence_spans(frame: pd.DataFrame, available_dates: list[date]) -> pd.DataFrame:
+    """Detecta intervalos contínuos de presença de cada processo em cada setor.
+
+    Um gap de 1+ dia no índice de datas disponíveis encerra o span atual e inicia outro.
+    Spans abertos (última presença = último snapshot) indicam processos ainda ativos no setor.
+    """
     if frame.empty or not available_dates:
         return pd.DataFrame(
             columns=[
@@ -402,6 +412,7 @@ def _previous_date(available_dates: list[date], reference_date: date | None) -> 
 
 
 def get_dashboard_data(db: Session, filters: AnalyticsFilters) -> dict:
+    """KPIs, distribuição por setor/tipo/atribuição e evolução diária de processos ativos."""
     def build() -> dict:
         frame, reference_date, available_dates = _load_dataframe(db, filters, fields=SPAN_FIELDS)
         current = _snapshot(frame, reference_date)
@@ -448,6 +459,7 @@ def get_dashboard_data(db: Session, filters: AnalyticsFilters) -> dict:
 
 
 def get_entries_exits_data(db: Session, filters: AnalyticsFilters) -> dict:
+    """Fluxo de entradas e saídas por setor entre snapshots consecutivos."""
     def build() -> dict:
         frame, reference_date, available_dates = _load_dataframe(db, filters, fields=FLOW_FIELDS)
         previous_date = _previous_date(available_dates, reference_date)
@@ -504,6 +516,7 @@ def get_entries_exits_data(db: Session, filters: AnalyticsFilters) -> dict:
 
 
 def get_productivity_data(db: Session, filters: AnalyticsFilters) -> dict:
+    """Produtividade por servidor: produzidos (saíram da carteira), entradas, saldo e ranking do período."""
     def build() -> dict:
         frame, reference_date, available_dates = _load_dataframe(db, filters, fields=ASSIGNMENT_FIELDS)
         previous_date = _previous_date(available_dates, reference_date)
@@ -639,6 +652,7 @@ def get_productivity_data(db: Session, filters: AnalyticsFilters) -> dict:
 
 
 def get_stale_processes_data(db: Session, filters: AnalyticsFilters) -> dict:
+    """Processos parados: spans abertos ordenados por dias sem movimentação."""
     def build() -> dict:
         frame, reference_date, available_dates = _load_dataframe(
             db, filters, fields=SPAN_FIELDS, apply_lookback=False
@@ -677,6 +691,7 @@ def get_stale_processes_data(db: Session, filters: AnalyticsFilters) -> dict:
 
 
 def get_multi_sector_data(db: Session, filters: AnalyticsFilters) -> dict:
+    """Processos presentes em mais de um setor no mesmo snapshot (possíveis duplicidades)."""
     def build() -> dict:
         search_filters = AnalyticsFilters(
             data_referencia=filters.data_referencia,
@@ -712,6 +727,7 @@ def get_multi_sector_data(db: Session, filters: AnalyticsFilters) -> dict:
 
 
 def get_attributions_data(db: Session, filters: AnalyticsFilters) -> dict:
+    """Carteira de atribuições ativas com dias de permanência por setor (usa índice por setor, não global)."""
     def build() -> dict:
         frame, reference_date, available_dates = _load_dataframe(
             db, filters, fields=ATTRIBUTION_FIELDS, apply_lookback=False

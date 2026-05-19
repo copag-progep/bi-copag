@@ -1,3 +1,4 @@
+"""Schemas Pydantic para validação de entrada e serialização de resposta da API."""
 from datetime import date, datetime
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field

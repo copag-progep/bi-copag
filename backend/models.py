@@ -1,3 +1,4 @@
+"""Modelos SQLAlchemy — espelham os dados exportados do SEI e entidades de suporte do AnalyticSEI."""
 from datetime import date, datetime, timezone
 
 from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint
@@ -25,10 +26,10 @@ class Upload(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     setor: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
-    data_relatorio: Mapped[date] = mapped_column(Date, nullable=False, index=True)
+    data_relatorio: Mapped[date] = mapped_column(Date, nullable=False, index=True)  # data do CSV exportado do SEI
     data_upload: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
     original_filename: Mapped[str] = mapped_column(String(255), nullable=False)
-    file_hash: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    file_hash: Mapped[str] = mapped_column(String(128), nullable=False, index=True)  # SHA-256, usado para dedup
     total_records: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
     processos: Mapped[list["Processo"]] = relationship(
@@ -46,20 +47,20 @@ class Processo(Base):
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
-    source_row_id: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    source_row_id: Mapped[str | None] = mapped_column(String(50), nullable=True)  # ID da linha no CSV original
     protocolo: Mapped[str] = mapped_column(String(120), nullable=False, index=True)
-    atribuicao: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
-    atribuicao_normalizada: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
+    atribuicao: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)  # texto bruto do SEI
+    atribuicao_normalizada: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)  # nome canônico via DE-PARA (sei_users)
     tipo: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
     especificacao: Mapped[str | None] = mapped_column(Text, nullable=True)
-    ponto_controle: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    data_autuacao: Mapped[date | None] = mapped_column(Date, nullable=True)
-    data_recebimento: Mapped[date | None] = mapped_column(Date, nullable=True)
-    data_envio: Mapped[date | None] = mapped_column(Date, nullable=True)
+    ponto_controle: Mapped[str | None] = mapped_column(String(255), nullable=True)  # etapa do workflow no SEI
+    data_autuacao: Mapped[date | None] = mapped_column(Date, nullable=True)  # data de abertura do processo
+    data_recebimento: Mapped[date | None] = mapped_column(Date, nullable=True)  # chegada no setor atual
+    data_envio: Mapped[date | None] = mapped_column(Date, nullable=True)  # envio para outro setor
     unidade_envio: Mapped[str | None] = mapped_column(String(255), nullable=True)
     observacoes: Mapped[str | None] = mapped_column(Text, nullable=True)
-    setor: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
-    data_relatorio: Mapped[date] = mapped_column(Date, nullable=False, index=True)
+    setor: Mapped[str] = mapped_column(String(80), nullable=False, index=True)  # divisão da COPAG (DIAPE, DICAT, etc.)
+    data_relatorio: Mapped[date] = mapped_column(Date, nullable=False, index=True)  # data do snapshot CSV
     upload_id: Mapped[int] = mapped_column(ForeignKey("uploads.id", ondelete="CASCADE"), nullable=False)
 
     upload: Mapped["Upload"] = relationship("Upload", back_populates="processos")
@@ -69,10 +70,10 @@ class SeiUser(Base):
     __tablename__ = "sei_users"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
-    nome: Mapped[str] = mapped_column(String(255), nullable=False)
-    nome_sei: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    usuario_sei: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    nome_key: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    nome: Mapped[str] = mapped_column(String(255), nullable=False)  # nome canônico (exibido nos relatórios)
+    nome_sei: Mapped[str | None] = mapped_column(String(255), nullable=True)  # nome como aparece no SEI (pode diferir)
+    usuario_sei: Mapped[str | None] = mapped_column(String(255), nullable=True)  # login do SEI
+    nome_key: Mapped[str] = mapped_column(String(255), nullable=False, index=True)  # nome normalizado (casefold, sem acentos) para lookup
     nome_sei_key: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
     usuario_sei_key: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
@@ -101,13 +102,13 @@ class MonthlyStat(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     setor: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
-    indicador: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    indicador: Mapped[str] = mapped_column(String(255), nullable=False, index=True)  # ex: "Processos gerados no período"
     valor: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    mes_ano: Mapped[str] = mapped_column(String(20), nullable=False)
-    mes: Mapped[str] = mapped_column(String(40), nullable=False)
+    mes_ano: Mapped[str] = mapped_column(String(20), nullable=False)  # label curto: "mai/26"
+    mes: Mapped[str] = mapped_column(String(40), nullable=False)  # label completo: "maio"
     num_mes: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
     ano: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
-    periodo: Mapped[date] = mapped_column(Date, nullable=False, index=True)
+    periodo: Mapped[date] = mapped_column(Date, nullable=False, index=True)  # primeiro dia do mês (para ordenação)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime,

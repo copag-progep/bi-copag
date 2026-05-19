@@ -1,3 +1,4 @@
+"""DE-PARA de servidores do SEI: normaliza nomes, resolve atribuições canônicas e sincroniza processos."""
 from __future__ import annotations
 
 import re
