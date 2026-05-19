@@ -124,11 +124,11 @@ export default function ExecutivePage() {
     };
   }, []);
 
-  if (dashboard.loading || flow.loading || stale.loading || leadTime.loading) {
+  if (dashboard.loading || flow.loading || stale.loading) {
     return <LoadingBlock label="Montando central executiva..." />;
   }
 
-  const firstError = dashboard.error || flow.error || stale.error || leadTime.error;
+  const firstError = dashboard.error || flow.error || stale.error;
   if (firstError) {
     return (
       <ErrorBlock
