@@ -85,4 +85,13 @@ fi
 
 echo "Subindo API local em http://127.0.0.1:8000"
 echo "Login local padrão: ${DEFAULT_ADMIN_EMAIL:-admin.local@ufc.br} / ${DEFAULT_ADMIN_PASSWORD:-admin123}"
-.venv/bin/uvicorn backend.main:app --reload --reload-dir backend --host 127.0.0.1 --port 8000
+.venv/bin/uvicorn backend.main:app \
+  --reload \
+  --reload-dir backend \
+  --reload-exclude ".venv/*" \
+  --reload-exclude ".venv.*-backup-*/*" \
+  --reload-exclude "node_modules/*" \
+  --reload-exclude "frontend/node_modules/*" \
+  --reload-exclude "frontend/dist/*" \
+  --host 127.0.0.1 \
+  --port 8000
