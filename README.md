@@ -53,6 +53,18 @@ Todo push para `main` dispara deploy automático no Render e no Vercel.
 
 ## Desenvolvimento local
 
+Guia completo: **[docs/AMBIENTE_LOCAL.md](docs/AMBIENTE_LOCAL.md)**
+
+Fluxo recomendado para validação antes de commit/push:
+
+```bash
+cp .env.local.example .env.local
+./scripts/dev_backend.sh
+./scripts/dev_frontend.sh
+```
+
+Depois acesse `http://127.0.0.1:5173`.
+
 ### Backend
 
 ```bash
@@ -73,6 +85,8 @@ npm run dev
 ```
 
 Frontend disponível em `http://localhost:5173`
+
+Por padrão, o frontend local usa o proxy do Vite para encaminhar `/api` para `http://127.0.0.1:8000`.
 
 ---
 
