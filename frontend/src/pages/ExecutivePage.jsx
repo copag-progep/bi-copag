@@ -106,8 +106,12 @@ export default function ExecutivePage() {
   const params = toQueryParams();
   const dashboard = useAnalyticsData("/analytics/dashboard", params);
   const flow = useAnalyticsData("/analytics/entries-exits", params);
-  const stale = useAnalyticsData("/analytics/stale", params);
-  const leadTime = useAnalyticsData("/analytics/lead-time", params);
+  const baseReady = !dashboard.loading && !flow.loading && !dashboard.error && !flow.error;
+  const stale = useAnalyticsData("/analytics/stale", params, { enabled: baseReady, timeout: 120_000 });
+  const leadTime = useAnalyticsData("/analytics/lead-time", params, {
+    enabled: baseReady && !stale.loading,
+    timeout: 120_000,
+  });
   const [freshness, setFreshness] = useState(null);
 
   useEffect(() => {
@@ -124,11 +128,11 @@ export default function ExecutivePage() {
     };
   }, []);
 
-  if (dashboard.loading || flow.loading || stale.loading) {
+  if (dashboard.loading || flow.loading) {
     return <LoadingBlock label="Montando central executiva..." />;
   }
 
-  const firstError = dashboard.error || flow.error || stale.error;
+  const firstError = dashboard.error || flow.error;
   if (firstError) {
     return (
       <ErrorBlock

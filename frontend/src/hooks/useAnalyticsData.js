@@ -45,7 +45,9 @@ export function clearAnalyticsCache() {
   }
 }
 
-export function useAnalyticsData(endpoint, params) {
+export function useAnalyticsData(endpoint, params, options = {}) {
+  const enabled = options.enabled ?? true;
+  const timeout = options.timeout;
   const cacheKey = getCacheKey(endpoint, params);
 
   const [data, setData] = useState(null);
@@ -56,6 +58,15 @@ export function useAnalyticsData(endpoint, params) {
 
   useEffect(() => {
     let cancelled = false;
+
+    if (!enabled) {
+      setLoading(false);
+      setStale(false);
+      setError("");
+      return () => {
+        cancelled = true;
+      };
+    }
 
     const cached = readCache(cacheKey);
     if (cached) {
@@ -72,7 +83,7 @@ export function useAnalyticsData(endpoint, params) {
 
     function doFetch(attempt) {
       api
-        .get(endpoint, { params })
+        .get(endpoint, { params, timeout })
         .then((response) => {
           if (!cancelled) {
             setData(response.data);
@@ -105,7 +116,7 @@ export function useAnalyticsData(endpoint, params) {
     return () => {
       cancelled = true;
     };
-  }, [cacheKey, retryCount]);
+  }, [cacheKey, retryCount, enabled, timeout]);
 
   return {
     data,

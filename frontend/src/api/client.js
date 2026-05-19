@@ -3,7 +3,7 @@ import axios from "axios";
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || "/api",
-  timeout: 30_000,
+  timeout: 90_000,
 });
 
 api.interceptors.request.use((config) => {

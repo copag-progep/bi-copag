@@ -79,6 +79,7 @@ DEFAULT_ADMIN_EMAIL = os.getenv("DEFAULT_ADMIN_EMAIL", "andersoncfs@ufc.br")
 DEFAULT_ADMIN_PASSWORD = os.getenv("DEFAULT_ADMIN_PASSWORD", "admin123")
 CORS_ORIGINS = os.getenv("CORS_ORIGINS", "")
 DISABLE_STARTUP_PRECOMPUTE = os.getenv("DISABLE_STARTUP_PRECOMPUTE", "false").lower() == "true"
+PRECOMPUTE_HEAVY_ANALYTICS = os.getenv("PRECOMPUTE_HEAVY_ANALYTICS", "false").lower() in {"1", "true", "yes", "on"}
 LOCAL_TIMEZONE = ZoneInfo(os.getenv("APP_TIMEZONE", "America/Fortaleza"))
 FRESHNESS_OK_MAX_DAYS = int(os.getenv("DATA_FRESHNESS_OK_MAX_DAYS", "3"))
 FRESHNESS_CRITICAL_DAYS = int(os.getenv("DATA_FRESHNESS_CRITICAL_DAYS", "7"))
@@ -122,10 +123,11 @@ _PRECOMPUTE_COOLDOWN = float(os.getenv("PRECOMPUTE_COOLDOWN_SECS", "120"))
 
 
 def precompute_analytics() -> None:
-    """Pré-computa todos os endpoints analíticos com filtros padrão.
+    """Pré-computa endpoints analíticos leves com filtros padrão.
 
-    Libera a conexão do pool entre cada endpoint para não monopolizar
-    o pool durante o cold start (quando requests do usuário competem).
+    Por padrão, evita endpoints de duração/carteira completa porque eles leem o
+    histórico inteiro e podem disputar CPU/pool com requests reais no Render free.
+    Se necessário, PRECOMPUTE_HEAVY_ANALYTICS=true inclui esses endpoints.
     """
     global _precompute_running, _last_precompute_started
     import time as _time
@@ -143,12 +145,17 @@ def precompute_analytics() -> None:
             lambda db: get_dashboard_data(db, default_filters),
             lambda db: get_entries_exits_data(db, default_filters),
             lambda db: get_productivity_data(db, default_filters),
-            lambda db: get_stale_processes_data(db, default_filters),
-            lambda db: get_lead_time_data(db, default_filters),
             lambda db: get_multi_sector_data(db, default_filters),
-            lambda db: get_attributions_data(db, default_filters),
             lambda db: get_workload_balance(db, default_filters),
         ]
+        if PRECOMPUTE_HEAVY_ANALYTICS:
+            steps.extend(
+                [
+                    lambda db: get_stale_processes_data(db, default_filters),
+                    lambda db: get_lead_time_data(db, default_filters),
+                    lambda db: get_attributions_data(db, default_filters),
+                ]
+            )
         for step in steps:
             db = SessionLocal()
             try:

@@ -32,3 +32,7 @@ services:
         value: "120"
       - key: DISABLE_STARTUP_PRECOMPUTE
         value: "false"
+      - key: PRECOMPUTE_HEAVY_ANALYTICS
+        value: "false"
+      - key: PRECOMPUTE_COOLDOWN_SECS
+        value: "120"
