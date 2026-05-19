@@ -698,12 +698,15 @@ Esta é a estrutura principal do repositório, explicada por função.
 ```text
 bi-copag/
 ├── README.md
-├── ANALYTICSEI_APRESENTACAO_EQUIPE.md
-├── DEPLOY-MINIMO.md
 ├── Dockerfile
 ├── requirements.txt
 ├── render.yaml
 ├── alembic.ini
+├── docs/
+│   ├── AMBIENTE_LOCAL.md
+│   ├── DEPLOY-MINIMO.md
+│   ├── HANDOFF.md
+│   └── SEI_ANALYTICS_APRESENTACAO_EQUIPE.md
 ├── alembic/
 │   ├── env.py
 │   └── versions/

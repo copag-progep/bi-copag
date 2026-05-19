@@ -108,17 +108,23 @@ Ao subir a API novamente, as tabelas serão recriadas e o usuário admin local s
 
 ## Como Testar Mudanças Antes Do Push
 
-Fluxo recomendado:
+Fluxo recomendado e padrão do projeto:
 
 ```text
 1. Fazer alteração no código
 2. Rodar backend local
 3. Rodar frontend local
-4. Testar tela/fluxo no navegador
-5. Rodar validações
-6. Fazer commit
-7. Fazer push
+4. Alimentar o banco local com CSVs de teste, quando a tela depender de dados
+5. Testar tela/fluxo no navegador
+6. Rodar validações
+7. Fazer commit
+8. Fazer push
 ```
+
+Esse fluxo existe para evitar retrabalho em produção. Sempre que a alteração envolver
+interface, upload, filtros, cálculos ou relatórios, primeiro valide em
+`http://127.0.0.1:5173` usando o banco SQLite local. Só depois de confirmar o
+comportamento no ambiente local a alteração deve ser enviada para o GitHub.
 
 Validações úteis:
 
@@ -137,6 +143,10 @@ python3 -c "import py_compile; py_compile.compile('scripts/daily_report.py', cfi
 ## Testando Uploads Localmente
 
 Para testar telas e cálculos com dados, use a tela **Enviar Relatório** no frontend local e envie CSVs de teste.
+
+Esse é o caminho recomendado para simular dados antes de publicar mudanças. Os
+uploads feitos em `http://127.0.0.1:5173` ficam apenas no banco SQLite local
+`backend/data/analyticsei-local.db` e não alteram o banco de produção da Aiven.
 
 Evite usar o upload automático real do SEI para testes locais sem necessidade. O objetivo do ambiente local é validar a aplicação, não executar automações contra o SEI.
 

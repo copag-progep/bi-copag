@@ -1,3 +1,11 @@
+#!/usr/bin/env python3
+"""Migração de dados entre bancos PostgreSQL compatíveis (ex: Neon → Aiven).
+
+Uso:
+    SOURCE_DATABASE_URL='postgresql+psycopg://...' \\
+    TARGET_DATABASE_URL='postgresql+psycopg://...' \\
+    python scripts/migrate_postgres.py [--truncate-target]
+"""
 import argparse
 import os
 from collections.abc import Iterable

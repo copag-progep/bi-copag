@@ -1090,14 +1090,17 @@ bi-copag/
 ├── .dockerignore
 ├── .env.example
 ├── .gitignore
-├── DEPLOY-MINIMO.md
 ├── Dockerfile
-├── HANDOFF.md
 ├── README.md
 ├── package.json
 ├── render.yaml
 ├── requirements.txt
 ├── vercel.json
+├── docs/
+│   ├── AMBIENTE_LOCAL.md
+│   ├── DEPLOY-MINIMO.md
+│   ├── HANDOFF.md
+│   └── SEI_ANALYTICS_APRESENTACAO_EQUIPE.md
 ├── backend/
 │   ├── __init__.py
 │   ├── analytics.py

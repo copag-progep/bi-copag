@@ -1,3 +1,14 @@
+<#
+.SYNOPSIS
+    Publica o AnalyticSEI em um repositório GitHub via API, sem precisar de git instalado.
+
+.DESCRIPTION
+    Envia cada arquivo do projeto (lista $allowedPaths) para o repositório via PUT /contents.
+    Útil em máquinas Windows sem git ou para publicar em um fork limpo.
+
+.EXAMPLE
+    .\scripts\publish-github.ps1 -Repo "usuario/repo" -Token "ghp_..." -Branch "main"
+#>
 param(
     [Parameter(Mandatory = $true)]
     [string]$Repo,
@@ -15,12 +26,12 @@ $ErrorActionPreference = "Stop"
 $projectRoot = Split-Path -Parent $PSScriptRoot
 $allowedPaths = @(
     "backend",
+    "docs",
     "frontend",
     "scripts",
     ".dockerignore",
     ".env.example",
     ".gitignore",
-    "DEPLOY-MINIMO.md",
     "Dockerfile",
     "README.md",
     "package.json",
