@@ -29,6 +29,12 @@ cp frontend/.env.local.example frontend/.env.local
 
 Não coloque credenciais reais da produção nesses arquivos. Eles são ignorados pelo Git.
 
+Se editar valores com espaço no `.env.local`, use aspas. Exemplo:
+
+```bash
+DEFAULT_ADMIN_NAME="Administrador Local"
+```
+
 ## Rodando o Backend
 
 Em um terminal:
