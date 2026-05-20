@@ -16,6 +16,9 @@ const NIVEL_LABEL = {
 
 const NUMBER_FORMATTER = new Intl.NumberFormat("pt-BR");
 function fmt(v) { return NUMBER_FORMATTER.format(Number(v || 0)); }
+function rowId(proc) {
+  return `${proc.protocolo}|${proc.setor}|${proc.entrada_setor || ""}`;
+}
 
 function RiskBadge({ nivel }) {
   return <span className={`risk-badge risk-badge-${nivel}`}>{NIVEL_LABEL[nivel] || nivel}</span>;
@@ -125,8 +128,8 @@ export default function RiscoPage() {
     ? all
     : all.filter((p) => p.nivel === nivelFiltro);
 
-  function toggleRow(protocolo) {
-    setExpanded((prev) => (prev === protocolo ? null : protocolo));
+  function toggleRow(id) {
+    setExpanded((prev) => (prev === id ? null : id));
   }
 
   return (
@@ -192,34 +195,37 @@ export default function RiscoPage() {
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((proc) => (
-                  <Fragment key={proc.protocolo}>
-                    <tr
-                      className={`risk-row ${expanded === proc.protocolo ? "risk-row-open" : ""}`}
-                      onClick={() => toggleRow(proc.protocolo)}
-                      title="Clique para ver detalhes do score"
-                    >
-                      <td className="risk-protocolo">{proc.protocolo}</td>
-                      <td>{proc.setor}</td>
-                      <td>
-                        {proc.atribuicao
-                          ? proc.atribuicao
-                          : <span className="risk-sem-atrib">Sem atribuição</span>}
-                      </td>
-                      <td>{proc.tipo || "—"}</td>
-                      <td><strong>{fmt(proc.dias_no_setor)}</strong></td>
-                      <td><ScoreBar score={proc.score} nivel={proc.nivel} /></td>
-                      <td><RiskBadge nivel={proc.nivel} /></td>
-                    </tr>
-                    {expanded === proc.protocolo && (
-                      <tr className="risk-breakdown-row">
-                        <td colSpan={7}>
-                          <ProcessBreakdown proc={proc} />
+                {filtered.map((proc) => {
+                  const id = rowId(proc);
+                  return (
+                    <Fragment key={id}>
+                      <tr
+                        className={`risk-row ${expanded === id ? "risk-row-open" : ""}`}
+                        onClick={() => toggleRow(id)}
+                        title="Clique para ver detalhes do score"
+                      >
+                        <td className="risk-protocolo">{proc.protocolo}</td>
+                        <td>{proc.setor}</td>
+                        <td>
+                          {proc.atribuicao
+                            ? proc.atribuicao
+                            : <span className="risk-sem-atrib">Sem atribuição</span>}
                         </td>
+                        <td>{proc.tipo || "—"}</td>
+                        <td><strong>{fmt(proc.dias_no_setor)}</strong></td>
+                        <td><ScoreBar score={proc.score} nivel={proc.nivel} /></td>
+                        <td><RiskBadge nivel={proc.nivel} /></td>
                       </tr>
-                    )}
-                  </Fragment>
-                ))}
+                      {expanded === id && (
+                        <tr className="risk-breakdown-row">
+                          <td colSpan={7}>
+                            <ProcessBreakdown proc={proc} />
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
+                  );
+                })}
               </tbody>
             </table>
           </div>

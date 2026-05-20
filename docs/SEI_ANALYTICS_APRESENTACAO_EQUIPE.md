@@ -113,6 +113,22 @@ Essas estimativas usam regressão linear simples e histórico recente. Elas não
 
 Por isso, a interface usa linguagem cautelosa, como "se o ritmo atual se mantiver", e arredonda os números para evitar falsa precisão.
 
+### Score de Risco
+
+O Score de Risco organiza os processos por prioridade de atenção.
+
+Ele não avalia servidores. O score é calculado sobre o processo, combinando sinais como:
+
+- Tempo no setor.
+- Tempo em relação ao histórico de permanência.
+- Ausência de atribuição.
+- Presença em múltiplos setores.
+- Tendência do setor atual.
+
+O objetivo é ajudar o gestor a responder: "por onde começo?". Cada processo mostra uma explicação dos fatores que contribuíram para o score.
+
+Para evitar falsa precisão, a interface trabalha principalmente com níveis: Crítico, Elevado, Moderado e Normal. O número do score serve para ordenar processos dentro desses níveis.
+
 ### 3.4 Processos parados
 
 Mostra processos com maior tempo sem movimentação inferida no setor atual. A tela usa paginação para evitar listas muito longas e facilitar a navegação.
@@ -415,6 +431,7 @@ Ele guarda tanto dados operacionais, como processos e uploads, quanto dados admi
 |---|---|
 | Central Executiva | Visão rápida das prioridades do dia, saúde dos dados, tendências e tempo de permanência |
 | Dashboard | Visão geral da situação dos processos |
+| Score de Risco | Ranking de processos que merecem maior atenção, com explicação dos fatores |
 | Enviar Relatório | Upload manual e histórico de uploads |
 | Entradas e Saídas | Análise do fluxo diário por setor |
 | Produtividade | Análise de produção por atribuição |
@@ -587,7 +604,7 @@ Algumas análises que dependem do histórico completo, como processos parados, p
 
 Após uploads, o sistema pode aquecer os cálculos em segundo plano. Para evitar várias execuções pesadas em sequência, existe um intervalo mínimo entre precomputes.
 
-Hoje esse aquecimento roda em modo leve por padrão. Ele prioriza indicadores mais usados e evita recalcular automaticamente consultas históricas mais pesadas, como processos parados, atribuições e lead time.
+Hoje esse aquecimento roda em modo leve por padrão. Ele prioriza indicadores mais usados e evita recalcular automaticamente consultas históricas mais pesadas, como processos parados, atribuições, lead time, forecast e Score de Risco.
 
 Se for necessário incluir esses cálculos pesados no aquecimento automático, a variável `PRECOMPUTE_HEAVY_ANALYTICS` pode ser configurada como `true` no Render. O padrão recomendado continua sendo `false`, para reduzir consumo do banco e evitar lentidão.
 

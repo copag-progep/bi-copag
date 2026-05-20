@@ -81,9 +81,6 @@ DEFAULT_ADMIN_EMAIL = os.getenv("DEFAULT_ADMIN_EMAIL", "andersoncfs@ufc.br")
 DEFAULT_ADMIN_PASSWORD = os.getenv("DEFAULT_ADMIN_PASSWORD", "admin123")
 CORS_ORIGINS = os.getenv("CORS_ORIGINS", "")
 DISABLE_STARTUP_PRECOMPUTE = os.getenv("DISABLE_STARTUP_PRECOMPUTE", "false").lower() == "true"
-# Risk score é pesado (dispara stale + lead-time + multi-sector + forecast).
-# Incluso no precompute apenas quando PRECOMPUTE_HEAVY_ANALYTICS=true.
-PRECOMPUTE_HEAVY_ANALYTICS = os.getenv("PRECOMPUTE_HEAVY_ANALYTICS", "false").lower() == "true"
 PRECOMPUTE_HEAVY_ANALYTICS = os.getenv("PRECOMPUTE_HEAVY_ANALYTICS", "false").lower() in {"1", "true", "yes", "on"}
 LOCAL_TIMEZONE = ZoneInfo(os.getenv("APP_TIMEZONE", "America/Fortaleza"))
 FRESHNESS_OK_MAX_DAYS = int(os.getenv("DATA_FRESHNESS_OK_MAX_DAYS", "3"))

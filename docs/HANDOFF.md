@@ -550,6 +550,27 @@ Performance:
 - nao entra no `precompute_analytics()`
 - no frontend, carrega depois dos blocos principais da Central Executiva para reduzir concorrencia de consultas pesadas
 
+### 11.11 Score de Risco
+
+`get_risk_scores()` calcula uma prioridade de atencao por processo ativo.
+
+O score combina:
+
+- tempo absoluto no setor
+- tempo relativo ao P90 historico
+- ausencia de atribuicao
+- presenca em multiplos setores
+- multiplicador de tendencia do setor
+
+Regras metodologicas:
+
+- o score e sobre o processo, nao sobre o servidor atribuido
+- o P90 usa fallback setor -> tipo -> global
+- o P90 exige amostra minima configuravel por `RISK_MIN_LT_SAMPLE`
+- existe piso tecnico `RISK_MIN_P90_DAYS` para evitar que historicos muito curtos, como P90 de 1 dia, superdimensionem o risco relativo
+- pesos e thresholds sao configuraveis por variaveis `RISK_WEIGHT_*`, `RISK_TREND_*` e `RISK_*_THRESHOLD`
+- o endpoint e sob demanda e so entra em precompute se `PRECOMPUTE_HEAVY_ANALYTICS=true`
+
 
 ## 12. Indicadores mensais
 
@@ -633,6 +654,7 @@ As principais rotas estao em `backend/main.py`.
 - `GET /api/analytics/server-profile`
 - `GET /api/analytics/lead-time`
 - `GET /api/analytics/forecast`
+- `GET /api/analytics/risk-score`
 - `GET /api/alerts/summary`
 
 
@@ -697,6 +719,7 @@ Rotas principais:
 - `/processos-parados`
 - `/multiplos-setores`
 - `/atribuicoes`
+- `/risco`
 - `/servidores`
 - `/busca`
 - `/indicadores-mensais`
@@ -928,6 +951,24 @@ Consome:
 - `POST /admin/monthly-stats/month-entry`
 - `PATCH /admin/monthly-stats/{id}`
 
+### 19.12 Score de Risco
+
+Arquivo:
+
+- `frontend/src/pages/RiscoPage.jsx`
+
+Consome:
+
+- `/analytics/risk-score`
+
+Entrega:
+
+- ranking de processos por score
+- filtros por nivel de risco
+- indicadores de processos criticos, elevados e moderados
+- linha expansivel com contribuicao de cada fator
+- aviso explicito de que o score e do processo, nao do servidor
+
 
 ## 20. Graficos
 
@@ -971,6 +1012,18 @@ Variaveis relevantes:
 - `DATA_FRESHNESS_OK_MAX_DAYS`
 - `DATA_FRESHNESS_CRITICAL_DAYS`
 - `DATA_QUALITY_DROP_RATIO`
+- `RISK_WEIGHT_ABS`
+- `RISK_WEIGHT_REL`
+- `RISK_WEIGHT_UNASSIGNED`
+- `RISK_WEIGHT_MULTI_SECTOR`
+- `RISK_TREND_UP`
+- `RISK_TREND_STABLE`
+- `RISK_TREND_DOWN`
+- `RISK_CRITICAL_THRESHOLD`
+- `RISK_HIGH_THRESHOLD`
+- `RISK_MODERATE_THRESHOLD`
+- `RISK_MIN_LT_SAMPLE`
+- `RISK_MIN_P90_DAYS`
 
 Observacao:
 

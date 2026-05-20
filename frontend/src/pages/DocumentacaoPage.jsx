@@ -18,6 +18,7 @@ const FEATURES = [
   { icon: "⚡", title: "Produtividade", desc: "Processos recebidos, finalizados e tempo médio por servidor" },
   { icon: "⏱️", title: "Tempo de permanência", desc: "Lead time estimado com média, mediana, P90, faixas por duração e ranking por setor" },
   { icon: "📈", title: "Tendências estimadas", desc: "Forecasting simples com projeção de estoque ativo, tendência por setor e estimativa de críticos" },
+  { icon: "🛡️", title: "Score de Risco", desc: "Ranking de processos por prioridade de atenção, com breakdown dos fatores do score" },
   { icon: "📋", title: "Atribuições", desc: "Carteira completa com flags de criticidade (6 faixas até 90d+)" },
   { icon: "⚖️", title: "Servidores", desc: "Balanceamento de carga, sobrecarga e perfil longitudinal" },
   { icon: "🔀", title: "Múltiplos setores", desc: "Detecção de processos em mais de um setor no mesmo dia" },
@@ -258,6 +259,7 @@ export default function DocumentacaoPage() {
                 ["GET", "/api/analytics/server-profile", "Perfil longitudinal de servidor"],
                 ["GET", "/api/analytics/lead-time", "Lead time estimado: média, mediana, P90, faixas por duração e rankings por setor/tipo/atribuição"],
                 ["GET", "/api/analytics/forecast", "Tendências estimadas: projeção de estoque ativo, saldo setorial e processos em envelhecimento"],
+                ["GET", "/api/analytics/risk-score", "Score de Risco por processo: nível, fatores explicativos e ranking de prioridade"],
                 ["GET", "/api/alerts/summary", "Resumo de processos críticos (sino in-app)"],
               ]},
               { group: "Outros", endpoints: [
@@ -289,7 +291,7 @@ export default function DocumentacaoPage() {
               <strong>Cache analítico:</strong> todos os endpoints analíticos usam cache em memória.
               Chave: (endpoint + assinatura_uploads + filtros). Invalidado automaticamente após
               qualquer upload. O pré-aquecimento em background roda em modo leve por padrão:
-              endpoints históricos pesados, como processos parados, atribuições e lead time, só
+              endpoints históricos pesados, como processos parados, atribuições, lead time, forecast e Score de Risco, só
               entram no precompute se <code>PRECOMPUTE_HEAVY_ANALYTICS=true</code>.
             </Callout>
           </DocSection>
@@ -313,6 +315,7 @@ export default function DocumentacaoPage() {
                 { icon: "⚡", title: "/produtividade", desc: "Produção estimada, ranking acumulado e evolução histórica por servidor" },
                 { icon: "🔀", title: "/multiplos-setores", desc: "Protocolos presentes em mais de um setor no mesmo snapshot" },
                 { icon: "📋", title: "/atribuicoes", desc: "Carteira com 6 faixas de criticidade, busca, filtros server-side, exportação PDF e Excel" },
+                { icon: "🛡️", title: "/risco", desc: "Ranking de Score de Risco por processo, filtros por nível e explicação dos fatores" },
                 { icon: "⚖️", title: "/servidores", desc: "Balanceamento de carga + perfil longitudinal individual por servidor" },
                 { icon: "📅", title: "/indicadores-mensais", desc: "Dashboard histórico + importação de CSV + lançamento manual mensal" },
                 { icon: "🔍", title: "/busca", desc: "Histórico completo de movimentações de um protocolo específico" },
@@ -392,12 +395,17 @@ export default function DocumentacaoPage() {
                 ["AUTO_IMPORT_SAMPLE_DATA", "false em produção"],
                 ["ANALYTICS_LOOKBACK_DAYS", "Janela máxima de histórico analítico (padrão: 120 dias). 0 = sem limite."],
                 ["DISABLE_STARTUP_PRECOMPUTE", "false em produção. true desliga o aquecimento de cache na inicialização."],
-                ["PRECOMPUTE_HEAVY_ANALYTICS", "false por padrão. true inclui endpoints pesados de histórico completo no precompute, como processos parados, atribuições e lead time."],
+                ["PRECOMPUTE_HEAVY_ANALYTICS", "false por padrão. true inclui endpoints pesados no precompute, como processos parados, atribuições, lead time, forecast e Score de Risco."],
                 ["PRECOMPUTE_COOLDOWN_SECS", "Intervalo mínimo entre precomputes consecutivos (padrão: 120 s)."],
                 ["APP_TIMEZONE", "Fuso usado em checagens operacionais. Padrão: America/Fortaleza."],
                 ["DATA_FRESHNESS_OK_MAX_DAYS", "Idade máxima para considerar o dado atualizado. Padrão: 3 dias."],
                 ["DATA_FRESHNESS_CRITICAL_DAYS", "Idade a partir da qual o dado fica crítico. Padrão: 7 dias."],
                 ["DATA_QUALITY_DROP_RATIO", "Queda mínima de volume para alerta simples de qualidade. Padrão: 0.6."],
+                ["RISK_WEIGHT_*", "Pesos do Score de Risco: tempo absoluto, contexto histórico, sem atribuição e múltiplos setores."],
+                ["RISK_TREND_*", "Multiplicadores do Score de Risco conforme tendência do setor."],
+                ["RISK_*_THRESHOLD", "Limiares de classificação do Score de Risco: crítico, elevado e moderado."],
+                ["RISK_MIN_LT_SAMPLE", "Amostra mínima para usar P90 de lead time no Score de Risco. Padrão: 5."],
+                ["RISK_MIN_P90_DAYS", "Piso técnico do P90 usado no Score de Risco. Padrão: 7 dias."],
               ]}
             />
             <h3>GitHub Secrets</h3>
@@ -469,7 +477,7 @@ export default function DocumentacaoPage() {
               { title: "Infraestrutura e qualidade", items: ["Alembic para migrações formais com auto-stamp","Log de auditoria em tabela dedicada","Lifespan context manager (substituiu @app.on_event)","datetime.now(timezone.utc) (substituiu utcnow)","sync_processo_atribuicoes com SQL UPDATE em lote","Cache analítico com invalidação automática","Pré-aquecimento leve do cache em background, com endpoints históricos pesados controlados por PRECOMPUTE_HEAVY_ANALYTICS","Healthcheck com verificação do banco","Endpoint /api/health/data-freshness + badge no topo para avisar dado velho, setor ausente/defasado e queda simples de volume"] },
               { title: "Identidade visual Progep/UFC", items: ["Paleta: navy #273168 · laranja #f39320 · amarelo #febb12 · azul #81c7ee","Fonte Plus Jakarta Sans","Sidebar redesenhada com ícones SVG e chip do usuário","Topbar com título dinâmico por rota","StatCards com hover e estrutura vertical","LoginPage com dois painéis e stats decorativos"] },
               { title: "Performance", items: ["React.lazy + Suspense para code splitting por rota","preconnect e dns-prefetch para o backend","LoadingBlock com spinner e mensagem de servidor iniciando","useAnalyticsData hook com cache stale-while-revalidate (TTL 5 min)","clearAnalyticsCache chamado após upload"] },
-              { title: "Analíticas avançadas", items: ["Central Executiva com prioridades do dia, saúde dos dados, sparklines dos KPIs principais e carregamento escalonado","Lead time estimado dos processos que saíram da carteira, com média, mediana, P90, faixas por duração e ranking por setor/tipo/atribuição","Tendências estimadas com regressão linear simples, projeção de estoque ativo em 15/30 dias, tendência por setor e estimativa de críticos","Página Atribuições com spans consecutivos por setor, 6 faixas de criticidade, filtros server-side, busca por protocolo","Exportação PDF com identidade visual (jsPDF + jspdf-autotable)","Exportação Excel (SheetJS)","Página Servidores: balanceamento por desvio-padrão + perfil longitudinal","Busca global de processo com histórico de movimentações","Filtro Sem atribuição no FilterBar global","Indicadores mensais com dashboard e lançamento manual"] },
+              { title: "Analíticas avançadas", items: ["Central Executiva com prioridades do dia, saúde dos dados, sparklines dos KPIs principais e carregamento escalonado","Lead time estimado dos processos que saíram da carteira, com média, mediana, P90, faixas por duração e ranking por setor/tipo/atribuição","Tendências estimadas com regressão linear simples, projeção de estoque ativo em 15/30 dias, tendência por setor e estimativa de críticos","Score de Risco por processo com pesos configuráveis, P90 com piso técnico e explicação por fator","Página Atribuições com spans consecutivos por setor, 6 faixas de criticidade, filtros server-side, busca por protocolo","Exportação PDF com identidade visual (jsPDF + jspdf-autotable)","Exportação Excel (SheetJS)","Página Servidores: balanceamento por desvio-padrão + perfil longitudinal","Busca global de processo com histórico de movimentações","Filtro Sem atribuição no FilterBar global","Indicadores mensais com dashboard e lançamento manual"] },
               { title: "Automação (Bloco 4)", items: ["API key para uploads sem JWT","Script SEI Scraper (Playwright headless): login, troca de setor por JS, coleta todas as páginas","Workflow daily-upload (19:00 BRT) com notificação de falha","Workflow daily-report (19:30 BRT) bloqueado por check_daily_upload_success.py quando o upload do dia não concluiu com sucesso","Workflow weekly-report (sexta 20:00 BRT)","Script de alertas com anti-spam (não envia se sem críticos)","Workflow critical-alerts (sexta 21:00 BRT)"] },
               { title: "Alertas e notificações (Bloco 1)", items: ["Endpoint /api/alerts/summary (leve, usa cache)","Sino de notificações na topbar: badge, dropdown top-8, link para /atribuicoes","E-mail de alertas: cards por faixa, tabela dos críticos, destaque para >90d","Não envia e-mail se nenhum processo crítico"] },
               { title: "Segurança e acesso", items: ["Troca de senha pelo próprio usuário (valida senha atual)","DE-PARA com normalização de identidade (sem acentos, lowercase, case-insensitive)","Autenticação dual (JWT ou API key) nos endpoints analíticos","Página Minha conta com informações e formulário de troca de senha"] },

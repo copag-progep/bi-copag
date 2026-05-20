@@ -17,6 +17,7 @@ Plataforma web de Business Intelligence desenvolvida para a **COPAG (Coordenador
 | **Produtividade** | Processos recebidos, finalizados e tempo médio por servidor |
 | **Tempo de permanência** | Lead time estimado dos processos que saíram da carteira, com média, mediana, P90, faixas por duração e ranking por setor |
 | **Tendências estimadas** | Forecasting simples na Central Executiva: projeção de estoque ativo, tendência por setor e estimativa de críticos |
+| **Score de Risco** | Ranking de processos por prioridade de atenção, com explicação dos fatores do score |
 | **Atribuições** | Carteira completa com flags de criticidade por tempo (6 faixas até 90d+) |
 | **Servidores** | Balanceamento de carga, classificação de sobrecarga, perfil longitudinal |
 | **Múltiplos setores** | Detecção de processos em mais de um setor no mesmo dia |
@@ -108,12 +109,17 @@ Por padrão, o frontend local usa o proxy do Vite para encaminhar `/api` para `h
 | `AUTO_IMPORT_SAMPLE_DATA` | `false` em produção |
 | `ANALYTICS_LOOKBACK_DAYS` | Janela máxima de histórico analítico (padrão: 120 dias). `0` = sem limite |
 | `DISABLE_STARTUP_PRECOMPUTE` | `false` em produção. `true` desliga o aquecimento de cache na inicialização |
-| `PRECOMPUTE_HEAVY_ANALYTICS` | `false` por padrão. `true` inclui endpoints pesados de histórico completo no precompute, como processos parados, atribuições e lead time |
+| `PRECOMPUTE_HEAVY_ANALYTICS` | `false` por padrão. `true` inclui endpoints pesados no precompute, como processos parados, atribuições, lead time, forecast e Score de Risco |
 | `PRECOMPUTE_COOLDOWN_SECS` | Intervalo mínimo entre precomputes consecutivos (padrão: 120 s) |
 | `APP_TIMEZONE` | Fuso usado em checagens operacionais. Padrão: `America/Fortaleza` |
 | `DATA_FRESHNESS_OK_MAX_DAYS` | Idade máxima para considerar o dado atualizado. Padrão: `3` |
 | `DATA_FRESHNESS_CRITICAL_DAYS` | Idade a partir da qual o dado fica crítico. Padrão: `7` |
 | `DATA_QUALITY_DROP_RATIO` | Queda mínima de volume para alerta simples de qualidade. Padrão: `0.6` |
+| `RISK_WEIGHT_*` | Pesos do Score de Risco: tempo absoluto, contexto histórico, sem atribuição e múltiplos setores |
+| `RISK_TREND_*` | Multiplicadores do Score de Risco conforme tendência do setor |
+| `RISK_*_THRESHOLD` | Limiares de classificação do Score de Risco: crítico, elevado e moderado |
+| `RISK_MIN_LT_SAMPLE` | Amostra mínima para usar P90 de lead time no Score de Risco. Padrão: `5` |
+| `RISK_MIN_P90_DAYS` | Piso técnico do P90 usado no Score de Risco, evitando superpeso de históricos muito curtos. Padrão: `7` |
 
 ### GitHub Secrets (automação)
 

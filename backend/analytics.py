@@ -104,6 +104,7 @@ _RISK_THR_CRITICAL = float(os.getenv("RISK_CRITICAL_THRESHOLD", "0.70"))
 _RISK_THR_HIGH     = float(os.getenv("RISK_HIGH_THRESHOLD",     "0.45"))
 _RISK_THR_MODERATE = float(os.getenv("RISK_MODERATE_THRESHOLD", "0.20"))
 _RISK_MIN_SAMPLE   = int(os.getenv("RISK_MIN_LT_SAMPLE",        "5"))
+_RISK_MIN_P90_DAYS = float(os.getenv("RISK_MIN_P90_DAYS",       "7"))
 _RISK_ABS_NORM     = 90  # dias considerados como 100% no fator de tempo absoluto
 
 
@@ -1055,6 +1056,11 @@ def get_lead_time_data(db: Session, filters: AnalyticsFilters) -> dict:
             "ranking_setor": ranking_setor,
             "ranking_tipo": ranking_tipo,
             "ranking_atribuicao": ranking_atribuicao,
+            "p90_lookup": {
+                "setor": _lead_time_p90_lookup(closed, "setor"),
+                "tipo": _lead_time_p90_lookup(closed, "tipo"),
+                "global": {"p90_dias": kpis["p90_dias"], "finalizados": kpis["finalizados"]},
+            },
         }
 
     return _cached_response(db, "lead-time", filters, build)
@@ -1080,6 +1086,20 @@ def _lead_time_ranking(closed: pd.DataFrame, group_col: str, top_n: int = 10) ->
     ]
 
 
+def _lead_time_p90_lookup(closed: pd.DataFrame, group_col: str) -> dict[str, dict]:
+    """Mapa completo de P90 por grupo, usado por analytics derivados como risk-score."""
+    grouped = closed.groupby(group_col)["duracao_dias"]
+    counts = grouped.count()
+    p90s = grouped.quantile(0.90)
+    return {
+        str(label): {
+            "p90_dias": round(float(p90s.loc[label]), 1),
+            "finalizados": int(counts.loc[label]),
+        }
+        for label in p90s.index
+    }
+
+
 def _empty_lead_time(reference_date: date | None) -> dict:
     """Resposta padrão quando não há spans fechados para calcular lead time."""
     return {
@@ -1103,6 +1123,7 @@ def _empty_lead_time(reference_date: date | None) -> dict:
         "ranking_setor": [],
         "ranking_tipo": [],
         "ranking_atribuicao": [],
+        "p90_lookup": {"setor": {}, "tipo": {}, "global": {"p90_dias": 0, "finalizados": 0}},
     }
 
 
@@ -1335,17 +1356,29 @@ def get_risk_scores(db: Session, filters: AnalyticsFilters) -> dict:
 
         # ── P90 lookup com fallback: setor → tipo → global ────────────────
         lt = get_lead_time_data(db, filters)
+        p90_lookup = lt.get("p90_lookup") or {}
+        setor_source = p90_lookup.get("setor") or {
+            item["label"]: item for item in lt.get("ranking_setor", [])
+        }
+        tipo_source = p90_lookup.get("tipo") or {
+            item["label"]: item for item in lt.get("ranking_tipo", [])
+        }
         setor_p90: dict[str, float] = {
-            item["label"]: float(item["p90_dias"])
-            for item in lt.get("ranking_setor", [])
+            label: float(item["p90_dias"])
+            for label, item in setor_source.items()
             if item.get("finalizados", 0) >= _RISK_MIN_SAMPLE and item.get("p90_dias", 0) > 0
         }
         tipo_p90: dict[str, float] = {
-            item["label"]: float(item["p90_dias"])
-            for item in lt.get("ranking_tipo", [])
+            label: float(item["p90_dias"])
+            for label, item in tipo_source.items()
             if item.get("finalizados", 0) >= _RISK_MIN_SAMPLE and item.get("p90_dias", 0) > 0
         }
-        global_p90: float | None = lt.get("kpis", {}).get("p90_dias") or None
+        global_stats = p90_lookup.get("global") or lt.get("kpis", {})
+        global_p90: float | None = (
+            float(global_stats.get("p90_dias"))
+            if global_stats.get("finalizados", 0) >= _RISK_MIN_SAMPLE and global_stats.get("p90_dias", 0) > 0
+            else None
+        )
         lt_coverage = bool(setor_p90 or tipo_p90 or global_p90)
 
         def _lookup_p90(setor: str, tipo: str) -> tuple[float | None, str | None]:
@@ -1390,8 +1423,15 @@ def get_risk_scores(db: Session, filters: AnalyticsFilters) -> dict:
             # Fator 2 — tempo relativo ao P90 histórico (hierarquia setor→tipo→global)
             p90, p90_fonte = _lookup_p90(setor, tipo)
             if p90 and p90 > 0:
-                f_rel = min(dias / p90, 2.0) / 2.0
-                p90_detalhe = f"{dias}d vs P90 ({p90_fonte}) de {round(p90)}d"
+                p90_efetivo = max(p90, _RISK_MIN_P90_DAYS)
+                f_rel = min(dias / p90_efetivo, 2.0) / 2.0
+                if p90_efetivo > p90:
+                    p90_detalhe = (
+                        f"{dias}d vs P90 ({p90_fonte}) de {round(p90)}d "
+                        f"(piso técnico {round(_RISK_MIN_P90_DAYS)}d aplicado)"
+                    )
+                else:
+                    p90_detalhe = f"{dias}d vs P90 ({p90_fonte}) de {round(p90)}d"
             else:
                 f_rel = 0.0
                 p90_fonte = None
