@@ -13,7 +13,7 @@ from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy import func, text
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from .analytics import (
     AnalyticsFilters,
@@ -52,6 +52,9 @@ from .schemas import (
     MonthlyStatMonthEntry,
     MonthlyStatRead,
     MonthlyStatUpdate,
+    SeiUserAliasCreate,
+    SeiUserAliasResult,
+    SeiUserAttributionCandidate,
     SeiUserBulkImport,
     SeiUserCreate,
     SeiUserImportResult,
@@ -66,9 +69,12 @@ from .schemas import (
     UserRead,
 )
 from .sei_users import (
+    add_sei_user_alias,
     delete_sei_user,
+    delete_sei_user_alias,
     import_sei_users_file,
     import_sei_users_rows,
+    list_attribution_candidates,
     needs_processo_atribuicoes_sync,
     sync_processo_atribuicoes,
     upsert_sei_user,
@@ -581,7 +587,15 @@ def list_sei_users(
     _: User = Depends(get_current_admin_user),
     db: Session = Depends(get_db),
 ) -> list[SeiUser]:
-    return db.query(SeiUser).order_by(SeiUser.nome.asc()).all()
+    return db.query(SeiUser).options(selectinload(SeiUser.aliases)).order_by(SeiUser.nome.asc()).all()
+
+
+@app.get("/api/admin/sei-users/attribution-candidates", response_model=list[SeiUserAttributionCandidate])
+def list_sei_user_attribution_candidates(
+    _: User = Depends(get_current_admin_user),
+    db: Session = Depends(get_db),
+) -> list[dict[str, object]]:
+    return list_attribution_candidates(db)
 
 
 @app.post("/api/admin/sei-users", response_model=SeiUserRead, status_code=status.HTTP_201_CREATED)
@@ -598,6 +612,49 @@ def create_sei_user(
     clear_analytics_cache()
     background_tasks.add_task(precompute_analytics)
     return sei_user
+
+
+@app.post("/api/admin/sei-users/{sei_user_id}/aliases", response_model=SeiUserAliasResult)
+def create_sei_user_alias(
+    sei_user_id: int,
+    payload: SeiUserAliasCreate,
+    background_tasks: BackgroundTasks,
+    current_admin: User = Depends(get_current_admin_user),
+    db: Session = Depends(get_db),
+) -> SeiUserAliasResult:
+    result = add_sei_user_alias(db, sei_user_id, payload.alias, merge_existing=payload.merge_existing)
+    changed = sync_processo_atribuicoes(db)
+    _log_audit(
+        db,
+        action="sei_usuario.unificado" if result.get("merged_user") else "sei_usuario.alias_adicionado",
+        entity_type="sei_usuario",
+        entity_id=str(sei_user_id),
+        details={
+            "usuario_principal": result.get("target_user"),
+            "alias": result.get("alias"),
+            "usuario_unificado": result.get("merged_user"),
+            "processos_atualizados": changed,
+        },
+        user=current_admin,
+    )
+    db.commit()
+    clear_analytics_cache()
+    background_tasks.add_task(precompute_analytics)
+
+    if result.get("merged_user"):
+        message = (
+            f"Historico de {result['merged_user']} unido a {result['target_user']}. "
+            f"{changed} processos foram ressincronizados."
+        )
+    else:
+        message = f"Alias historico {result['alias']} vinculado com sucesso."
+
+    return SeiUserAliasResult(
+        message=message,
+        alias=str(result["alias"]),
+        merged_user=result.get("merged_user"),
+        changed_processes=changed,
+    )
 
 
 @app.post("/api/admin/sei-users/import", response_model=SeiUserImportResult, status_code=status.HTTP_201_CREATED)
@@ -642,6 +699,29 @@ def remove_sei_user(
     clear_analytics_cache()
     background_tasks.add_task(precompute_analytics)
     return {"message": f"Usuario SEI {name} excluido com sucesso."}
+
+
+@app.delete("/api/admin/sei-users/aliases/{alias_id}")
+def remove_sei_user_alias(
+    alias_id: int,
+    background_tasks: BackgroundTasks,
+    current_admin: User = Depends(get_current_admin_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    alias = delete_sei_user_alias(db, alias_id)
+    changed = sync_processo_atribuicoes(db)
+    _log_audit(
+        db,
+        action="sei_usuario.alias_removido",
+        entity_type="sei_usuario_alias",
+        entity_id=str(alias_id),
+        details={"alias": alias, "processos_atualizados": changed},
+        user=current_admin,
+    )
+    db.commit()
+    clear_analytics_cache()
+    background_tasks.add_task(precompute_analytics)
+    return {"message": f"Alias historico {alias} removido com sucesso."}
 
 
 @app.get("/api/monthly-stats")

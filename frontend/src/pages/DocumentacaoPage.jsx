@@ -83,6 +83,7 @@ const MANUTENCAO = [
   { title: "Corrigir data de upload", desc: "Em Enviar Relatório, clicar em Editar data na linha do upload. O sistema verifica conflitos automaticamente." },
   { title: "Remover snapshot incorreto", desc: "Em Enviar Relatório, clicar em Excluir. Todos os processos daquele snapshot são removidos." },
   { title: "Adicionar servidor ao DE-PARA", desc: "Em Usuários SEI, preencher o formulário. A plataforma sincroniza todos os processos históricos automaticamente." },
+  { title: "Unir nomes históricos de servidor", desc: "Em Usuários SEI, escolher o usuário principal e informar o nome antigo ou alternativo. O alias passa a consolidar filtros, gráficos e rankings sem alterar o texto bruto importado do SEI." },
   { title: "Criar novo usuário", desc: "Em Administração, preencher o formulário com nome, e-mail, senha e nível de acesso (admin ou não)." },
   { title: "Lançar indicadores mensais", desc: "Em Indicadores Mensais → aba Atualização mensal, selecionar setor, ano e mês, preencher os 6 indicadores." },
   { title: "Verificar processos críticos", desc: "O sino na topbar mostra a contagem de processos ≥45d. Clicar abre o resumo. Detalhes completos em /atribuicoes." },
@@ -199,13 +200,14 @@ export default function DocumentacaoPage() {
 
           {/* 04 */}
           <DocSection id="s04" num="04" eyebrow="Banco de dados" title="Modelo de dados">
-            <p>6 tabelas gerenciadas pelo Alembic. Na inicialização, o backend executa <code>alembic upgrade head</code> automaticamente.</p>
+            <p>7 tabelas gerenciadas pelo Alembic. Na inicialização, o backend executa <code>alembic upgrade head</code> automaticamente.</p>
 
             {[
               { name: "users", desc: "Usuários da aplicação AnalyticSEI", rows: [["id","Integer PK","Identificador único"],["name","String(120)","Nome completo"],["email","String(255) unique","E-mail de login"],["password_hash","String(255)","Hash bcrypt da senha"],["is_admin","Boolean","Privilégios administrativos"],["created_at","DateTime","Data de criação"]] },
               { name: "uploads", desc: "Metadados de cada snapshot CSV importado. Unicidade: setor + data_relatorio + file_hash.", rows: [["id","Integer PK",""],["setor","String(80)","Sigla do setor (ex: DIAPE)"],["data_relatorio","Date","Data do relatório no SEI"],["data_upload","DateTime","Quando foi importado"],["original_filename","String(255)","Nome do arquivo CSV"],["file_hash","String(128)","SHA-256 (evita duplicatas)"],["total_records","Integer","Quantidade de processos"]] },
               { name: "processos", desc: "Linhas importadas dos CSVs. Unicidade: protocolo + setor + data_relatorio.", rows: [["id","Integer PK",""],["protocolo","String(120)","Número do processo SEI"],["atribuicao","String(255)","Nome original no CSV"],["atribuicao_normalizada","String(255)","Nome canônico após DE-PARA"],["tipo","String(255)","Tipo do processo"],["setor","String(80)","Setor"],["data_relatorio","Date","Data do snapshot"],["upload_id","FK → uploads",""]] },
               { name: "sei_users", desc: "DE-PARA entre variações de nome de um servidor e seu nome canônico.", rows: [["id","Integer PK",""],["nome","String(255)","Nome canônico"],["nome_sei","String(255)","Como aparece no CSV"],["usuario_sei","String(255)","Login no SEI"],["nome_key / nome_sei_key / usuario_sei_key","String(255)","Versões normalizadas (sem acentos, lowercase)"]] },
+              { name: "sei_user_aliases", desc: "Aliases históricos ou alternativos vinculados a um usuário SEI canônico.", rows: [["id","Integer PK",""],["sei_user_id","FK → sei_users","Usuário principal"],["alias","String(255)","Nome antigo ou alternativo"],["alias_key","String(255) unique","Versão normalizada usada no lookup"],["created_at","DateTime","Data de criação"]] },
               { name: "monthly_stats", desc: "Indicadores mensais. Unicidade: setor + indicador + ano + num_mes.", rows: [["id","Integer PK",""],["setor","String(80)",""],["indicador","String(255)",""],["valor","Integer",""],["mes / num_mes / ano / periodo","—","Campos de período"]] },
               { name: "audit_logs", desc: "Registro de todas as ações críticas realizadas no sistema.", rows: [["id","Integer PK",""],["action","String(100)","Código da ação"],["entity_type / entity_id","String","Objeto afetado"],["details","Text","JSON com detalhes"],["user_email / user_name","String","Responsável pela ação"],["created_at","DateTime",""]] },
             ].map(({ name, desc, rows }) => (
@@ -321,7 +323,7 @@ export default function DocumentacaoPage() {
                 { icon: "🔍", title: "/busca", desc: "Histórico completo de movimentações de um protocolo específico" },
                 { icon: "👤", title: "/minha-conta", desc: "Informações do usuário + formulário de troca de senha" },
                 { icon: "⚙️", title: "/administracao", desc: "Gestão de usuários + log de auditoria paginado (admin only)" },
-                { icon: "🔗", title: "/usuarios-sei", desc: "DE-PARA de nomes + importação em lote (admin only)" },
+                { icon: "🔗", title: "/usuarios-sei", desc: "DE-PARA de nomes, aliases históricos e importação em lote (admin only)" },
               ].map((p, i) => <FeatureCard key={i} {...p} />)}
             </div>
 
@@ -480,7 +482,7 @@ export default function DocumentacaoPage() {
               { title: "Analíticas avançadas", items: ["Central Executiva com prioridades do dia, saúde dos dados, sparklines dos KPIs principais e carregamento escalonado","Lead time estimado dos processos que saíram da carteira, com média, mediana, P90, faixas por duração e ranking por setor/tipo/atribuição","Tendências estimadas com regressão linear simples, projeção de estoque ativo em 15/30 dias, tendência por setor e estimativa de críticos","Score de Risco por processo com pesos configuráveis, P90 com piso técnico e explicação por fator","Página Atribuições com spans consecutivos por setor, 6 faixas de criticidade, filtros server-side, busca por protocolo","Exportação PDF com identidade visual (jsPDF + jspdf-autotable)","Exportação Excel (SheetJS)","Página Servidores: balanceamento por desvio-padrão + perfil longitudinal","Busca global de processo com histórico de movimentações","Filtro Sem atribuição no FilterBar global","Indicadores mensais com dashboard e lançamento manual"] },
               { title: "Automação (Bloco 4)", items: ["API key para uploads sem JWT","Script SEI Scraper (Playwright headless): login, troca de setor por JS, coleta todas as páginas","Workflow daily-upload (19:00 BRT) com notificação de falha","Workflow daily-report (19:30 BRT) bloqueado por check_daily_upload_success.py quando o upload do dia não concluiu com sucesso","Workflow weekly-report (sexta 20:00 BRT)","Script de alertas com anti-spam (não envia se sem críticos)","Workflow critical-alerts (sexta 21:00 BRT)"] },
               { title: "Alertas e notificações (Bloco 1)", items: ["Endpoint /api/alerts/summary (leve, usa cache)","Sino de notificações na topbar: badge, dropdown top-8, link para /atribuicoes","E-mail de alertas: cards por faixa, tabela dos críticos, destaque para >90d","Não envia e-mail se nenhum processo crítico"] },
-              { title: "Segurança e acesso", items: ["Troca de senha pelo próprio usuário (valida senha atual)","DE-PARA com normalização de identidade (sem acentos, lowercase, case-insensitive)","Autenticação dual (JWT ou API key) nos endpoints analíticos","Página Minha conta com informações e formulário de troca de senha"] },
+              { title: "Segurança e acesso", items: ["Troca de senha pelo próprio usuário (valida senha atual)","DE-PARA com normalização de identidade (sem acentos, lowercase, case-insensitive) e aliases históricos para consolidar nomes alterados ao longo do tempo","Autenticação dual (JWT ou API key) nos endpoints analíticos","Página Minha conta com informações e formulário de troca de senha"] },
             ].map(({ title, items }) => (
               <div key={title}>
                 <h3>{title}</h3>

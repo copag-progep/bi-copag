@@ -78,6 +78,30 @@ class SeiUser(Base):
     usuario_sei_key: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
 
+    aliases: Mapped[list["SeiUserAlias"]] = relationship(
+        "SeiUserAlias",
+        back_populates="user",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        order_by="SeiUserAlias.alias",
+    )
+
+
+class SeiUserAlias(Base):
+    __tablename__ = "sei_user_aliases"
+    __table_args__ = (
+        UniqueConstraint("alias_key", name="uq_sei_user_alias_key"),
+        Index("ix_sei_user_aliases_user_id_alias_key", "sei_user_id", "alias_key"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    sei_user_id: Mapped[int] = mapped_column(ForeignKey("sei_users.id", ondelete="CASCADE"), nullable=False, index=True)
+    alias: Mapped[str] = mapped_column(String(255), nullable=False)
+    alias_key: Mapped[str] = mapped_column(String(255), nullable=False, unique=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+
+    user: Mapped["SeiUser"] = relationship("SeiUser", back_populates="aliases")
+
 
 class AuditLog(Base):
     __tablename__ = "audit_logs"

@@ -94,14 +94,25 @@ function formatDateTime(value) {
   }).format(parsed);
 }
 
+function formatDate(value) {
+  if (!value) {
+    return "-";
+  }
+
+  return new Intl.DateTimeFormat("pt-BR", { timeZone: "UTC" }).format(new Date(`${value}T00:00:00Z`));
+}
+
 
 export default function SeiUsersPage() {
   const { user } = useAuth();
   const [seiUsers, setSeiUsers] = useState([]);
+  const [attributionCandidates, setAttributionCandidates] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [aliasSaving, setAliasSaving] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
+  const [deletingAliasId, setDeletingAliasId] = useState(null);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [importFile, setImportFile] = useState(null);
@@ -109,6 +120,10 @@ export default function SeiUsersPage() {
     nome: "",
     nome_sei: "",
     usuario_sei: "",
+  });
+  const [aliasForm, setAliasForm] = useState({
+    targetId: "",
+    alias: "",
   });
 
   if (!user?.is_admin) {
@@ -119,8 +134,12 @@ export default function SeiUsersPage() {
     setLoading(true);
     setError("");
     try {
-      const { data } = await api.get("/admin/sei-users");
-      setSeiUsers(data);
+      const [usersResponse, candidatesResponse] = await Promise.all([
+        api.get("/admin/sei-users"),
+        api.get("/admin/sei-users/attribution-candidates"),
+      ]);
+      setSeiUsers(usersResponse.data);
+      setAttributionCandidates(candidatesResponse.data);
     } catch (requestError) {
       setError(requestError.response?.data?.detail || "Falha ao carregar a base de usuários SEI.");
     } finally {
@@ -204,6 +223,59 @@ export default function SeiUsersPage() {
     }
   }
 
+  async function handleAliasSubmit(event) {
+    event.preventDefault();
+    if (!aliasForm.targetId || !aliasForm.alias.trim()) {
+      setError("Escolha o usuário principal e informe o nome histórico que deve ser unido.");
+      return;
+    }
+
+    setAliasSaving(true);
+    setMessage("");
+    setError("");
+
+    try {
+      const { data } = await api.post(`/admin/sei-users/${aliasForm.targetId}/aliases`, {
+        alias: aliasForm.alias,
+        merge_existing: true,
+      });
+      setMessage(data.message || "Histórico unido com sucesso.");
+      setAliasForm({ targetId: aliasForm.targetId, alias: "" });
+      await loadSeiUsers();
+    } catch (requestError) {
+      setError(requestError.response?.data?.detail || "Não foi possível unir os históricos de atribuição.");
+    } finally {
+      setAliasSaving(false);
+    }
+  }
+
+  async function handleDeleteAlias(alias) {
+    const confirmed = window.confirm(
+      `Deseja remover o alias histórico ${alias.alias}? Os processos voltarão a seguir o DE-PARA disponível para esse nome.`
+    );
+    if (!confirmed) {
+      return;
+    }
+
+    setDeletingAliasId(alias.id);
+    setMessage("");
+    setError("");
+
+    try {
+      const { data } = await api.delete(`/admin/sei-users/aliases/${alias.id}`);
+      setMessage(data.message || "Alias histórico removido com sucesso.");
+      await loadSeiUsers();
+    } catch (requestError) {
+      setError(requestError.response?.data?.detail || "Não foi possível remover o alias histórico.");
+    } finally {
+      setDeletingAliasId(null);
+    }
+  }
+
+  const selectedCandidate = attributionCandidates.find(
+    (candidate) => candidate.atribuicao === aliasForm.alias
+  );
+
   return (
     <div className="page-grid">
       <section className="hero-panel">
@@ -268,6 +340,68 @@ export default function SeiUsersPage() {
       <section className="panel">
         <div className="panel-header">
           <div>
+            <h3>Unir históricos de atribuição</h3>
+            <p>
+              Use quando a mesma pessoa aparecer com nomes diferentes ao longo dos snapshots. O sistema preserva o nome
+              bruto do SEI e passa a consolidar os indicadores no nome principal escolhido.
+            </p>
+          </div>
+        </div>
+        <form className="form-grid" onSubmit={handleAliasSubmit}>
+          <label className="field">
+            <span>Usuário principal</span>
+            <select
+              value={aliasForm.targetId}
+              onChange={(event) => setAliasForm((current) => ({ ...current, targetId: event.target.value }))}
+              required
+            >
+              <option value="">Selecione</option>
+              {seiUsers.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.nome}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="field">
+            <span>Nome histórico ou alternativo</span>
+            <input
+              type="text"
+              list="sei-attribution-candidates"
+              value={aliasForm.alias}
+              onChange={(event) => setAliasForm((current) => ({ ...current, alias: event.target.value }))}
+              placeholder="Ex.: ANA CRISTINA CAMINHA VIANA LOPES"
+              required
+            />
+            <datalist id="sei-attribution-candidates">
+              {attributionCandidates.map((candidate) => (
+                <option key={candidate.atribuicao} value={candidate.atribuicao} />
+              ))}
+            </datalist>
+          </label>
+
+          <div className="alias-candidate-note">
+            <span>Prévia do histórico</span>
+            {selectedCandidate ? (
+              <strong>
+                {selectedCandidate.total_processos} registros entre {formatDate(selectedCandidate.primeira_data)} e{" "}
+                {formatDate(selectedCandidate.ultima_data)}
+              </strong>
+            ) : (
+              <strong>Digite ou escolha uma atribuição já encontrada nos relatórios.</strong>
+            )}
+          </div>
+
+          <button type="submit" className="primary-button" disabled={aliasSaving}>
+            {aliasSaving ? "Unindo..." : "Unir histórico"}
+          </button>
+        </form>
+      </section>
+
+      <section className="panel">
+        <div className="panel-header">
+          <div>
             <h3>Importar planilha de usuários SEI</h3>
             <p>
               Envie arquivos .xls, .xlsx ou .csv com as colunas NOME, NOME SEI e USUÁRIO SEI para atualizar a base em
@@ -308,6 +442,32 @@ export default function SeiUsersPage() {
               { key: "nome", label: "Nome" },
               { key: "nome_sei", label: "Nome SEI" },
               { key: "usuario_sei", label: "Usuário SEI" },
+              {
+                key: "aliases",
+                label: "Aliases históricos",
+                render: (aliases = []) => {
+                  if (!aliases.length) {
+                    return <span className="table-helper">-</span>;
+                  }
+                  return (
+                    <div className="alias-chip-list">
+                      {aliases.map((alias) => (
+                        <span key={alias.id} className="alias-chip">
+                          {alias.alias}
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteAlias(alias)}
+                            disabled={deletingAliasId === alias.id}
+                            aria-label={`Remover alias ${alias.alias}`}
+                          >
+                            x
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  );
+                },
+              },
               { key: "created_at", label: "Criado em", render: (value) => formatDateTime(value) },
               {
                 key: "actions",

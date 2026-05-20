@@ -79,6 +79,14 @@ class SeiUserCreate(BaseModel):
     usuario_sei: str | None = Field(default=None, max_length=255)
 
 
+class SeiUserAliasRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    alias: str
+    created_at: datetime
+
+
 class SeiUserRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -87,6 +95,27 @@ class SeiUserRead(BaseModel):
     nome_sei: str | None
     usuario_sei: str | None
     created_at: datetime
+    aliases: list[SeiUserAliasRead] = Field(default_factory=list)
+
+
+class SeiUserAliasCreate(BaseModel):
+    alias: str = Field(min_length=2, max_length=255)
+    merge_existing: bool = False
+
+
+class SeiUserAliasResult(BaseModel):
+    message: str
+    alias: str
+    merged_user: str | None = None
+    changed_processes: int = 0
+
+
+class SeiUserAttributionCandidate(BaseModel):
+    atribuicao: str
+    total_processos: int
+    primeira_data: date | None
+    ultima_data: date | None
+    atribuicao_normalizada: str | None = None
 
 
 class SeiUserImportResult(BaseModel):

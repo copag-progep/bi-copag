@@ -7,10 +7,10 @@ from io import BytesIO
 
 import pandas as pd
 from fastapi import HTTPException, status
-from sqlalchemy import or_, update
-from sqlalchemy.orm import Session
+from sqlalchemy import func, or_, update
+from sqlalchemy.orm import Session, selectinload
 
-from .models import Processo, SeiUser
+from .models import Processo, SeiUser, SeiUserAlias
 
 
 HEADER_ALIASES = {
@@ -75,11 +75,14 @@ def apply_mapping_keys(nome: object, nome_sei: object, usuario_sei: object) -> d
 
 def build_sei_user_lookup(db: Session) -> dict[str, str]:
     lookup: dict[str, str] = {}
-    users = db.query(SeiUser).order_by(SeiUser.nome.asc()).all()
+    users = db.query(SeiUser).options(selectinload(SeiUser.aliases)).order_by(SeiUser.nome.asc()).all()
     for user in users:
         for token in (user.nome_key, user.nome_sei_key, user.usuario_sei_key):
             if token:
                 lookup[token] = user.nome
+        for alias in user.aliases:
+            if alias.alias_key:
+                lookup[alias.alias_key] = user.nome
     return lookup
 
 
@@ -160,6 +163,162 @@ def _find_matching_users(db: Session, payload: dict[str, str | None]) -> list[Se
         return []
 
     return db.query(SeiUser).filter(or_(*filters)).all()
+
+
+def _user_identity_keys(user: SeiUser) -> set[str]:
+    return {key for key in (user.nome_key, user.nome_sei_key, user.usuario_sei_key) if key}
+
+
+def _find_user_by_identity_key(db: Session, key: str) -> SeiUser | None:
+    return (
+        db.query(SeiUser)
+        .filter(
+            or_(
+                SeiUser.nome_key == key,
+                SeiUser.nome_sei_key == key,
+                SeiUser.usuario_sei_key == key,
+            )
+        )
+        .first()
+    )
+
+
+def _attach_alias_value(db: Session, target: SeiUser, value: object) -> tuple[SeiUserAlias | None, bool]:
+    alias = clean_value(value)
+    alias_key = normalize_identity(alias)
+    if not alias or not alias_key or alias_key in _user_identity_keys(target):
+        return None, False
+
+    existing_alias = db.query(SeiUserAlias).filter(SeiUserAlias.alias_key == alias_key).first()
+    if existing_alias:
+        if existing_alias.sei_user_id != target.id:
+            existing_alias.sei_user_id = target.id
+        return existing_alias, False
+
+    alias_row = SeiUserAlias(user=target, alias=alias, alias_key=alias_key)
+    db.add(alias_row)
+    return alias_row, True
+
+
+def _merge_sei_user_into_target(db: Session, source: SeiUser, target: SeiUser) -> None:
+    for token in (source.nome, source.nome_sei, source.usuario_sei):
+        _attach_alias_value(db, target, token)
+
+    for alias in list(source.aliases):
+        if alias.alias_key in _user_identity_keys(target):
+            db.delete(alias)
+            continue
+
+        duplicate = (
+            db.query(SeiUserAlias)
+            .filter(SeiUserAlias.alias_key == alias.alias_key, SeiUserAlias.id != alias.id)
+            .first()
+        )
+        if duplicate:
+            db.delete(alias)
+        else:
+            alias.sei_user_id = target.id
+
+    db.delete(source)
+
+
+def add_sei_user_alias(
+    db: Session,
+    sei_user_id: int,
+    alias: object,
+    *,
+    merge_existing: bool = False,
+) -> dict[str, object]:
+    target = db.query(SeiUser).options(selectinload(SeiUser.aliases)).filter(SeiUser.id == sei_user_id).first()
+    if not target:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuario SEI nao encontrado.")
+
+    cleaned_alias = clean_value(alias)
+    alias_key = normalize_identity(cleaned_alias)
+    if not cleaned_alias or not alias_key:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Informe um nome historico valido.")
+
+    merged_user: str | None = None
+
+    existing_user = _find_user_by_identity_key(db, alias_key)
+    if existing_user and existing_user.id != target.id:
+        if not merge_existing:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=(
+                    f"O nome informado ja pertence ao usuario SEI {existing_user.nome}. "
+                    "Confirme a unificacao para prosseguir."
+                ),
+            )
+        merged_user = existing_user.nome
+        _merge_sei_user_into_target(db, existing_user, target)
+        db.flush()
+
+    existing_alias = db.query(SeiUserAlias).filter(SeiUserAlias.alias_key == alias_key).first()
+    if existing_alias and existing_alias.sei_user_id != target.id:
+        if not merge_existing:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Este alias historico ja esta vinculado a outro usuario SEI.",
+            )
+        source_user = existing_alias.user
+        merged_user = source_user.nome
+        _merge_sei_user_into_target(db, source_user, target)
+        db.flush()
+
+    alias_row, created = _attach_alias_value(db, target, cleaned_alias)
+    db.flush()
+
+    return {
+        "alias": cleaned_alias,
+        "alias_id": alias_row.id if alias_row else None,
+        "created": created,
+        "merged_user": merged_user,
+        "target_user": target.nome,
+    }
+
+
+def delete_sei_user_alias(db: Session, alias_id: int) -> str:
+    alias = db.query(SeiUserAlias).filter(SeiUserAlias.id == alias_id).first()
+    if not alias:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Alias historico nao encontrado.")
+
+    value = alias.alias
+    db.delete(alias)
+    db.commit()
+    return value
+
+
+def list_attribution_candidates(db: Session) -> list[dict[str, object]]:
+    lookup = build_sei_user_lookup(db)
+    rows = (
+        db.query(
+            Processo.atribuicao,
+            func.count(Processo.id),
+            func.min(Processo.data_relatorio),
+            func.max(Processo.data_relatorio),
+        )
+        .filter(Processo.atribuicao.is_not(None))
+        .group_by(Processo.atribuicao)
+        .order_by(Processo.atribuicao.asc())
+        .all()
+    )
+
+    candidates: list[dict[str, object]] = []
+    for atribuicao, total, primeira_data, ultima_data in rows:
+        cleaned = clean_value(atribuicao)
+        if not cleaned:
+            continue
+        candidates.append(
+            {
+                "atribuicao": cleaned,
+                "total_processos": int(total or 0),
+                "primeira_data": primeira_data,
+                "ultima_data": ultima_data,
+                "atribuicao_normalizada": resolve_atribuicao_canonica(cleaned, lookup),
+            }
+        )
+    return candidates
 
 
 def upsert_sei_user(db: Session, nome: object, nome_sei: object, usuario_sei: object) -> tuple[str, SeiUser]:

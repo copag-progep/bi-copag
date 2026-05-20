@@ -31,6 +31,9 @@ const ACTION_LABELS = {
   "sei_usuario.criado": { label: "DE-PARA criado",           color: "var(--success)" },
   "sei_usuario.excluido":{ label: "DE-PARA excluído",        color: "var(--danger)" },
   "sei_usuario.importado":{ label: "DE-PARA importado",      color: "var(--primary)" },
+  "sei_usuario.alias_adicionado":{ label: "Alias SEI adicionado", color: "var(--success)" },
+  "sei_usuario.alias_removido":{ label: "Alias SEI removido", color: "var(--danger)" },
+  "sei_usuario.unificado":{ label: "Histórico SEI unificado", color: "var(--accent-dark)" },
 };
 
 function ActionBadge({ action }) {

@@ -1920,6 +1920,75 @@ button, input, select { font: inherit; }
 
 .table-button:disabled { cursor: not-allowed; opacity: 0.5; transform: none; }
 
+.alias-candidate-note {
+  min-height: 100%;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--primary-light);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 6px;
+}
+
+.alias-candidate-note span {
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.alias-candidate-note strong {
+  color: var(--ink);
+  font-size: 0.86rem;
+  line-height: 1.35;
+}
+
+.alias-chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 220px;
+}
+
+.alias-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px 6px 10px;
+  border-radius: 999px;
+  background: rgba(39, 49, 104, 0.08);
+  border: 1px solid rgba(39, 49, 104, 0.14);
+  color: var(--primary);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.alias-chip button {
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(191, 53, 53, 0.1);
+  color: var(--danger);
+  cursor: pointer;
+  font-size: 0.75rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.alias-chip button:hover:not(:disabled) {
+  background: rgba(191, 53, 53, 0.18);
+}
+
+.alias-chip button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
 
 /* ══════════════════════════════════════════
    TABS
