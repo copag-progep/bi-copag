@@ -2170,11 +2170,10 @@ button, input, select { font: inherit; }
 }
 
 .ms-protocol {
-  font-family: "JetBrains Mono", "Fira Code", ui-monospace, monospace;
-  font-size: 0.82rem;
+  font-family: inherit;
+  font-size: 0.875rem;
   font-weight: 600;
   color: var(--ink);
-  letter-spacing: 0.01em;
 }
 
 .ms-tags {
