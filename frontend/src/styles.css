@@ -1387,6 +1387,279 @@ button, input, select { font: inherit; }
 
 
 /* ══════════════════════════════════════════
+   RISK SCORE — Score de Risco (Fase 5)
+══════════════════════════════════════════ */
+.risk-hero { align-items: flex-start; }
+
+.risk-hero-kpis {
+  display: flex;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.risk-hero-kpi {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 14px 20px;
+  border-radius: var(--radius);
+  background: rgba(255,255,255,.12);
+  min-width: 80px;
+}
+
+.risk-hero-kpi strong {
+  font-size: 1.6rem;
+  font-weight: 800;
+  line-height: 1;
+  color: #fff;
+}
+
+.risk-hero-kpi span {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: rgba(255,255,255,.75);
+}
+
+.risk-hero-kpi-critico  { background: rgba(191,53,53,.35); border: 1px solid rgba(191,53,53,.5); }
+.risk-hero-kpi-elevado  { background: rgba(212,117,14,.35); border: 1px solid rgba(212,117,14,.5); }
+.risk-hero-kpi-moderado { background: rgba(254,187,18,.25); border: 1px solid rgba(254,187,18,.4); }
+
+/* Coverage notice */
+.risk-coverage-notice {
+  padding: 12px 16px;
+  border-radius: var(--radius);
+  background: rgba(254,187,18,.1);
+  border: 1px solid rgba(254,187,18,.28);
+  color: #8a5b00;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+/* Filter pills */
+.risk-filter-section { padding: 14px 20px; }
+
+.risk-filter-pills {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.risk-filter-pill {
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  border: 1.5px solid var(--border);
+  background: var(--bg);
+  color: var(--muted);
+  cursor: pointer;
+  transition: all .15s;
+}
+
+.risk-filter-pill:hover  { border-color: var(--primary); color: var(--primary); }
+.risk-filter-pill.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+
+.pill-nivel-critico.active  { background: #bf3535; border-color: #bf3535; }
+.pill-nivel-elevado.active  { background: #d4750e; border-color: #d4750e; }
+.pill-nivel-moderado.active { background: #8a5b00; border-color: #8a5b00; }
+.pill-nivel-normal.active   { background: #1a7a50; border-color: #1a7a50; }
+
+/* Risk table */
+.risk-table { cursor: pointer; }
+
+.risk-row:hover { background: var(--primary-light); }
+
+.risk-row-open { background: var(--primary-light); }
+
+.risk-protocolo {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--primary);
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.risk-sem-atrib {
+  font-size: 0.75rem;
+  color: #bf3535;
+  font-weight: 700;
+}
+
+/* Score bar */
+.risk-score-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 90px;
+}
+
+.risk-score-bar > div {
+  flex: 1;
+  height: 10px;
+  border-radius: 999px;
+  background: var(--primary-light);
+  overflow: hidden;
+  position: relative;
+}
+
+.risk-score-fill {
+  height: 100%;
+  border-radius: 999px;
+  min-width: 2px;
+  transition: width .3s ease;
+}
+
+.risk-score-fill-critico  { background: linear-gradient(90deg, #bf3535, #e05555); }
+.risk-score-fill-elevado  { background: linear-gradient(90deg, #d4750e, #f39320); }
+.risk-score-fill-moderado { background: linear-gradient(90deg, #8a5b00, #febb12); }
+.risk-score-fill-normal   { background: linear-gradient(90deg, #1a7a50, #2aae74); }
+
+.risk-score-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--ink);
+  min-width: 24px;
+}
+
+/* Risk level badges */
+.risk-badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 10px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.risk-badge-critico  { background: rgba(191,53,53,.12); color: #bf3535; }
+.risk-badge-elevado  { background: rgba(212,117,14,.12); color: #d4750e; }
+.risk-badge-moderado { background: rgba(138,91,0,.1);   color: #8a5b00; }
+.risk-badge-normal   { background: rgba(26,122,80,.1);  color: #1a7a50; }
+
+/* Breakdown row */
+.risk-breakdown-row td { padding: 0 !important; border-top: none !important; }
+
+.risk-breakdown {
+  padding: 20px 24px;
+  background: var(--primary-light);
+  border-top: 2px solid var(--primary);
+}
+
+.risk-breakdown-intro {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.risk-breakdown-intro strong {
+  font-size: 1rem;
+  font-weight: 800;
+  color: var(--ink);
+}
+
+.risk-breakdown-intro span {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.risk-breakdown-factors {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.risk-factor-item {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+}
+
+.risk-factor-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.risk-factor-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.risk-factor-pts {
+  font-size: 0.75rem;
+  font-weight: 800;
+  color: var(--primary);
+}
+
+.risk-factor-track {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--primary-light);
+  overflow: hidden;
+  margin-bottom: 6px;
+}
+
+.risk-factor-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--primary);
+  min-width: 2px;
+  transition: width .3s ease;
+}
+
+.risk-factor-detail {
+  font-size: 0.72rem;
+  color: var(--muted);
+  margin: 0;
+  line-height: 1.4;
+}
+
+.risk-trend-note {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 0.8rem;
+  color: var(--muted);
+  margin-bottom: 12px;
+}
+
+.risk-trend-note strong { color: var(--ink); }
+
+.risk-breakdown-footer {
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* Disclaimer at bottom */
+.risk-disclaimer {
+  font-size: 0.75rem;
+  color: var(--muted);
+  padding: 4px 2px;
+  line-height: 1.5;
+}
+
+@media (max-width: 1100px) {
+  .risk-breakdown-factors { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 720px) {
+  .risk-hero-kpis   { display: none; }
+  .risk-filter-pills { gap: 6px; }
+  .risk-score-bar   { min-width: 60px; }
+}
+
+
+/* ══════════════════════════════════════════
    FORECAST — Tendências estimadas (Fase 4)
 ══════════════════════════════════════════ */
 .forecast-volume-grid {

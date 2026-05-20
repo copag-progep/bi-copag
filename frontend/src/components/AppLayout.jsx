@@ -15,6 +15,7 @@ const analyticRoutes = new Set([
   "/produtividade",
   "/multiplos-setores",
   "/atribuicoes",
+  "/risco",
   "/servidores",
 ]);
 
@@ -26,6 +27,7 @@ const pageTitles = {
   "/produtividade":       { eyebrow: "Desempenho",        title: "Produtividade" },
   "/multiplos-setores":   { eyebrow: "Consistência",      title: "Múltiplos Setores" },
   "/atribuicoes":         { eyebrow: "Carteiras",         title: "Atribuições" },
+  "/risco":               { eyebrow: "Gestão executiva",  title: "Score de Risco" },
   "/servidores":          { eyebrow: "Gestão de carga",   title: "Servidores" },
   "/indicadores-mensais": { eyebrow: "Relatórios",        title: "Indicadores Mensais" },
   "/usuarios-sei":        { eyebrow: "Configuração",      title: "Usuários SEI" },

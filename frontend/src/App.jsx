@@ -20,6 +20,7 @@ const SeiUsersPage       = lazy(() => import("./pages/SeiUsersPage"));
 const AdminPage          = lazy(() => import("./pages/AdminPage"));
 const AccountPage        = lazy(() => import("./pages/AccountPage"));
 const ProcessSearchPage  = lazy(() => import("./pages/ProcessSearchPage"));
+const RiscoPage          = lazy(() => import("./pages/RiscoPage"));
 const LogoutPage         = lazy(() => import("./pages/LogoutPage"));
 
 
@@ -45,6 +46,7 @@ export default function App() {
           <Route path="produtividade"       element={<ProductivityPage />} />
           <Route path="multiplos-setores"   element={<MultiSectorPage />} />
           <Route path="atribuicoes"         element={<AttributionsPage />} />
+          <Route path="risco"               element={<RiscoPage />} />
           <Route path="servidores"          element={<ServidoresPage />} />
           <Route path="indicadores-mensais" element={<MonthlyStatsPage />} />
           <Route path="usuarios-sei"        element={<SeiUsersPage />} />

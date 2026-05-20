@@ -89,6 +89,23 @@ _SIG_TTL = 5.0  # segundos — evita roundtrip ao banco em requests consecutivos
 # Ajuste via env var ANALYTICS_LOOKBACK_DAYS (0 = sem limite).
 _ANALYTICS_LOOKBACK_DAYS = int(os.getenv("ANALYTICS_LOOKBACK_DAYS", "120"))
 
+# ── Score de Risco — pesos e thresholds configuráveis via env vars ─────────
+# Fórmula: score = min((W_ABS×D_abs + W_REL×D_rel + W_UNASSIGNED×A + W_MULTI×V) × T, 1.0)
+# D_abs = min(dias/90, 1.0)  ·  D_rel = min(dias/p90, 2.0)/2.0
+# A, V ∈ {0, 1}  ·  T ∈ {TREND_DOWN, TREND_STABLE, TREND_UP}
+_RISK_W_ABS        = float(os.getenv("RISK_WEIGHT_ABS",        "0.40"))
+_RISK_W_REL        = float(os.getenv("RISK_WEIGHT_REL",        "0.35"))
+_RISK_W_UNASSIGNED = float(os.getenv("RISK_WEIGHT_UNASSIGNED", "0.15"))
+_RISK_W_MULTI      = float(os.getenv("RISK_WEIGHT_MULTI_SECTOR","0.10"))
+_RISK_TREND_UP     = float(os.getenv("RISK_TREND_UP",           "1.20"))
+_RISK_TREND_STABLE = float(os.getenv("RISK_TREND_STABLE",       "1.00"))
+_RISK_TREND_DOWN   = float(os.getenv("RISK_TREND_DOWN",         "0.85"))
+_RISK_THR_CRITICAL = float(os.getenv("RISK_CRITICAL_THRESHOLD", "0.70"))
+_RISK_THR_HIGH     = float(os.getenv("RISK_HIGH_THRESHOLD",     "0.45"))
+_RISK_THR_MODERATE = float(os.getenv("RISK_MODERATE_THRESHOLD", "0.20"))
+_RISK_MIN_SAMPLE   = int(os.getenv("RISK_MIN_LT_SAMPLE",        "5"))
+_RISK_ABS_NORM     = 90  # dias considerados como 100% no fator de tempo absoluto
+
 
 def clear_analytics_cache() -> None:
     global _SIG_CACHE
@@ -1280,3 +1297,208 @@ def get_forecast_data(db: Session, filters: AnalyticsFilters) -> dict:
         }
 
     return _cached_response(db, "forecast", filters, build)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# FASE 5 — Score de Risco por processo
+# ─────────────────────────────────────────────────────────────────────────────
+
+def get_risk_scores(db: Session, filters: AnalyticsFilters) -> dict:
+    """Score de risco composto por processo ativo no snapshot de referência.
+
+    Combina quatro fatores ponderados:
+      • Tempo absoluto no setor   (peso _RISK_W_ABS)
+      • Tempo relativo ao P90     (peso _RISK_W_REL)   — com fallback setor→tipo→global
+      • Ausência de atribuição    (peso _RISK_W_UNASSIGNED)
+      • Presença em múltiplos setores (peso _RISK_W_MULTI)
+    Aplicados de um multiplicador de tendência setorial (1.2 / 1.0 / 0.85).
+
+    score = min((W_ABS×D_abs + W_REL×D_rel + W_UNASSIGNED×A + W_MULTI×V) × T, 1.0)
+    D_abs = min(dias / _RISK_ABS_NORM, 1.0)
+    D_rel = min(dias / p90, 2.0) / 2.0  → ∈ [0, 1.0]
+
+    O score é sobre o **processo**, não sobre o servidor atribuído.
+    Todos os pesos e thresholds são configuráveis via variáveis de ambiente.
+
+    Nota: P90 setor+tipo não está disponível nesta versão (exigiria computação
+    adicional de spans). Hierarquia atual: setor → tipo → global.
+    """
+
+    def build() -> dict:
+        # ── Dados base: processos ativos com streak consecutivo até hoje ──
+        stale = get_stale_processes_data(db, filters)
+        processos = stale.get("processos", [])
+        reference_date = stale.get("data_referencia")
+
+        if not processos:
+            return _empty_risk(reference_date)
+
+        # ── P90 lookup com fallback: setor → tipo → global ────────────────
+        lt = get_lead_time_data(db, filters)
+        setor_p90: dict[str, float] = {
+            item["label"]: float(item["p90_dias"])
+            for item in lt.get("ranking_setor", [])
+            if item.get("finalizados", 0) >= _RISK_MIN_SAMPLE and item.get("p90_dias", 0) > 0
+        }
+        tipo_p90: dict[str, float] = {
+            item["label"]: float(item["p90_dias"])
+            for item in lt.get("ranking_tipo", [])
+            if item.get("finalizados", 0) >= _RISK_MIN_SAMPLE and item.get("p90_dias", 0) > 0
+        }
+        global_p90: float | None = lt.get("kpis", {}).get("p90_dias") or None
+        lt_coverage = bool(setor_p90 or tipo_p90 or global_p90)
+
+        def _lookup_p90(setor: str, tipo: str) -> tuple[float | None, str | None]:
+            """Retorna (p90, fonte) com fallback setor→tipo→global."""
+            if v := setor_p90.get(setor):
+                return v, "setor"
+            if v := tipo_p90.get(tipo or ""):
+                return v, "tipo"
+            if global_p90:
+                return global_p90, "global"
+            return None, None
+
+        # ── Protocolos em múltiplos setores ───────────────────────────────
+        multi = get_multi_sector_data(db, filters)
+        multi_protos: set[str] = {p["protocolo"] for p in multi.get("processos", [])}
+
+        # ── Tendência setorial (do forecast) ──────────────────────────────
+        fc = get_forecast_data(db, filters)
+        sector_trend: dict[str, str] = {
+            s["setor"]: s["tendencia"] for s in fc.get("setores", [])
+        }
+        trend_mult = {
+            "acumulando": _RISK_TREND_UP,
+            "estavel":    _RISK_TREND_STABLE,
+            "resolvendo": _RISK_TREND_DOWN,
+        }
+
+        # ── Calcular score por processo ───────────────────────────────────
+        contagens: dict[str, int] = {"critico": 0, "elevado": 0, "moderado": 0, "normal": 0}
+        scored: list[dict] = []
+
+        for proc in processos:
+            protocolo = str(proc["protocolo"])
+            setor     = str(proc.get("setor", ""))
+            tipo      = str(proc.get("tipo") or "")
+            atribuicao = proc.get("atribuicao")
+            dias      = int(proc.get("dias_sem_movimentacao", 0))
+
+            # Fator 1 — tempo absoluto (normalizado a _RISK_ABS_NORM dias)
+            f_abs = min(dias / _RISK_ABS_NORM, 1.0)
+
+            # Fator 2 — tempo relativo ao P90 histórico (hierarquia setor→tipo→global)
+            p90, p90_fonte = _lookup_p90(setor, tipo)
+            if p90 and p90 > 0:
+                f_rel = min(dias / p90, 2.0) / 2.0
+                p90_detalhe = f"{dias}d vs P90 ({p90_fonte}) de {round(p90)}d"
+            else:
+                f_rel = 0.0
+                p90_fonte = None
+                p90_detalhe = "Sem histórico de lead time para referência"
+
+            # Fator 3 — ausência de atribuição
+            sem_atrib = not atribuicao or atribuicao == "Não informado"
+            f_unassigned = 1.0 if sem_atrib else 0.0
+
+            # Fator 4 — múltiplos setores
+            f_multi = 1.0 if protocolo in multi_protos else 0.0
+
+            # Multiplicador de tendência setorial
+            trend = sector_trend.get(setor, "estavel")
+            t_mult = trend_mult.get(trend, _RISK_TREND_STABLE)
+
+            # Score final
+            base = (
+                _RISK_W_ABS        * f_abs +
+                _RISK_W_REL        * f_rel +
+                _RISK_W_UNASSIGNED * f_unassigned +
+                _RISK_W_MULTI      * f_multi
+            )
+            score = round(min(base * t_mult, 1.0), 3)
+
+            # Nível de risco
+            if score >= _RISK_THR_CRITICAL:
+                nivel = "critico"
+            elif score >= _RISK_THR_HIGH:
+                nivel = "elevado"
+            elif score >= _RISK_THR_MODERATE:
+                nivel = "moderado"
+            else:
+                nivel = "normal"
+
+            contagens[nivel] += 1
+
+            scored.append({
+                "protocolo":    protocolo,
+                "setor":        setor,
+                "atribuicao":   None if sem_atrib else atribuicao,
+                "tipo":         tipo or None,
+                "dias_no_setor": dias,
+                "entrada_setor": proc.get("entrada_setor"),
+                "score":        score,
+                "nivel":        nivel,
+                "fatores": {
+                    "tempo_absoluto": {
+                        "contribuicao": round(_RISK_W_ABS * f_abs, 3),
+                        "detalhe": f"{dias}d no setor ({round(f_abs * 100)}% do limiar de {_RISK_ABS_NORM}d)",
+                    },
+                    "tempo_relativo": {
+                        "contribuicao": round(_RISK_W_REL * f_rel, 3),
+                        "detalhe": p90_detalhe,
+                        "p90_fonte": p90_fonte,
+                    },
+                    "sem_atribuicao": {
+                        "contribuicao": round(_RISK_W_UNASSIGNED * f_unassigned, 3),
+                        "detalhe": "Sem responsável definido" if sem_atrib else "",
+                    },
+                    "multiplos_setores": {
+                        "contribuicao": round(_RISK_W_MULTI * f_multi, 3),
+                        "detalhe": "Tramitando em múltiplos setores" if f_multi else "",
+                    },
+                    "tendencia_setor": {
+                        "multiplicador": t_mult,
+                        "detalhe": f"Setor {setor}: {trend}" if trend != "estavel" else "",
+                    },
+                },
+            })
+
+        scored.sort(key=lambda x: -x["score"])
+
+        return {
+            "data_referencia":    reference_date,
+            "total_analisados":   len(scored),
+            "cobertura_lead_time": lt_coverage,
+            "nota": (
+                "Score calculado sobre o processo — não sobre o servidor. "
+                "Valores refletem condições do processo no snapshot atual."
+            ),
+            "pesos": {
+                "tempo_absoluto":   _RISK_W_ABS,
+                "tempo_relativo":   _RISK_W_REL,
+                "sem_atribuicao":   _RISK_W_UNASSIGNED,
+                "multiplos_setores": _RISK_W_MULTI,
+            },
+            "thresholds": {
+                "critico":  _RISK_THR_CRITICAL,
+                "elevado":  _RISK_THR_HIGH,
+                "moderado": _RISK_THR_MODERATE,
+            },
+            "contagens": contagens,
+            "processos": scored,
+        }
+
+    return _cached_response(db, "risk-score", filters, build)
+
+
+def _empty_risk(reference_date: date | None) -> dict:
+    return {
+        "data_referencia":    str(reference_date) if reference_date else None,
+        "total_analisados":   0,
+        "cobertura_lead_time": False,
+        "nota":               "Nenhum processo ativo encontrado para os filtros aplicados.",
+        "pesos":              {},
+        "thresholds":         {},
+        "contagens":          {"critico": 0, "elevado": 0, "moderado": 0, "normal": 0},
+        "processos":          [],
+    }

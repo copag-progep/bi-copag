@@ -26,6 +26,7 @@ from .analytics import (
     get_lead_time_data,
     get_multi_sector_data,
     get_productivity_data,
+    get_risk_scores,
     get_server_profile,
     get_stale_processes_data,
     get_workload_balance,
@@ -80,6 +81,9 @@ DEFAULT_ADMIN_EMAIL = os.getenv("DEFAULT_ADMIN_EMAIL", "andersoncfs@ufc.br")
 DEFAULT_ADMIN_PASSWORD = os.getenv("DEFAULT_ADMIN_PASSWORD", "admin123")
 CORS_ORIGINS = os.getenv("CORS_ORIGINS", "")
 DISABLE_STARTUP_PRECOMPUTE = os.getenv("DISABLE_STARTUP_PRECOMPUTE", "false").lower() == "true"
+# Risk score é pesado (dispara stale + lead-time + multi-sector + forecast).
+# Incluso no precompute apenas quando PRECOMPUTE_HEAVY_ANALYTICS=true.
+PRECOMPUTE_HEAVY_ANALYTICS = os.getenv("PRECOMPUTE_HEAVY_ANALYTICS", "false").lower() == "true"
 PRECOMPUTE_HEAVY_ANALYTICS = os.getenv("PRECOMPUTE_HEAVY_ANALYTICS", "false").lower() in {"1", "true", "yes", "on"}
 LOCAL_TIMEZONE = ZoneInfo(os.getenv("APP_TIMEZONE", "America/Fortaleza"))
 FRESHNESS_OK_MAX_DAYS = int(os.getenv("DATA_FRESHNESS_OK_MAX_DAYS", "3"))
@@ -155,6 +159,8 @@ def precompute_analytics() -> None:
                     lambda db: get_stale_processes_data(db, default_filters),
                     lambda db: get_lead_time_data(db, default_filters),
                     lambda db: get_attributions_data(db, default_filters),
+                    lambda db: get_forecast_data(db, default_filters),
+                    lambda db: get_risk_scores(db, default_filters),
                 ]
             )
         for step in steps:
@@ -1075,6 +1081,27 @@ def forecast(
     Carregado sob demanda pela Central Executiva — não incluído no precompute."""
     filters = build_filters(data_referencia, data_inicial, data_final, setor, tipo, atribuicao)
     return JSONResponse(get_forecast_data(db, filters))
+
+
+@app.get("/api/analytics/risk-score")
+def risk_score(
+    data_referencia: date | None = None,
+    data_inicial: date | None = None,
+    data_final: date | None = None,
+    setor: str | None = None,
+    tipo: str | None = None,
+    atribuicao: str | None = None,
+    _: User = Depends(get_current_user_or_api_key),
+    db: Session = Depends(get_db),
+):
+    """Score de risco composto por processo ativo.
+
+    Carregado sob demanda — incluído no precompute apenas se
+    PRECOMPUTE_HEAVY_ANALYTICS=true. Score é sobre o processo,
+    não sobre o servidor atribuído.
+    """
+    filters = build_filters(data_referencia, data_inicial, data_final, setor, tipo, atribuicao)
+    return JSONResponse(get_risk_scores(db, filters))
 
 
 @app.get("/api/analytics/attributions")
