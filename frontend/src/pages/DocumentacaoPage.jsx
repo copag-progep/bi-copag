@@ -17,6 +17,7 @@ const FEATURES = [
   { icon: "↔️", title: "Entradas e saídas", desc: "Comparativo de fluxo entre snapshots consecutivos" },
   { icon: "⚡", title: "Produtividade", desc: "Processos recebidos, finalizados e tempo médio por servidor" },
   { icon: "⏱️", title: "Tempo de permanência", desc: "Lead time estimado com média, mediana, P90, faixas por duração e ranking por setor" },
+  { icon: "📈", title: "Tendências estimadas", desc: "Forecasting simples com projeção de estoque ativo, tendência por setor e estimativa de críticos" },
   { icon: "📋", title: "Atribuições", desc: "Carteira completa com flags de criticidade (6 faixas até 90d+)" },
   { icon: "⚖️", title: "Servidores", desc: "Balanceamento de carga, sobrecarga e perfil longitudinal" },
   { icon: "🔀", title: "Múltiplos setores", desc: "Detecção de processos em mais de um setor no mesmo dia" },
@@ -256,6 +257,7 @@ export default function DocumentacaoPage() {
                 ["GET", "/api/analytics/workload-balance", "Balanceamento de carga"],
                 ["GET", "/api/analytics/server-profile", "Perfil longitudinal de servidor"],
                 ["GET", "/api/analytics/lead-time", "Lead time estimado: média, mediana, P90, faixas por duração e rankings por setor/tipo/atribuição"],
+                ["GET", "/api/analytics/forecast", "Tendências estimadas: projeção de estoque ativo, saldo setorial e processos em envelhecimento"],
                 ["GET", "/api/alerts/summary", "Resumo de processos críticos (sino in-app)"],
               ]},
               { group: "Outros", endpoints: [
@@ -332,7 +334,7 @@ export default function DocumentacaoPage() {
 
             <Callout icon="⏱️">
               <strong>Central Executiva:</strong> a página carrega primeiro os indicadores leves
-              (dashboard e fluxo), depois busca processos críticos e lead time separadamente. Assim,
+              (dashboard e fluxo), depois busca processos críticos, lead time e tendências estimadas separadamente. Assim,
               um endpoint pesado ou lento não derruba a tela inteira. O timeout padrão das chamadas
               analíticas é de 90 segundos, com 120 segundos nos blocos históricos mais pesados.
             </Callout>
@@ -467,7 +469,7 @@ export default function DocumentacaoPage() {
               { title: "Infraestrutura e qualidade", items: ["Alembic para migrações formais com auto-stamp","Log de auditoria em tabela dedicada","Lifespan context manager (substituiu @app.on_event)","datetime.now(timezone.utc) (substituiu utcnow)","sync_processo_atribuicoes com SQL UPDATE em lote","Cache analítico com invalidação automática","Pré-aquecimento leve do cache em background, com endpoints históricos pesados controlados por PRECOMPUTE_HEAVY_ANALYTICS","Healthcheck com verificação do banco","Endpoint /api/health/data-freshness + badge no topo para avisar dado velho, setor ausente/defasado e queda simples de volume"] },
               { title: "Identidade visual Progep/UFC", items: ["Paleta: navy #273168 · laranja #f39320 · amarelo #febb12 · azul #81c7ee","Fonte Plus Jakarta Sans","Sidebar redesenhada com ícones SVG e chip do usuário","Topbar com título dinâmico por rota","StatCards com hover e estrutura vertical","LoginPage com dois painéis e stats decorativos"] },
               { title: "Performance", items: ["React.lazy + Suspense para code splitting por rota","preconnect e dns-prefetch para o backend","LoadingBlock com spinner e mensagem de servidor iniciando","useAnalyticsData hook com cache stale-while-revalidate (TTL 5 min)","clearAnalyticsCache chamado após upload"] },
-              { title: "Analíticas avançadas", items: ["Central Executiva com prioridades do dia, saúde dos dados, sparklines dos KPIs principais e carregamento escalonado","Lead time estimado dos processos que saíram da carteira, com média, mediana, P90, faixas por duração e ranking por setor/tipo/atribuição","Página Atribuições com spans consecutivos por setor, 6 faixas de criticidade, filtros server-side, busca por protocolo","Exportação PDF com identidade visual (jsPDF + jspdf-autotable)","Exportação Excel (SheetJS)","Página Servidores: balanceamento por desvio-padrão + perfil longitudinal","Busca global de processo com histórico de movimentações","Filtro Sem atribuição no FilterBar global","Indicadores mensais com dashboard e lançamento manual"] },
+              { title: "Analíticas avançadas", items: ["Central Executiva com prioridades do dia, saúde dos dados, sparklines dos KPIs principais e carregamento escalonado","Lead time estimado dos processos que saíram da carteira, com média, mediana, P90, faixas por duração e ranking por setor/tipo/atribuição","Tendências estimadas com regressão linear simples, projeção de estoque ativo em 15/30 dias, tendência por setor e estimativa de críticos","Página Atribuições com spans consecutivos por setor, 6 faixas de criticidade, filtros server-side, busca por protocolo","Exportação PDF com identidade visual (jsPDF + jspdf-autotable)","Exportação Excel (SheetJS)","Página Servidores: balanceamento por desvio-padrão + perfil longitudinal","Busca global de processo com histórico de movimentações","Filtro Sem atribuição no FilterBar global","Indicadores mensais com dashboard e lançamento manual"] },
               { title: "Automação (Bloco 4)", items: ["API key para uploads sem JWT","Script SEI Scraper (Playwright headless): login, troca de setor por JS, coleta todas as páginas","Workflow daily-upload (19:00 BRT) com notificação de falha","Workflow daily-report (19:30 BRT) bloqueado por check_daily_upload_success.py quando o upload do dia não concluiu com sucesso","Workflow weekly-report (sexta 20:00 BRT)","Script de alertas com anti-spam (não envia se sem críticos)","Workflow critical-alerts (sexta 21:00 BRT)"] },
               { title: "Alertas e notificações (Bloco 1)", items: ["Endpoint /api/alerts/summary (leve, usa cache)","Sino de notificações na topbar: badge, dropdown top-8, link para /atribuicoes","E-mail de alertas: cards por faixa, tabela dos críticos, destaque para >90d","Não envia e-mail se nenhum processo crítico"] },
               { title: "Segurança e acesso", items: ["Troca de senha pelo próprio usuário (valida senha atual)","DE-PARA com normalização de identidade (sem acentos, lowercase, case-insensitive)","Autenticação dual (JWT ou API key) nos endpoints analíticos","Página Minha conta com informações e formulário de troca de senha"] },

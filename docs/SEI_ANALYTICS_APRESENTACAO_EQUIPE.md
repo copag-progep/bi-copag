@@ -99,6 +99,20 @@ Os principais indicadores dessa análise são:
 
 O P90 é útil porque mostra a "cauda" do prazo. Mesmo que a média esteja boa, um P90 alto indica que existe um grupo menor de processos demorando muito mais do que os demais.
 
+### Tendências estimadas / forecasting
+
+A Central Executiva também mostra tendências estimadas. Elas ajudam o gestor a olhar para frente, não apenas para o retrato atual.
+
+O sistema estima:
+
+- Quantos processos ativos podem existir em 15 e 30 dias.
+- Quais setores estão acumulando, estáveis ou resolvendo carga.
+- Quantos processos podem cruzar a faixa de 30 dias se o ritmo atual se mantiver.
+
+Essas estimativas usam regressão linear simples e histórico recente. Elas não são promessa nem previsão exata; são sinais gerenciais para orientar atenção antecipada.
+
+Por isso, a interface usa linguagem cautelosa, como "se o ritmo atual se mantiver", e arredonda os números para evitar falsa precisão.
+
 ### 3.4 Processos parados
 
 Mostra processos com maior tempo sem movimentação inferida no setor atual. A tela usa paginação para evitar listas muito longas e facilitar a navegação.

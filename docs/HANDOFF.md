@@ -526,6 +526,30 @@ Observacao importante:
 - P90 significa que 90% dos processos finalizaram ate aquele prazo e 10% demoraram mais
 - esse indicador usa historico completo quando necessario, para nao distorcer duracoes antigas
 
+### 11.10 Forecast / tendencias estimadas
+
+`get_forecast_data()` calcula tendencias estimadas para apoiar decisao gerencial na Central Executiva.
+
+Escopo atual:
+
+- projecao de estoque ativo para 15 e 30 dias
+- tendencia de saldo por setor
+- estimativa de processos que podem cruzar 30 dias em ate 15 dias
+
+Regras metodologicas:
+
+- usa regressao linear simples sobre snapshots recentes
+- nao usa bibliotecas estatisticas complexas nem machine learning
+- os valores sao arredondados para evitar falsa precisao
+- a linguagem de exibicao deve ser cautelosa: "se o ritmo atual se mantiver"
+- a estimativa de criticos considera presencas consecutivas ate o snapshot atual, evitando contar processos antigos que ja sairam
+
+Performance:
+
+- o endpoint e cacheado como os demais analytics
+- nao entra no `precompute_analytics()`
+- no frontend, carrega depois dos blocos principais da Central Executiva para reduzir concorrencia de consultas pesadas
+
 
 ## 12. Indicadores mensais
 
@@ -608,6 +632,7 @@ As principais rotas estao em `backend/main.py`.
 - `GET /api/analytics/workload-balance`
 - `GET /api/analytics/server-profile`
 - `GET /api/analytics/lead-time`
+- `GET /api/analytics/forecast`
 - `GET /api/alerts/summary`
 
 
@@ -765,6 +790,7 @@ Consome:
 - `/analytics/entries-exits`
 - `/analytics/stale`
 - `/analytics/lead-time`
+- `/analytics/forecast`
 - `/health/data-freshness`
 
 Entrega:
@@ -774,6 +800,7 @@ Entrega:
 - cards de KPI com sparklines
 - tempo de permanencia com media, mediana, P90 e faixas
 - ranking de lead time por setor
+- tendencias estimadas de estoque ativo, saldo por setor e processos em envelhecimento
 - carregamento escalonado para evitar que endpoints pesados derrubem a tela inteira
 
 ### 19.3 Dashboard

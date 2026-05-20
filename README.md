@@ -16,6 +16,7 @@ Plataforma web de Business Intelligence desenvolvida para a **COPAG (Coordenador
 | **Entradas e saídas** | Comparativo de fluxo entre snapshots consecutivos |
 | **Produtividade** | Processos recebidos, finalizados e tempo médio por servidor |
 | **Tempo de permanência** | Lead time estimado dos processos que saíram da carteira, com média, mediana, P90, faixas por duração e ranking por setor |
+| **Tendências estimadas** | Forecasting simples na Central Executiva: projeção de estoque ativo, tendência por setor e estimativa de críticos |
 | **Atribuições** | Carteira completa com flags de criticidade por tempo (6 faixas até 90d+) |
 | **Servidores** | Balanceamento de carga, classificação de sobrecarga, perfil longitudinal |
 | **Múltiplos setores** | Detecção de processos em mais de um setor no mesmo dia |

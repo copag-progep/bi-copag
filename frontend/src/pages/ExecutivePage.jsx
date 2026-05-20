@@ -112,8 +112,11 @@ export default function ExecutivePage() {
     enabled: baseReady && !stale.loading,
     timeout: 120_000,
   });
-  // Forecast: carregado sob demanda — não participa do gate de loading/error
-  const forecast = useAnalyticsData("/analytics/forecast", params);
+  // Forecast: carregado por último — não participa do gate de loading/error.
+  const forecast = useAnalyticsData("/analytics/forecast", params, {
+    enabled: baseReady && !stale.loading && !leadTime.loading,
+    timeout: 120_000,
+  });
   const [freshness, setFreshness] = useState(null);
 
   useEffect(() => {
@@ -144,6 +147,7 @@ export default function ExecutivePage() {
           flow.retry();
           stale.retry();
           leadTime.retry();
+          forecast.retry();
         }}
       />
     );

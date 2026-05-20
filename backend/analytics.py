@@ -1155,10 +1155,6 @@ def get_forecast_data(db: Session, filters: AnalyticsFilters) -> dict:
         if frame.empty or len(available_dates) < _MIN_SNAPSHOTS:
             return _empty_forecast(reference_date)
 
-        # Intervalo médio entre snapshots — converte slope "por passo" em "por dia"
-        total_span = (available_dates[-1] - available_dates[0]).days
-        avg_days = max(1.0, total_span / (len(available_dates) - 1))
-
         # ── 1. Volume ativo: tendência ────────────────────────────────────
         volume_by_day = (
             frame.groupby("report_day")["protocolo"]
@@ -1166,6 +1162,9 @@ def get_forecast_data(db: Session, filters: AnalyticsFilters) -> dict:
             .reindex(available_dates, fill_value=0)
         )
         window_dates = available_dates[-_WINDOW:]
+        # Intervalo médio da janela usada no modelo — converte slope "por passo" em "por dia"
+        window_span = (window_dates[-1] - window_dates[0]).days
+        avg_days = max(1.0, window_span / (len(window_dates) - 1))
         volumes = [int(volume_by_day[d]) for d in window_dates]
         vol_slope, _ = _linear_trend(volumes)
 
@@ -1227,15 +1226,29 @@ def get_forecast_data(db: Session, filters: AnalyticsFilters) -> dict:
         sector_trends_result.sort(key=lambda x: abs(x["variacao_diaria_media"]), reverse=True)
 
         # ── 3. Processos em envelhecimento ───────────────────────────────
-        # Conta aparições de cada (protocolo, setor) na janela de análise.
-        # aparições × avg_days ≈ dias no setor — estimativa sem necessidade de spans.
-        combo_counts = frame.groupby(["protocolo", "setor"]).size()
-        snap_30 = max(1, round(30 / avg_days))
-        snap_20 = max(1, round(20 / avg_days))
-        current_30_est = int((combo_counts >= snap_30).sum())
-        current_20_est = int((combo_counts >= snap_20).sum())
-        range_20_30 = max(0, current_20_est - current_30_est)
-        estimated_critical_15d = _round_forecast(current_30_est + range_20_30 * 0.7)
+        # Conta apenas presenças consecutivas que chegam ao snapshot atual.
+        # Isso evita considerar processos que apareceram muito no passado, mas já saíram.
+        presence_by_day: dict[date, set[tuple[str, str]]] = {}
+        for day, day_frame in frame.groupby("report_day"):
+            presence_by_day[day] = {
+                (str(row.protocolo), str(row.setor))
+                for row in day_frame[["protocolo", "setor"]].itertuples(index=False)
+            }
+
+        latest_day = available_dates[-1]
+        latest_keys = presence_by_day.get(latest_day, set())
+        streak_days: list[float] = []
+        for key in latest_keys:
+            streak = 0
+            for day in reversed(available_dates):
+                if key not in presence_by_day.get(day, set()):
+                    break
+                streak += 1
+            streak_days.append(streak * avg_days)
+
+        current_30_est = sum(1 for days in streak_days if days >= 30)
+        will_cross_30_in_15d = sum(1 for days in streak_days if 15 <= days < 30)
+        estimated_critical_15d = _round_forecast(current_30_est + will_cross_30_in_15d * 0.7)
 
         snapshots_used = len(window_dates)
 
@@ -1257,9 +1270,10 @@ def get_forecast_data(db: Session, filters: AnalyticsFilters) -> dict:
             "criticos": {
                 "atual_estimado": current_30_est,
                 "estimado_15d": estimated_critical_15d,
-                "range_20_30": range_20_30,
+                "em_risco_15d": will_cross_30_in_15d,
+                "range_20_30": will_cross_30_in_15d,
                 "nota": (
-                    "Estimativa baseada em aparições consecutivas na janela de análise. "
+                    "Estimativa baseada em presenças consecutivas até o snapshot atual. "
                     "Para dados exatos, consulte a página Atribuições."
                 ),
             },
