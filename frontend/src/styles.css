@@ -1387,6 +1387,153 @@ button, input, select { font: inherit; }
 
 
 /* ══════════════════════════════════════════
+   FORECAST — Tendências estimadas (Fase 4)
+══════════════════════════════════════════ */
+.forecast-volume-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin: 4px 0 16px;
+}
+
+.forecast-metric {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.forecast-metric span {
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+
+.forecast-metric strong {
+  font-size: 1.6rem;
+  font-weight: 800;
+  color: var(--ink);
+  line-height: 1;
+}
+
+.forecast-metric-proj strong {
+  color: var(--primary);
+}
+
+.forecast-trend-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border-radius: 999px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  margin-bottom: 16px;
+}
+
+.forecast-trend-pill span {
+  font-weight: 500;
+  opacity: 0.8;
+}
+
+.forecast-trend-crescendo {
+  background: rgba(191, 53, 53, .1);
+  color: #bf3535;
+  border: 1px solid rgba(191, 53, 53, .2);
+}
+
+.forecast-trend-reduzindo {
+  background: rgba(26, 122, 80, .1);
+  color: #1a7a50;
+  border: 1px solid rgba(26, 122, 80, .2);
+}
+
+.forecast-trend-estavel {
+  background: rgba(39, 49, 104, .07);
+  color: var(--primary);
+  border: 1px solid rgba(39, 49, 104, .18);
+}
+
+.forecast-critical {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+}
+
+.forecast-critical-row {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  margin-bottom: 8px;
+}
+
+.forecast-critical-row > div {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.forecast-critical-row strong {
+  font-size: 1.4rem;
+  font-weight: 800;
+  color: var(--ink);
+  line-height: 1;
+}
+
+.forecast-critical-row small {
+  font-size: 0.72rem;
+  color: var(--muted);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.forecast-arrow {
+  font-size: 1.3rem;
+  color: var(--muted);
+  flex-shrink: 0;
+}
+
+.forecast-disclaimer {
+  font-size: 0.73rem;
+  color: var(--muted);
+  margin: 0;
+  line-height: 1.5;
+}
+
+/* Badges e deltas na tabela setorial */
+.forecast-badge {
+  display: inline-block;
+  padding: 2px 9px;
+  border-radius: 10px;
+  font-size: 0.76rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.forecast-badge-acumulando {
+  background: rgba(191, 53, 53, .1);
+  color: #bf3535;
+}
+
+.forecast-badge-resolvendo {
+  background: rgba(26, 122, 80, .1);
+  color: #1a7a50;
+}
+
+.forecast-badge-estavel {
+  background: rgba(39, 49, 104, .07);
+  color: var(--primary);
+}
+
+.forecast-delta-up      { color: #bf3535; font-weight: 700; }
+.forecast-delta-down    { color: #1a7a50; font-weight: 700; }
+.forecast-delta-neutral { color: var(--muted); font-weight: 600; }
+
+
+/* ══════════════════════════════════════════
    CHARTS
 ══════════════════════════════════════════ */
 .charts-grid {

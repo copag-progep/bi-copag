@@ -112,6 +112,8 @@ export default function ExecutivePage() {
     enabled: baseReady && !stale.loading,
     timeout: 120_000,
   });
+  // Forecast: carregado sob demanda — não participa do gate de loading/error
+  const forecast = useAnalyticsData("/analytics/forecast", params);
   const [freshness, setFreshness] = useState(null);
 
   useEffect(() => {
@@ -173,6 +175,12 @@ export default function ExecutivePage() {
   const ltData = leadTime.data || {};
   const ltKpis = ltData.kpis || {};
   const ltSectors = ltData.ranking_setor || [];
+
+  const fData = forecast.data || {};
+  const fVol = fData.volume || null;
+  const fSetores = fData.setores || [];
+  const fCriticos = fData.criticos || null;
+  const fNota = fData.nota || "";
 
   return (
     <div className="page-grid executive-page">
@@ -351,6 +359,95 @@ export default function ExecutivePage() {
             />
           </article>
           )}
+        </section>
+      )}
+
+      {fVol && (
+        <section className="executive-grid">
+          <article className="panel forecast-panel">
+            <div className="panel-header">
+              <div>
+                <h3>Estoque ativo: tendências</h3>
+                <p>{fNota}</p>
+              </div>
+            </div>
+            <div className="forecast-volume-grid">
+              <div className="forecast-metric">
+                <span>Atual</span>
+                <strong>{formatNumber(fVol.atual)}</strong>
+              </div>
+              <div className="forecast-metric forecast-metric-proj">
+                <span>Em 15 dias</span>
+                <strong>~{formatNumber(fVol.estimado_15d)}</strong>
+              </div>
+              <div className="forecast-metric forecast-metric-proj">
+                <span>Em 30 dias</span>
+                <strong>~{formatNumber(fVol.estimado_30d)}</strong>
+              </div>
+            </div>
+            <div className={`forecast-trend-pill forecast-trend-${fVol.tendencia}`}>
+              {fVol.tendencia === "crescendo" ? "↑ Crescendo"
+                : fVol.tendencia === "reduzindo" ? "↓ Reduzindo"
+                : "→ Estável"}
+              <span>
+                &nbsp;· {fVol.variacao_diaria_media > 0 ? "+" : ""}{fVol.variacao_diaria_media} processos/dia em média
+              </span>
+            </div>
+            {fCriticos && fCriticos.atual_estimado > 0 && (
+              <div className="forecast-critical">
+                <div className="forecast-critical-row">
+                  <div>
+                    <strong>{formatNumber(fCriticos.atual_estimado)}</strong>
+                    <small>+30 dias agora</small>
+                  </div>
+                  <span className="forecast-arrow">→</span>
+                  <div>
+                    <strong>~{formatNumber(fCriticos.estimado_15d)}</strong>
+                    <small>estimativa em 15 dias</small>
+                  </div>
+                </div>
+                <p className="forecast-disclaimer">{fCriticos.nota}</p>
+              </div>
+            )}
+          </article>
+
+          <article className="panel">
+            <div className="panel-header">
+              <div>
+                <h3>Tendência por setor</h3>
+                <p>Variação média diária e estimativa para 30 dias.</p>
+              </div>
+            </div>
+            <DataTable
+              columns={[
+                { key: "setor", label: "Setor" },
+                { key: "carga_atual", label: "Atual", render: (v) => formatNumber(v) },
+                {
+                  key: "variacao_diaria_media",
+                  label: "Var./dia",
+                  render: (v) => (
+                    <span className={v > 0 ? "forecast-delta-up" : v < 0 ? "forecast-delta-down" : "forecast-delta-neutral"}>
+                      {v > 0 ? `+${v}` : `${v}`}
+                    </span>
+                  ),
+                },
+                {
+                  key: "tendencia",
+                  label: "Tendência",
+                  render: (v) => (
+                    <span className={`forecast-badge forecast-badge-${v}`}>
+                      {v === "acumulando" ? "↑ Acumulando"
+                        : v === "resolvendo" ? "↓ Resolvendo"
+                        : "→ Estável"}
+                    </span>
+                  ),
+                },
+                { key: "estimado_30d", label: "~30 dias", render: (v) => `~${formatNumber(v)}` },
+              ]}
+              rows={fSetores}
+              emptyMessage="Histórico insuficiente para calcular tendências setoriais."
+            />
+          </article>
         </section>
       )}
 

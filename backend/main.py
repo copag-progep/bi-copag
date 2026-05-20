@@ -22,6 +22,7 @@ from .analytics import (
     get_dashboard_data,
     get_entries_exits_data,
     get_filter_options,
+    get_forecast_data,
     get_lead_time_data,
     get_multi_sector_data,
     get_productivity_data,
@@ -1057,6 +1058,23 @@ def lead_time(
 ):
     filters = build_filters(data_referencia, data_inicial, data_final, setor, tipo, atribuicao)
     return JSONResponse(get_lead_time_data(db, filters))
+
+
+@app.get("/api/analytics/forecast")
+def forecast(
+    data_referencia: date | None = None,
+    data_inicial: date | None = None,
+    data_final: date | None = None,
+    setor: str | None = None,
+    tipo: str | None = None,
+    atribuicao: str | None = None,
+    _: User = Depends(get_current_user_or_api_key),
+    db: Session = Depends(get_db),
+):
+    """Tendências estimadas de volume, saldo setorial e processos em envelhecimento.
+    Carregado sob demanda pela Central Executiva — não incluído no precompute."""
+    filters = build_filters(data_referencia, data_inicial, data_final, setor, tipo, atribuicao)
+    return JSONResponse(get_forecast_data(db, filters))
 
 
 @app.get("/api/analytics/attributions")

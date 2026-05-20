@@ -1087,3 +1087,182 @@ def _empty_lead_time(reference_date: date | None) -> dict:
         "ranking_tipo": [],
         "ranking_atribuicao": [],
     }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# FASE 4 — Forecasting / Tendências estimadas
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _linear_trend(values: list[float]) -> tuple[float, float]:
+    """Regressão linear simples (OLS). Retorna (slope por passo, intercept).
+
+    Implementação direta sem numpy — evita dependência extra e é suficiente
+    para as poucas dezenas de pontos usados nas tendências.
+    """
+    n = len(values)
+    if n < 2:
+        return 0.0, float(values[-1]) if values else 0.0
+    x_mean = (n - 1) / 2.0
+    y_mean = sum(values) / n
+    ss_xy = sum((i - x_mean) * (v - y_mean) for i, v in enumerate(values))
+    ss_xx = sum((i - x_mean) ** 2 for i in range(n))
+    if ss_xx == 0:
+        return 0.0, y_mean
+    slope = ss_xy / ss_xx
+    return slope, y_mean - slope * x_mean
+
+
+def _round_forecast(value: float) -> int:
+    """Arredonda projeções para evitar falsa precisão numérica."""
+    v = max(0.0, value)
+    if v > 1000:
+        return int(round(v / 100) * 100)
+    if v > 200:
+        return int(round(v / 50) * 50)
+    if v > 50:
+        return int(round(v / 10) * 10)
+    return int(round(v / 5) * 5)
+
+
+def _empty_forecast(reference_date: date | None) -> dict:
+    """Resposta padrão quando o histórico é insuficiente para calcular tendências."""
+    return {
+        "data_referencia": str(reference_date) if reference_date else None,
+        "snapshots_analisados": 0,
+        "nota": "Histórico insuficiente para calcular tendências (mínimo 4 snapshots).",
+        "volume": None,
+        "setores": [],
+        "criticos": None,
+    }
+
+
+def get_forecast_data(db: Session, filters: AnalyticsFilters) -> dict:
+    """Tendências estimadas de volume ativo, saldo setorial e processos em envelhecimento.
+
+    Usa regressão linear simples (OLS) sobre os snapshots disponíveis na janela de
+    análise (padrão: 120 dias). Os resultados são *estimativas* baseadas no ritmo
+    atual — não são previsões determinísticas. Apresentar sempre com linguagem
+    cautelosa: "se o ritmo atual se mantiver".
+    """
+    _MIN_SNAPSHOTS = 4
+    _WINDOW = 30  # máx. snapshots recentes usados na regressão de volume
+
+    def build() -> dict:
+        frame, reference_date, available_dates = _load_dataframe(
+            db, filters, fields=FLOW_FIELDS
+        )
+
+        if frame.empty or len(available_dates) < _MIN_SNAPSHOTS:
+            return _empty_forecast(reference_date)
+
+        # Intervalo médio entre snapshots — converte slope "por passo" em "por dia"
+        total_span = (available_dates[-1] - available_dates[0]).days
+        avg_days = max(1.0, total_span / (len(available_dates) - 1))
+
+        # ── 1. Volume ativo: tendência ────────────────────────────────────
+        volume_by_day = (
+            frame.groupby("report_day")["protocolo"]
+            .nunique()
+            .reindex(available_dates, fill_value=0)
+        )
+        window_dates = available_dates[-_WINDOW:]
+        volumes = [int(volume_by_day[d]) for d in window_dates]
+        vol_slope, _ = _linear_trend(volumes)
+
+        # slope por snapshot → por dia
+        daily_slope = vol_slope / avg_days
+        current_vol = volumes[-1]
+        vol_15 = _round_forecast(current_vol + daily_slope * 15)
+        vol_30 = _round_forecast(current_vol + daily_slope * 30)
+
+        if daily_slope > 3:
+            vol_trend = "crescendo"
+        elif daily_slope < -3:
+            vol_trend = "reduzindo"
+        else:
+            vol_trend = "estavel"
+
+        # ── 2. Tendência de saldo por setor ──────────────────────────────
+        protocol_map = _protocols_by_date_and_sector(frame)
+
+        # Pré-indexar setores por dia para evitar varredura completa a cada passo
+        sectors_by_day: dict[date, set] = {}
+        for (day, setor) in protocol_map:
+            sectors_by_day.setdefault(day, set()).add(setor)
+
+        sector_daily_deltas: dict[str, list[float]] = {}
+        for prev_day, curr_day in zip(available_dates[:-1], available_dates[1:]):
+            days_gap = max(1, (curr_day - prev_day).days)
+            all_sectors = sectors_by_day.get(prev_day, set()) | sectors_by_day.get(curr_day, set())
+            for setor in all_sectors:
+                curr_n = len(protocol_map.get((curr_day, setor), set()))
+                prev_n = len(protocol_map.get((prev_day, setor), set()))
+                sector_daily_deltas.setdefault(setor, []).append(
+                    (curr_n - prev_n) / days_gap
+                )
+
+        recent_transitions = min(len(available_dates) - 1, 21)
+        sector_trends_result: list[dict] = []
+        for setor, deltas in sector_daily_deltas.items():
+            recent = deltas[-recent_transitions:]
+            avg_delta = sum(recent) / len(recent) if recent else 0.0
+            carga_atual = len(protocol_map.get((available_dates[-1], setor), set()))
+            carga_30d = _round_forecast(carga_atual + avg_delta * 30)
+
+            if avg_delta > 1.0:
+                setor_trend = "acumulando"
+            elif avg_delta < -1.0:
+                setor_trend = "resolvendo"
+            else:
+                setor_trend = "estavel"
+
+            sector_trends_result.append({
+                "setor": setor,
+                "carga_atual": carga_atual,
+                "variacao_diaria_media": round(avg_delta, 1),
+                "tendencia": setor_trend,
+                "estimado_30d": carga_30d,
+            })
+
+        sector_trends_result.sort(key=lambda x: abs(x["variacao_diaria_media"]), reverse=True)
+
+        # ── 3. Processos em envelhecimento ───────────────────────────────
+        # Conta aparições de cada (protocolo, setor) na janela de análise.
+        # aparições × avg_days ≈ dias no setor — estimativa sem necessidade de spans.
+        combo_counts = frame.groupby(["protocolo", "setor"]).size()
+        snap_30 = max(1, round(30 / avg_days))
+        snap_20 = max(1, round(20 / avg_days))
+        current_30_est = int((combo_counts >= snap_30).sum())
+        current_20_est = int((combo_counts >= snap_20).sum())
+        range_20_30 = max(0, current_20_est - current_30_est)
+        estimated_critical_15d = _round_forecast(current_30_est + range_20_30 * 0.7)
+
+        snapshots_used = len(window_dates)
+
+        return {
+            "data_referencia": str(reference_date) if reference_date else None,
+            "snapshots_analisados": snapshots_used,
+            "nota": (
+                f"Calculado com os últimos {snapshots_used} snapshots. "
+                "Se o ritmo atual se mantiver."
+            ),
+            "volume": {
+                "atual": current_vol,
+                "estimado_15d": vol_15,
+                "estimado_30d": vol_30,
+                "tendencia": vol_trend,
+                "variacao_diaria_media": round(daily_slope, 1),
+            },
+            "setores": sector_trends_result,
+            "criticos": {
+                "atual_estimado": current_30_est,
+                "estimado_15d": estimated_critical_15d,
+                "range_20_30": range_20_30,
+                "nota": (
+                    "Estimativa baseada em aparições consecutivas na janela de análise. "
+                    "Para dados exatos, consulte a página Atribuições."
+                ),
+            },
+        }
+
+    return _cached_response(db, "forecast", filters, build)
