@@ -108,6 +108,7 @@ function ProcessBreakdown({ proc }) {
 }
 
 const NIVEIS = ["todos", "critico", "elevado", "moderado", "normal"];
+const PAGE_SIZE = 100;
 
 export default function RiscoPage() {
   const { toQueryParams } = useFilters();
@@ -117,6 +118,7 @@ export default function RiscoPage() {
   );
   const [nivelFiltro, setNivelFiltro] = useState("todos");
   const [expanded, setExpanded] = useState(null);
+  const [page, setPage] = useState(1);
 
   if (loading) return <LoadingBlock label="Calculando scores de risco..." />;
   if (error)   return <ErrorBlock message={error} onRetry={retry} />;
@@ -127,6 +129,9 @@ export default function RiscoPage() {
   const filtered  = nivelFiltro === "todos"
     ? all
     : all.filter((p) => p.nivel === nivelFiltro);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const paged = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   function toggleRow(id) {
     setExpanded((prev) => (prev === id ? null : id));
@@ -167,7 +172,7 @@ export default function RiscoPage() {
               key={n}
               type="button"
               className={`risk-filter-pill ${nivelFiltro === n ? "active" : ""} ${n !== "todos" ? `pill-nivel-${n}` : ""}`}
-              onClick={() => { setNivelFiltro(n); setExpanded(null); }}
+              onClick={() => { setNivelFiltro(n); setExpanded(null); setPage(1); }}
             >
               {n === "todos"
                 ? `Todos (${all.length})`
@@ -195,7 +200,7 @@ export default function RiscoPage() {
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((proc) => {
+                {paged.map((proc) => {
                   const id = rowId(proc);
                   return (
                     <Fragment key={id}>
@@ -228,6 +233,32 @@ export default function RiscoPage() {
                 })}
               </tbody>
             </table>
+          </div>
+        )}
+
+        {totalPages > 1 && (
+          <div className="pagination-bar">
+            <span className="pagination-summary">
+              Página {page} de {totalPages} | {filtered.length} processos
+            </span>
+            <div className="table-actions">
+              <button
+                type="button"
+                className="table-button"
+                disabled={page === 1}
+                onClick={() => { setPage((p) => Math.max(1, p - 1)); setExpanded(null); }}
+              >
+                Anterior
+              </button>
+              <button
+                type="button"
+                className="table-button"
+                disabled={page === totalPages}
+                onClick={() => { setPage((p) => Math.min(totalPages, p + 1)); setExpanded(null); }}
+              >
+                Próxima
+              </button>
+            </div>
           </div>
         )}
       </section>
