@@ -1,4 +1,4 @@
-name: Alertas de processos críticos — SEI Analytics
+name: Alertas de processos críticos — AnalyticSEI
 
 # Roda às sextas-feiras às 21:00 BRT (UTC-3).
 # Envia e-mail apenas se houver processos com mais de 30 dias sem movimentação.
