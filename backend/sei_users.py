@@ -349,6 +349,65 @@ def upsert_sei_user(db: Session, nome: object, nome_sei: object, usuario_sei: ob
     return action, user
 
 
+def update_sei_user(db: Session, sei_user_id: int, nome: object, nome_sei: object, usuario_sei: object) -> SeiUser:
+    user = db.query(SeiUser).options(selectinload(SeiUser.aliases)).filter(SeiUser.id == sei_user_id).first()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuario SEI nao encontrado.")
+
+    payload = apply_mapping_keys(nome, nome_sei, usuario_sei)
+    keys = {key for key in (payload["nome_key"], payload["nome_sei_key"], payload["usuario_sei_key"]) if key}
+
+    conflicting_user = (
+        db.query(SeiUser)
+        .filter(
+            SeiUser.id != sei_user_id,
+            or_(
+                SeiUser.nome_key.in_(keys),
+                SeiUser.nome_sei_key.in_(keys),
+                SeiUser.usuario_sei_key.in_(keys),
+            ),
+        )
+        .first()
+        if keys
+        else None
+    )
+    if conflicting_user:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Os dados informados ja pertencem ao usuario SEI {conflicting_user.nome}.",
+        )
+
+    conflicting_alias = (
+        db.query(SeiUserAlias)
+        .filter(SeiUserAlias.alias_key.in_(keys), SeiUserAlias.sei_user_id != sei_user_id)
+        .first()
+        if keys
+        else None
+    )
+    if conflicting_alias:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Os dados informados ja estao vinculados como alias historico de {conflicting_alias.user.nome}.",
+        )
+    if keys:
+        own_aliases = (
+            db.query(SeiUserAlias)
+            .filter(SeiUserAlias.alias_key.in_(keys), SeiUserAlias.sei_user_id == sei_user_id)
+            .all()
+        )
+        for alias in own_aliases:
+            db.delete(alias)
+
+    user.nome = payload["nome"]
+    user.nome_sei = payload["nome_sei"]
+    user.usuario_sei = payload["usuario_sei"]
+    user.nome_key = payload["nome_key"]
+    user.nome_sei_key = payload["nome_sei_key"]
+    user.usuario_sei_key = payload["usuario_sei_key"]
+    db.flush()
+    return user
+
+
 def delete_sei_user(db: Session, sei_user_id: int) -> str:
     user = db.query(SeiUser).filter(SeiUser.id == sei_user_id).first()
     if not user:

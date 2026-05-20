@@ -111,6 +111,7 @@ export default function SeiUsersPage() {
   const [saving, setSaving] = useState(false);
   const [importing, setImporting] = useState(false);
   const [aliasSaving, setAliasSaving] = useState(false);
+  const [editingId, setEditingId] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
   const [deletingAliasId, setDeletingAliasId] = useState(null);
   const [message, setMessage] = useState("");
@@ -158,8 +159,14 @@ export default function SeiUsersPage() {
     setError("");
 
     try {
-      await api.post("/admin/sei-users", form);
-      setMessage("Usuário SEI salvo com sucesso. As atribuições já foram consolidadas nos dashboards.");
+      if (editingId) {
+        await api.put(`/admin/sei-users/${editingId}`, form);
+        setMessage("Usuário SEI atualizado com sucesso. As atribuições já foram ressincronizadas nos dashboards.");
+      } else {
+        await api.post("/admin/sei-users", form);
+        setMessage("Usuário SEI salvo com sucesso. As atribuições já foram consolidadas nos dashboards.");
+      }
+      setEditingId(null);
       setForm({ nome: "", nome_sei: "", usuario_sei: "" });
       await loadSeiUsers();
     } catch (requestError) {
@@ -167,6 +174,25 @@ export default function SeiUsersPage() {
     } finally {
       setSaving(false);
     }
+  }
+
+  function startEdit(row) {
+    setEditingId(row.id);
+    setForm({
+      nome: row.nome || "",
+      nome_sei: row.nome_sei || "",
+      usuario_sei: row.usuario_sei || "",
+    });
+    setMessage("");
+    setError("");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function cancelEdit() {
+    setEditingId(null);
+    setForm({ nome: "", nome_sei: "", usuario_sei: "" });
+    setMessage("");
+    setError("");
   }
 
   async function handleImport(event) {
@@ -292,8 +318,12 @@ export default function SeiUsersPage() {
       <section className="panel">
         <div className="panel-header">
           <div>
-            <h3>Novo vínculo manual</h3>
-            <p>Cadastre aqui um novo servidor sempre que surgir um nome ou usuário ainda não mapeado.</p>
+            <h3>{editingId ? "Editar vínculo de usuário SEI" : "Novo vínculo manual"}</h3>
+            <p>
+              {editingId
+                ? "Ajuste o nome canônico, o nome exibido no SEI ou o usuário SEI do registro selecionado."
+                : "Cadastre aqui um novo servidor sempre que surgir um nome ou usuário ainda não mapeado."}
+            </p>
           </div>
         </div>
         <form className="form-grid" onSubmit={handleSubmit}>
@@ -331,9 +361,16 @@ export default function SeiUsersPage() {
           {message ? <div className="alert success full-width">{message}</div> : null}
           {error ? <div className="alert error full-width">{error}</div> : null}
 
-          <button type="submit" className="primary-button" disabled={saving}>
-            {saving ? "Salvando..." : "Salvar vínculo"}
-          </button>
+          <div className="form-actions">
+            <button type="submit" className="primary-button" disabled={saving}>
+              {saving ? "Salvando..." : editingId ? "Salvar edição" : "Salvar vínculo"}
+            </button>
+            {editingId ? (
+              <button type="button" className="secondary-button" onClick={cancelEdit} disabled={saving}>
+                Cancelar edição
+              </button>
+            ) : null}
+          </div>
         </form>
       </section>
 
@@ -473,14 +510,24 @@ export default function SeiUsersPage() {
                 key: "actions",
                 label: "Ações",
                 render: (_, row) => (
-                  <button
-                    type="button"
-                    className="table-button danger"
-                    onClick={() => handleDelete(row)}
-                    disabled={deletingId === row.id}
-                  >
-                    {deletingId === row.id ? "Excluindo..." : "Excluir"}
-                  </button>
+                  <div className="table-actions">
+                    <button
+                      type="button"
+                      className="table-button primary"
+                      onClick={() => startEdit(row)}
+                      disabled={saving || deletingId === row.id}
+                    >
+                      Editar
+                    </button>
+                    <button
+                      type="button"
+                      className="table-button danger"
+                      onClick={() => handleDelete(row)}
+                      disabled={deletingId === row.id}
+                    >
+                      {deletingId === row.id ? "Excluindo..." : "Excluir"}
+                    </button>
+                  </div>
                 ),
               },
             ]}

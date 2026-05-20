@@ -29,6 +29,7 @@ const ACTION_LABELS = {
   "usuario.excluido":   { label: "Usuário excluído",         color: "var(--danger)" },
   "senha.alterada":     { label: "Senha alterada",           color: "var(--primary)" },
   "sei_usuario.criado": { label: "DE-PARA criado",           color: "var(--success)" },
+  "sei_usuario.editado": { label: "DE-PARA editado",         color: "var(--primary)" },
   "sei_usuario.excluido":{ label: "DE-PARA excluído",        color: "var(--danger)" },
   "sei_usuario.importado":{ label: "DE-PARA importado",      color: "var(--primary)" },
   "sei_usuario.alias_adicionado":{ label: "Alias SEI adicionado", color: "var(--success)" },

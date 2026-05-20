@@ -83,6 +83,7 @@ const MANUTENCAO = [
   { title: "Corrigir data de upload", desc: "Em Enviar Relatório, clicar em Editar data na linha do upload. O sistema verifica conflitos automaticamente." },
   { title: "Remover snapshot incorreto", desc: "Em Enviar Relatório, clicar em Excluir. Todos os processos daquele snapshot são removidos." },
   { title: "Adicionar servidor ao DE-PARA", desc: "Em Usuários SEI, preencher o formulário. A plataforma sincroniza todos os processos históricos automaticamente." },
+  { title: "Editar servidor no DE-PARA", desc: "Em Usuários SEI, clicar em Editar na tabela, ajustar nome canônico, nome SEI ou usuário SEI e salvar. Os processos são ressincronizados automaticamente." },
   { title: "Unir nomes históricos de servidor", desc: "Em Usuários SEI, escolher o usuário principal e informar o nome antigo ou alternativo. O alias passa a consolidar filtros, gráficos e rankings sem alterar o texto bruto importado do SEI." },
   { title: "Criar novo usuário", desc: "Em Administração, preencher o formulário com nome, e-mail, senha e nível de acesso (admin ou não)." },
   { title: "Lançar indicadores mensais", desc: "Em Indicadores Mensais → aba Atualização mensal, selecionar setor, ano e mês, preencher os 6 indicadores." },

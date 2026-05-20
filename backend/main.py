@@ -77,6 +77,7 @@ from .sei_users import (
     list_attribution_candidates,
     needs_processo_atribuicoes_sync,
     sync_processo_atribuicoes,
+    update_sei_user,
     upsert_sei_user,
 )
 
@@ -609,6 +610,36 @@ def create_sei_user(
     db.commit()
     db.refresh(sei_user)
     sync_processo_atribuicoes(db)
+    clear_analytics_cache()
+    background_tasks.add_task(precompute_analytics)
+    return sei_user
+
+
+@app.put("/api/admin/sei-users/{sei_user_id}", response_model=SeiUserRead)
+def edit_sei_user(
+    sei_user_id: int,
+    payload: SeiUserCreate,
+    background_tasks: BackgroundTasks,
+    current_admin: User = Depends(get_current_admin_user),
+    db: Session = Depends(get_db),
+) -> SeiUser:
+    sei_user = update_sei_user(db, sei_user_id, payload.nome, payload.nome_sei, payload.usuario_sei)
+    changed = sync_processo_atribuicoes(db)
+    _log_audit(
+        db,
+        action="sei_usuario.editado",
+        entity_type="sei_usuario",
+        entity_id=str(sei_user_id),
+        details={
+            "nome": sei_user.nome,
+            "nome_sei": sei_user.nome_sei,
+            "usuario_sei": sei_user.usuario_sei,
+            "processos_atualizados": changed,
+        },
+        user=current_admin,
+    )
+    db.commit()
+    db.refresh(sei_user)
     clear_analytics_cache()
     background_tasks.add_task(precompute_analytics)
     return sei_user
