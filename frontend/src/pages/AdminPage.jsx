@@ -35,6 +35,8 @@ const ACTION_LABELS = {
   "sei_usuario.alias_adicionado":{ label: "Alias SEI adicionado", color: "var(--success)" },
   "sei_usuario.alias_removido":{ label: "Alias SEI removido", color: "var(--danger)" },
   "sei_usuario.unificado":{ label: "Histórico SEI unificado", color: "var(--accent-dark)" },
+  "process_type_weight.salvo":   { label: "Peso de tipo salvo",    color: "var(--primary)" },
+  "process_type_weight.removido":{ label: "Peso de tipo removido", color: "var(--danger)" },
 };
 
 function ActionBadge({ action }) {
@@ -556,6 +558,7 @@ export default function AdminPage() {
               <thead>
                 <tr>
                   <th>Tipo de processo</th>
+                  <th style={{ width: 80 }}>Processos</th>
                   <th style={{ width: 80 }}>Peso</th>
                   <th>Categoria</th>
                   <th style={{ width: 110 }}>Ações</th>
@@ -591,6 +594,9 @@ export default function AdminPage() {
                               configurado
                             </span>
                           )}
+                        </td>
+                        <td style={{ color: "var(--muted)", fontSize: "0.78rem", textAlign: "right" }}>
+                          {t.total_processos?.toLocaleString("pt-BR") || "—"}
                         </td>
                         <td>
                           {isEditing ? (

@@ -4,7 +4,7 @@ from collections.abc import Callable
 from statistics import median
 import threading
 from contextlib import asynccontextmanager
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from zoneinfo import ZoneInfo
 
 from fastapi import BackgroundTasks, Depends, FastAPI, File, Form, Header, HTTPException, Query, UploadFile, status
@@ -1089,22 +1089,25 @@ def list_type_weights(
         w.tipo: w
         for w in db.query(ProcessTypeWeight).order_by(ProcessTypeWeight.tipo).all()
     }
-    known_types: list[str] = sorted({
-        row[0]
-        for row in db.query(Processo.tipo)
+    # Contagem de registros por tipo — ajuda o admin a calibrar pesos com contexto
+    type_counts: dict[str, int] = {
+        row[0]: int(row[1])
+        for row in db.query(Processo.tipo, func.count(Processo.id))
         .filter(Processo.tipo.is_not(None), Processo.tipo != "")
-        .distinct()
+        .group_by(Processo.tipo)
         .all()
         if row[0]
-    })
+    }
+    known_types: list[str] = sorted(type_counts.keys())
 
-    result = []
-    for tipo in known_types:
-        if tipo in configured:
-            w = configured[tipo]
-            result.append({
+    def _row(tipo: str, w: ProcessTypeWeight | None) -> dict:
+        base = {
+            "tipo": tipo,
+            "total_processos": type_counts.get(tipo, 0),
+        }
+        if w:
+            base.update({
                 "id": w.id,
-                "tipo": w.tipo,
                 "peso": float(w.peso),
                 "categoria": w.categoria,
                 "justificativa": w.justificativa,
@@ -1113,9 +1116,8 @@ def list_type_weights(
                 "updated_at": w.updated_at.isoformat() if w.updated_at else None,
             })
         else:
-            result.append({
+            base.update({
                 "id": None,
-                "tipo": tipo,
                 "peso": 1.00,
                 "categoria": None,
                 "justificativa": None,
@@ -1123,20 +1125,14 @@ def list_type_weights(
                 "configurado": False,
                 "updated_at": None,
             })
+        return base
 
-    # Também inclui pesos configurados para tipos que já não existem nos processos
+    result = [_row(tipo, configured.get(tipo)) for tipo in known_types]
+
+    # Pesos configurados para tipos que já não existem nos processos (históricos)
     for tipo, w in configured.items():
-        if tipo not in known_types:
-            result.append({
-                "id": w.id,
-                "tipo": w.tipo,
-                "peso": float(w.peso),
-                "categoria": w.categoria,
-                "justificativa": w.justificativa,
-                "ativo": w.ativo,
-                "configurado": True,
-                "updated_at": w.updated_at.isoformat() if w.updated_at else None,
-            })
+        if tipo not in type_counts:
+            result.append(_row(tipo, w))
 
     result.sort(key=lambda x: x["tipo"].lower())
     return result
@@ -1154,13 +1150,13 @@ def upsert_type_weight(
     Invalida o cache do Score de Risco automaticamente.
     """
     existing = db.query(ProcessTypeWeight).filter(ProcessTypeWeight.tipo == payload.tipo).first()
+    old_peso = float(existing.peso) if existing else None
     if existing:
         existing.peso = payload.peso
         existing.categoria = payload.categoria
         existing.justificativa = payload.justificativa
         existing.ativo = payload.ativo
-        from datetime import datetime, timezone as tz
-        existing.updated_at = datetime.now(tz.utc)
+        existing.updated_at = datetime.now(timezone.utc)
     else:
         db.add(ProcessTypeWeight(
             tipo=payload.tipo,
@@ -1169,6 +1165,19 @@ def upsert_type_weight(
             justificativa=payload.justificativa,
             ativo=payload.ativo,
         ))
+    _log_audit(
+        db,
+        action="process_type_weight.salvo",
+        entity_type="process_type_weight",
+        entity_id=payload.tipo,
+        details={
+            "peso_anterior": old_peso,
+            "peso_novo": payload.peso,
+            "categoria": payload.categoria,
+            "ativo": payload.ativo,
+        },
+        user=current_admin,
+    )
     db.commit()
     clear_analytics_cache()
     return {"ok": True, "tipo": payload.tipo, "peso": payload.peso}
@@ -1184,10 +1193,20 @@ def delete_type_weight(
     w = db.query(ProcessTypeWeight).filter(ProcessTypeWeight.id == weight_id).first()
     if not w:
         raise HTTPException(status_code=404, detail="Peso não encontrado.")
+    tipo_removido = w.tipo
+    peso_removido = float(w.peso)
     db.delete(w)
+    _log_audit(
+        db,
+        action="process_type_weight.removido",
+        entity_type="process_type_weight",
+        entity_id=tipo_removido,
+        details={"peso_removido": peso_removido},
+        user=current_admin,
+    )
     db.commit()
     clear_analytics_cache()
-    return {"ok": True, "message": f"Peso de '{w.tipo}' removido. Voltará ao padrão 1.00."}
+    return {"ok": True, "message": f"Peso de '{tipo_removido}' removido. Voltará ao padrão 1.00."}
 
 
 @app.get("/api/alerts/summary")

@@ -112,6 +112,9 @@ class ProcessTypeWeight(Base):
     pela API /api/admin/type-weights.
     """
     __tablename__ = "process_type_weights"
+    __table_args__ = (
+        sa.CheckConstraint("peso >= 0.80 AND peso <= 1.50", name="ck_process_type_weights_peso"),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     tipo: Mapped[str] = mapped_column(String(512), nullable=False, unique=True, index=True)
