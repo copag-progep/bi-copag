@@ -1,7 +1,8 @@
 """Modelos SQLAlchemy — espelham os dados exportados do SEI e entidades de suporte do AnalyticSEI."""
 from datetime import date, datetime, timezone
 
-from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint
+import sqlalchemy as sa
+from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Index, Integer, Numeric, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .database import Base
@@ -101,6 +102,30 @@ class SeiUserAlias(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
 
     user: Mapped["SeiUser"] = relationship("SeiUser", back_populates="aliases")
+
+
+class ProcessTypeWeight(Base):
+    """Peso de prioridade por tipo de processo para o Score de Risco.
+
+    Tipos sem registro nesta tabela recebem peso implícito 1.00 (neutro).
+    O admin pode criar/editar pesos pela interface administrativa ou
+    pela API /api/admin/type-weights.
+    """
+    __tablename__ = "process_type_weights"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    tipo: Mapped[str] = mapped_column(String(512), nullable=False, unique=True, index=True)
+    peso: Mapped[float] = mapped_column(Numeric(4, 2), nullable=False, default=1.00)
+    categoria: Mapped[str | None] = mapped_column(String(100), nullable=True)   # ex: "Alta prioridade"
+    justificativa: Mapped[str | None] = mapped_column(Text, nullable=True)
+    ativo: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
 
 
 class AuditLog(Base):

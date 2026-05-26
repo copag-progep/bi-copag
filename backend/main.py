@@ -8,6 +8,7 @@ from datetime import date, datetime
 from zoneinfo import ZoneInfo
 
 from fastapi import BackgroundTasks, Depends, FastAPI, File, Form, Header, HTTPException, Query, UploadFile, status
+from pydantic import BaseModel, Field
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
@@ -42,7 +43,7 @@ from .auth import (
 )
 from .csv_importer import SETORES, bootstrap_workspace_csvs, import_csv_snapshot
 from .database import SessionLocal, get_db, init_db
-from .models import AuditLog, MonthlyStat, Processo, SeiUser, Upload, User
+from .models import AuditLog, MonthlyStat, ProcessTypeWeight, Processo, SeiUser, Upload, User
 from .monthly_stats import MONTHLY_INDICATORS, import_monthly_stats_csv, update_monthly_stat_value, upsert_month_entry
 from .schemas import (
     AuditLogRead,
@@ -1059,6 +1060,134 @@ def list_audit_logs(
         "page": page,
         "page_size": page_size,
     }
+
+
+# ── Pesos por tipo de processo (Score de Risco) ───────────────────────────
+
+class TypeWeightUpsert(BaseModel):
+    tipo: str
+    peso: float = Field(default=1.00, ge=0.80, le=1.50)
+    categoria: str | None = None
+    justificativa: str | None = None
+    ativo: bool = True
+
+
+@app.get("/api/admin/type-weights")
+def list_type_weights(
+    _: User = Depends(get_current_admin_user),
+    db: Session = Depends(get_db),
+):
+    """Lista todos os tipos conhecidos com seus pesos configurados.
+
+    Retorna a união de:
+    - Tipos com peso explícito na tabela process_type_weights
+    - Tipos distintos existentes nos processos mas sem peso configurado (peso implícito 1.00)
+
+    Assim o admin sempre vê todos os tipos, incluindo novos que entraram via upload.
+    """
+    configured: dict[str, ProcessTypeWeight] = {
+        w.tipo: w
+        for w in db.query(ProcessTypeWeight).order_by(ProcessTypeWeight.tipo).all()
+    }
+    known_types: list[str] = sorted({
+        row[0]
+        for row in db.query(Processo.tipo)
+        .filter(Processo.tipo.is_not(None), Processo.tipo != "")
+        .distinct()
+        .all()
+        if row[0]
+    })
+
+    result = []
+    for tipo in known_types:
+        if tipo in configured:
+            w = configured[tipo]
+            result.append({
+                "id": w.id,
+                "tipo": w.tipo,
+                "peso": float(w.peso),
+                "categoria": w.categoria,
+                "justificativa": w.justificativa,
+                "ativo": w.ativo,
+                "configurado": True,
+                "updated_at": w.updated_at.isoformat() if w.updated_at else None,
+            })
+        else:
+            result.append({
+                "id": None,
+                "tipo": tipo,
+                "peso": 1.00,
+                "categoria": None,
+                "justificativa": None,
+                "ativo": True,
+                "configurado": False,
+                "updated_at": None,
+            })
+
+    # Também inclui pesos configurados para tipos que já não existem nos processos
+    for tipo, w in configured.items():
+        if tipo not in known_types:
+            result.append({
+                "id": w.id,
+                "tipo": w.tipo,
+                "peso": float(w.peso),
+                "categoria": w.categoria,
+                "justificativa": w.justificativa,
+                "ativo": w.ativo,
+                "configurado": True,
+                "updated_at": w.updated_at.isoformat() if w.updated_at else None,
+            })
+
+    result.sort(key=lambda x: x["tipo"].lower())
+    return result
+
+
+@app.put("/api/admin/type-weights")
+def upsert_type_weight(
+    payload: TypeWeightUpsert,
+    current_admin: User = Depends(get_current_admin_user),
+    db: Session = Depends(get_db),
+):
+    """Cria ou atualiza o peso de um tipo de processo.
+
+    Idempotente: se o tipo já existe, atualiza; senão, insere.
+    Invalida o cache do Score de Risco automaticamente.
+    """
+    existing = db.query(ProcessTypeWeight).filter(ProcessTypeWeight.tipo == payload.tipo).first()
+    if existing:
+        existing.peso = payload.peso
+        existing.categoria = payload.categoria
+        existing.justificativa = payload.justificativa
+        existing.ativo = payload.ativo
+        from datetime import datetime, timezone as tz
+        existing.updated_at = datetime.now(tz.utc)
+    else:
+        db.add(ProcessTypeWeight(
+            tipo=payload.tipo,
+            peso=payload.peso,
+            categoria=payload.categoria,
+            justificativa=payload.justificativa,
+            ativo=payload.ativo,
+        ))
+    db.commit()
+    clear_analytics_cache()
+    return {"ok": True, "tipo": payload.tipo, "peso": payload.peso}
+
+
+@app.delete("/api/admin/type-weights/{weight_id}")
+def delete_type_weight(
+    weight_id: int,
+    current_admin: User = Depends(get_current_admin_user),
+    db: Session = Depends(get_db),
+):
+    """Remove o peso configurado de um tipo (volta ao padrão 1.00 implícito)."""
+    w = db.query(ProcessTypeWeight).filter(ProcessTypeWeight.id == weight_id).first()
+    if not w:
+        raise HTTPException(status_code=404, detail="Peso não encontrado.")
+    db.delete(w)
+    db.commit()
+    clear_analytics_cache()
+    return {"ok": True, "message": f"Peso de '{w.tipo}' removido. Voltará ao padrão 1.00."}
 
 
 @app.get("/api/alerts/summary")

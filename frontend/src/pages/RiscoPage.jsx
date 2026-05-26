@@ -98,6 +98,13 @@ function ProcessBreakdown({ proc }) {
         </div>
       )}
 
+      {fatores.peso_tipo?.multiplicador && fatores.peso_tipo.multiplicador !== 1.0 && (
+        <div className="risk-trend-note" style={{ color: fatores.peso_tipo.multiplicador > 1 ? "#1a7a50" : "#bf3535" }}>
+          <span>Peso do tipo: <strong>{fatores.peso_tipo.multiplicador}×</strong></span>
+          <span>{fatores.peso_tipo.detalhe}</span>
+        </div>
+      )}
+
       <div className="risk-breakdown-footer">
         <Link to="/atribuicoes" className="link-secondary">
           Ver carteira completa →

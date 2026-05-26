@@ -138,17 +138,34 @@ def _uploads_signature(db: Session) -> tuple[object, ...]:
     return sig
 
 
+def _weights_signature(db: Session) -> tuple:
+    """Versão da tabela de pesos por tipo — invalida cache do risk score quando o admin edita pesos."""
+    from .models import ProcessTypeWeight
+    total, latest = db.query(
+        func.count(ProcessTypeWeight.id),
+        func.max(ProcessTypeWeight.updated_at),
+    ).one()
+    return (int(total or 0), str(latest or ""))
+
+
 def _cached_response(
     db: Session,
     cache_name: str,
     filters: AnalyticsFilters | None,
     builder: Callable[[], dict],
+    extra_key: tuple = (),
 ) -> dict:
-    """Retorna resposta do cache ou executa builder e armazena. Invalida automaticamente quando uploads mudam."""
+    """Retorna resposta do cache ou executa builder e armazena.
+
+    Invalida automaticamente quando uploads mudam.
+    Use extra_key para incluir componentes adicionais na chave
+    (ex: _weights_signature para o risk score).
+    """
     key = (
         cache_name,
         _uploads_signature(db),
         filters.cache_key() if filters else None,
+        *extra_key,
     )
     with _CACHE_LOCK:
         cached = _ANALYTICS_CACHE.get(key)
@@ -1354,6 +1371,15 @@ def get_risk_scores(db: Session, filters: AnalyticsFilters) -> dict:
         if not processos:
             return _empty_risk(reference_date)
 
+        # ── Pesos por tipo (tabela configurável pelo admin) ────────────────
+        from .models import ProcessTypeWeight
+        type_weights: dict[str, float] = {
+            row.tipo: float(row.peso)
+            for row in db.query(ProcessTypeWeight)
+            .filter(ProcessTypeWeight.ativo.is_(True))
+            .all()
+        }
+
         # ── P90 lookup com fallback: setor → tipo → global ────────────────
         lt = get_lead_time_data(db, filters)
         p90_lookup = lt.get("p90_lookup") or {}
@@ -1448,14 +1474,17 @@ def get_risk_scores(db: Session, filters: AnalyticsFilters) -> dict:
             trend = sector_trend.get(setor, "estavel")
             t_mult = trend_mult.get(trend, _RISK_TREND_STABLE)
 
-            # Score final
+            # Multiplicador de peso por tipo (configurável pelo admin)
+            p_tipo = type_weights.get(tipo, 1.0) if tipo else 1.0
+
+            # Score final: base × tendência × peso_tipo, capped em 1.0
             base = (
                 _RISK_W_ABS        * f_abs +
                 _RISK_W_REL        * f_rel +
                 _RISK_W_UNASSIGNED * f_unassigned +
                 _RISK_W_MULTI      * f_multi
             )
-            score = round(min(base * t_mult, 1.0), 3)
+            score = round(min(base * t_mult * p_tipo, 1.0), 3)
 
             # Nível de risco
             if score >= _RISK_THR_CRITICAL:
@@ -1500,6 +1529,13 @@ def get_risk_scores(db: Session, filters: AnalyticsFilters) -> dict:
                         "multiplicador": t_mult,
                         "detalhe": f"Setor {setor}: {trend}" if trend != "estavel" else "",
                     },
+                    "peso_tipo": {
+                        "multiplicador": p_tipo,
+                        "detalhe": (
+                            f"Tipo '{tipo}' com peso {p_tipo}×"
+                            if p_tipo != 1.0 else ""
+                        ),
+                    },
                 },
             })
 
@@ -1528,7 +1564,7 @@ def get_risk_scores(db: Session, filters: AnalyticsFilters) -> dict:
             "processos": scored,
         }
 
-    return _cached_response(db, "risk-score", filters, build)
+    return _cached_response(db, "risk-score", filters, build, extra_key=_weights_signature(db))
 
 
 def _empty_risk(reference_date: date | None) -> dict:

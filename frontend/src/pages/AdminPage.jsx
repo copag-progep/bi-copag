@@ -97,6 +97,59 @@ export default function AdminPage() {
   const [auditTotalPages, setAuditTotalPages] = useState(1);
   const [auditLoading, setAuditLoading] = useState(false);
   const AUDIT_PAGE_SIZE = 50;
+
+  // ── Pesos por tipo ──────────────────────────────────────────────────────
+  const [typeWeights, setTypeWeights] = useState([]);
+  const [twLoading, setTwLoading] = useState(false);
+  const [twSearch, setTwSearch] = useState("");
+  const [twFilter, setTwFilter] = useState("todos"); // todos | configurados | modificados
+  const [twEditing, setTwEditing] = useState(null); // { tipo, peso, categoria, justificativa, id }
+  const [twSaving, setTwSaving] = useState(false);
+  const [twMsg, setTwMsg] = useState("");
+
+  async function loadTypeWeights() {
+    setTwLoading(true);
+    try {
+      const { data } = await api.get("/admin/type-weights");
+      setTypeWeights(data);
+    } catch {
+      // silencioso — seção fica vazia
+    } finally {
+      setTwLoading(false);
+    }
+  }
+
+  async function saveTypeWeight(row) {
+    setTwSaving(true);
+    setTwMsg("");
+    try {
+      await api.put("/admin/type-weights", {
+        tipo: row.tipo,
+        peso: Number(row.peso),
+        categoria: row.categoria || null,
+        justificativa: row.justificativa || null,
+        ativo: row.ativo !== false,
+      });
+      setTwMsg(`✓ Peso de "${row.tipo}" salvo.`);
+      setTwEditing(null);
+      await loadTypeWeights();
+    } catch (err) {
+      setTwMsg(`✗ Erro: ${err.response?.data?.detail || "falha ao salvar"}`);
+    } finally {
+      setTwSaving(false);
+    }
+  }
+
+  async function removeTypeWeight(id, tipo) {
+    if (!window.confirm(`Remover peso de "${tipo}"? O tipo voltará ao padrão 1.00.`)) return;
+    try {
+      await api.delete(`/admin/type-weights/${id}`);
+      setTwMsg(`✓ Peso de "${tipo}" removido.`);
+      await loadTypeWeights();
+    } catch (err) {
+      setTwMsg(`✗ ${err.response?.data?.detail || "falha ao remover"}`);
+    }
+  }
   const [form, setForm] = useState({
     name: "",
     email: "",
@@ -144,6 +197,7 @@ export default function AdminPage() {
   useEffect(() => {
     loadAdminData();
     loadAuditLogs(1);
+    loadTypeWeights();
   }, []);
 
   useEffect(() => {
@@ -432,6 +486,202 @@ export default function AdminPage() {
               </div>
             </div>
           </>
+        )}
+      </section>
+
+      {/* ── Pesos por Tipo de Processo ─────────────────────────────────── */}
+      <section className="panel">
+        <div className="panel-header">
+          <div>
+            <h3>Pesos por Tipo de Processo</h3>
+            <p>
+              Define o multiplicador de prioridade no Score de Risco por tipo.
+              Tipos sem configuração usam peso padrão 1,00 (neutro).
+              Novos tipos que entrarem via upload aparecem automaticamente.
+            </p>
+          </div>
+          <button
+            type="button"
+            className="table-button"
+            onClick={loadTypeWeights}
+            disabled={twLoading}
+          >
+            {twLoading ? "Carregando..." : "↻ Atualizar lista"}
+          </button>
+        </div>
+
+        {twMsg && (
+          <div style={{
+            padding: "8px 14px", borderRadius: 8, marginBottom: 12,
+            background: twMsg.startsWith("✓") ? "rgba(26,122,80,.1)" : "rgba(191,53,53,.1)",
+            color: twMsg.startsWith("✓") ? "#1a7a50" : "#bf3535",
+            fontSize: "0.85rem", fontWeight: 600,
+          }}>
+            {twMsg}
+          </div>
+        )}
+
+        <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap" }}>
+          <input
+            type="text"
+            placeholder="Buscar tipo..."
+            value={twSearch}
+            onChange={(e) => setTwSearch(e.target.value)}
+            style={{
+              flex: 1, minWidth: 200, border: "1.5px solid var(--border-strong)",
+              borderRadius: 999, padding: "7px 14px", fontSize: "0.82rem",
+              fontFamily: "inherit", color: "var(--ink)", background: "var(--bg)",
+            }}
+          />
+          {["todos", "configurados", "modificados"].map((f) => (
+            <button
+              key={f}
+              type="button"
+              className={`risk-filter-pill ${twFilter === f ? "active" : ""}`}
+              onClick={() => setTwFilter(f)}
+              style={{ textTransform: "capitalize" }}
+            >
+              {f === "todos" ? `Todos (${typeWeights.length})`
+                : f === "configurados" ? `Configurados (${typeWeights.filter((t) => t.configurado).length})`
+                : `Modificados (${typeWeights.filter((t) => t.configurado && t.peso !== 1.0).length})`}
+            </button>
+          ))}
+        </div>
+
+        {twLoading ? (
+          <LoadingBlock label="Carregando tipos..." />
+        ) : (
+          <div className="table-shell">
+            <table className="data-table" style={{ fontSize: "0.82rem" }}>
+              <thead>
+                <tr>
+                  <th>Tipo de processo</th>
+                  <th style={{ width: 80 }}>Peso</th>
+                  <th>Categoria</th>
+                  <th style={{ width: 110 }}>Ações</th>
+                </tr>
+              </thead>
+              <tbody>
+                {typeWeights
+                  .filter((t) => {
+                    const matchSearch = !twSearch || t.tipo.toLowerCase().includes(twSearch.toLowerCase());
+                    const matchFilter =
+                      twFilter === "todos" ||
+                      (twFilter === "configurados" && t.configurado) ||
+                      (twFilter === "modificados" && t.configurado && t.peso !== 1.0);
+                    return matchSearch && matchFilter;
+                  })
+                  .map((t) => {
+                    const isEditing = twEditing?.tipo === t.tipo;
+                    const pesoColor =
+                      t.peso > 1.1 ? "#1a7a50" :
+                      t.peso > 1.0 ? "#8a5b00" :
+                      t.peso < 1.0 ? "#bf3535" : "var(--muted)";
+
+                    return (
+                      <tr key={t.tipo}>
+                        <td style={{ maxWidth: 400, wordBreak: "break-word" }}>
+                          {t.tipo}
+                          {t.configurado && (
+                            <span style={{
+                              marginLeft: 8, padding: "1px 7px", borderRadius: 8,
+                              fontSize: "0.68rem", fontWeight: 700,
+                              background: "rgba(39,49,104,.08)", color: "var(--primary)",
+                            }}>
+                              configurado
+                            </span>
+                          )}
+                        </td>
+                        <td>
+                          {isEditing ? (
+                            <input
+                              type="number"
+                              step="0.05"
+                              min="0.80"
+                              max="1.50"
+                              value={twEditing.peso}
+                              onChange={(e) => setTwEditing((prev) => ({ ...prev, peso: e.target.value }))}
+                              style={{
+                                width: 70, padding: "4px 8px", borderRadius: 6,
+                                border: "1.5px solid var(--primary)", fontSize: "0.82rem",
+                              }}
+                            />
+                          ) : (
+                            <span style={{ fontWeight: 700, color: pesoColor }}>
+                              {t.peso.toFixed(2)}×
+                            </span>
+                          )}
+                        </td>
+                        <td>
+                          {isEditing ? (
+                            <input
+                              type="text"
+                              placeholder="ex: Alta prioridade"
+                              value={twEditing.categoria || ""}
+                              onChange={(e) => setTwEditing((prev) => ({ ...prev, categoria: e.target.value }))}
+                              style={{
+                                width: "100%", padding: "4px 8px", borderRadius: 6,
+                                border: "1.5px solid var(--border-strong)", fontSize: "0.82rem",
+                              }}
+                            />
+                          ) : (
+                            <span style={{ color: "var(--muted)", fontSize: "0.78rem" }}>
+                              {t.categoria || "—"}
+                            </span>
+                          )}
+                        </td>
+                        <td>
+                          <div style={{ display: "flex", gap: 6 }}>
+                            {isEditing ? (
+                              <>
+                                <button
+                                  type="button"
+                                  className="table-button"
+                                  disabled={twSaving}
+                                  onClick={() => saveTypeWeight(twEditing)}
+                                  style={{ fontSize: "0.75rem", padding: "4px 10px" }}
+                                >
+                                  Salvar
+                                </button>
+                                <button
+                                  type="button"
+                                  className="ghost-button"
+                                  onClick={() => setTwEditing(null)}
+                                  style={{ fontSize: "0.75rem" }}
+                                >
+                                  ✕
+                                </button>
+                              </>
+                            ) : (
+                              <>
+                                <button
+                                  type="button"
+                                  className="table-button"
+                                  onClick={() => setTwEditing({ ...t })}
+                                  style={{ fontSize: "0.75rem", padding: "4px 10px" }}
+                                >
+                                  Editar
+                                </button>
+                                {t.configurado && t.id && (
+                                  <button
+                                    type="button"
+                                    className="ghost-button"
+                                    onClick={() => removeTypeWeight(t.id, t.tipo)}
+                                    style={{ fontSize: "0.75rem", color: "#bf3535" }}
+                                  >
+                                    ✕
+                                  </button>
+                                )}
+                              </>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+              </tbody>
+            </table>
+          </div>
         )}
       </section>
     </div>
