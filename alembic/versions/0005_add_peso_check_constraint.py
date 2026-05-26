@@ -20,6 +20,16 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
+    bind = op.get_bind()
+    if bind.dialect.name == "sqlite":
+        # SQLite não suporta ALTER TABLE ADD CONSTRAINT. A constraint já é
+        # criada junto da tabela na migration 0004 para bancos locais novos.
+        return
+
+    checks = {check["name"] for check in sa.inspect(bind).get_check_constraints("process_type_weights")}
+    if "ck_process_type_weights_peso" in checks:
+        return
+
     op.create_check_constraint(
         "ck_process_type_weights_peso",
         "process_type_weights",
@@ -28,6 +38,14 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    bind = op.get_bind()
+    if bind.dialect.name == "sqlite":
+        return
+
+    checks = {check["name"] for check in sa.inspect(bind).get_check_constraints("process_type_weights")}
+    if "ck_process_type_weights_peso" not in checks:
+        return
+
     op.drop_constraint(
         "ck_process_type_weights_peso",
         "process_type_weights",
