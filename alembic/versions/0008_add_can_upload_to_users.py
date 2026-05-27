@@ -1,7 +1,7 @@
 """adicionar permissão de upload por usuário (can_upload)
 
-Revision ID: 0007
-Revises: 0006
+Revision ID: 0008
+Revises: 0007
 Create Date: 2026-05-27 00:00:00.000000
 
 Adiciona can_upload em users.
@@ -13,8 +13,8 @@ from typing import Sequence, Union
 import sqlalchemy as sa
 from alembic import op
 
-revision: str = "0007"
-down_revision: Union[str, None] = "0006"
+revision: str = "0008"
+down_revision: Union[str, None] = "0007"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
