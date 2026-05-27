@@ -273,7 +273,7 @@ export default function AttributionsPage() {
             onClick={handleGenerateExcel}
             disabled={excelLoading || total === 0}
             style={{
-              appearance: "none", border: "none", borderRadius: "var(--radius)",
+              appearance: "none", borderRadius: "var(--radius)",
               padding: "10px 16px", cursor: excelLoading || total === 0 ? "not-allowed" : "pointer",
               fontFamily: "inherit", fontSize: "0.875rem", fontWeight: 700,
               display: "inline-flex", alignItems: "center", gap: 7,
