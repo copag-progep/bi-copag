@@ -43,7 +43,7 @@ from .auth import (
 )
 from .csv_importer import SETORES, bootstrap_workspace_csvs, import_csv_snapshot
 from .database import SessionLocal, get_db, init_db
-from .models import AuditLog, MonthlyStat, ProcessTypeWeight, Processo, SeiUser, Upload, User
+from .models import AuditLog, MonthlyStat, ProcessTypeWeight, Processo, SeiUser, Upload, User, UserSectorAccess
 from .monthly_stats import MONTHLY_INDICATORS, import_monthly_stats_csv, update_monthly_stat_value, upsert_month_entry
 from .schemas import (
     AuditLogRead,
@@ -236,6 +236,58 @@ def build_filters(
         setor=normalized_setor,
         tipo=tipo,
         atribuicao=atribuicao,
+    )
+
+
+def get_user_setores(user: User, db: Session) -> tuple[str, ...] | None:
+    """Retorna os setores que o usuário pode acessar.
+
+    None  → admin ou API key — sem restrição alguma.
+    ()    → não-admin sem setores configurados — sem acesso a dado algum.
+    (str,…) → não-admin com setores explícitos — só vê esses.
+    """
+    if user.is_admin:
+        return None
+    rows = (
+        db.query(UserSectorAccess.setor)
+        .filter(UserSectorAccess.user_id == user.id)
+        .all()
+    )
+    return tuple(row[0].upper() for row in rows)
+
+
+def build_filters_for_user(
+    current_user: User,
+    db: Session,
+    data_referencia: date | None = None,
+    data_inicial: date | None = None,
+    data_final: date | None = None,
+    setor: str | None = None,
+    tipo: str | None = None,
+    atribuicao: str | None = None,
+) -> AnalyticsFilters:
+    """Constrói AnalyticsFilters com o controle de acesso por divisão do usuário.
+
+    Se o usuário solicitou um setor específico que não está na sua lista, lança 403.
+    """
+    normalized_setor = setor.upper().strip() if setor else None
+    setores_permitidos = get_user_setores(current_user, db)
+
+    if setores_permitidos is not None and normalized_setor:
+        if normalized_setor not in setores_permitidos:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Acesso não autorizado ao setor {normalized_setor}.",
+            )
+
+    return AnalyticsFilters(
+        data_referencia=data_referencia,
+        data_inicial=data_inicial,
+        data_final=data_final,
+        setor=normalized_setor,
+        tipo=tipo,
+        atribuicao=atribuicao,
+        setores_permitidos=setores_permitidos,
     )
 
 
@@ -453,14 +505,20 @@ def change_password(
 @app.get("/api/processes/search")
 def process_search(
     q: str = Query(..., min_length=2),
-    _: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     q_clean = q.strip()
+    setores_permitidos = get_user_setores(current_user, db)
+
+    query = db.query(Processo).filter(Processo.protocolo.ilike(f"%{q_clean}%"))
+    if setores_permitidos is not None:
+        if len(setores_permitidos) == 0:
+            return JSONResponse({"q": q_clean, "encontrado": False, "total": 0, "resultados": []})
+        query = query.filter(Processo.setor.in_(setores_permitidos))
 
     rows = (
-        db.query(Processo)
-        .filter(Processo.protocolo.ilike(f"%{q_clean}%"))
+        query
         .order_by(Processo.protocolo.asc(), Processo.data_relatorio.asc())
         .limit(500)
         .all()
@@ -1209,14 +1267,87 @@ def delete_type_weight(
     return {"ok": True, "message": f"Peso de '{tipo_removido}' removido. Voltará ao padrão 1.00."}
 
 
+# ── Controle de acesso por divisão (setores por usuário) ─────────────────
+
+class UserSectorsUpdate(BaseModel):
+    setores: list[str]
+
+
+@app.get("/api/admin/users/{user_id}/sectors")
+def get_user_sectors(
+    user_id: int,
+    _: User = Depends(get_current_admin_user),
+    db: Session = Depends(get_db),
+):
+    """Lista os setores liberados para um usuário (vazio = sem acesso)."""
+    target = db.query(User).filter(User.id == user_id).first()
+    if not target:
+        raise HTTPException(status_code=404, detail="Usuário não encontrado.")
+    rows = db.query(UserSectorAccess.setor).filter(UserSectorAccess.user_id == user_id).all()
+    return {
+        "user_id": user_id,
+        "email": target.email,
+        "is_admin": target.is_admin,
+        "setores": sorted(row[0] for row in rows),
+    }
+
+
+@app.put("/api/admin/users/{user_id}/sectors")
+def update_user_sectors(
+    user_id: int,
+    payload: UserSectorsUpdate,
+    current_admin: User = Depends(get_current_admin_user),
+    db: Session = Depends(get_db),
+):
+    """Redefine a lista completa de setores de um usuário.
+
+    Substituição total: enviar [] remove todas as restrições (sem acesso).
+    Administradores não podem ter setores restritos.
+    """
+    target = db.query(User).filter(User.id == user_id).first()
+    if not target:
+        raise HTTPException(status_code=404, detail="Usuário não encontrado.")
+    if target.is_admin:
+        raise HTTPException(
+            status_code=400,
+            detail="Administradores têm acesso total — setores não se aplicam.",
+        )
+
+    old_rows = db.query(UserSectorAccess.setor).filter(UserSectorAccess.user_id == user_id).all()
+    old_setores = sorted(row[0] for row in old_rows)
+
+    # Substituição completa
+    db.query(UserSectorAccess).filter(UserSectorAccess.user_id == user_id).delete()
+    new_setores = sorted({s.upper().strip() for s in payload.setores if s.strip()})
+    for setor in new_setores:
+        db.add(UserSectorAccess(user_id=user_id, setor=setor))
+
+    _log_audit(
+        db,
+        action="usuario.setores_atualizados",
+        entity_type="usuario",
+        entity_id=str(user_id),
+        details={
+            "email": target.email,
+            "setores_anteriores": old_setores,
+            "setores_novos": new_setores,
+        },
+        user=current_admin,
+    )
+    db.commit()
+    # Invalida cache analítico para que as novas restrições entrem em vigor imediatamente
+    clear_analytics_cache()
+    return {"ok": True, "user_id": user_id, "setores": new_setores}
+
+
 @app.get("/api/alerts/summary")
 def alerts_summary(
-    _: User = Depends(get_current_user_or_api_key),
+    current_user: User = Depends(get_current_user_or_api_key),
     db: Session = Depends(get_db),
 ):
     """Resumo rápido de processos críticos para o sino de notificações.
     Usa o cache do stale-processes — resposta muito rápida."""
-    stale = get_stale_processes_data(db, AnalyticsFilters())
+    stale = get_stale_processes_data(db, AnalyticsFilters(setores_permitidos=get_user_setores(current_user, db)))
     processos = stale.get("processos", [])
 
     def conta(min_dias: int) -> int:
@@ -1239,11 +1370,20 @@ def alerts_summary(
 
 @app.get("/api/meta/options", response_model=FilterOptions)
 def filter_options(
-    _: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> FilterOptions:
     opts = get_filter_options(db)
     opts["setores_validos"] = SETORES
+    setores_permitidos = get_user_setores(current_user, db)
+    if setores_permitidos is not None:
+        # Restringe a lista de setores no dropdown ao que o usuário pode ver
+        opts["setores"] = [s for s in opts["setores"] if s in setores_permitidos]
+        opts["setor_restrito"] = True
+        opts["setores_do_usuario"] = list(setores_permitidos)
+    else:
+        opts["setor_restrito"] = False
+        opts["setores_do_usuario"] = []
     return FilterOptions(**opts)
 
 
@@ -1255,10 +1395,10 @@ def dashboard(
     setor: str | None = None,
     tipo: str | None = None,
     atribuicao: str | None = None,
-    _: User = Depends(get_current_user_or_api_key),
+    current_user: User = Depends(get_current_user_or_api_key),
     db: Session = Depends(get_db),
 ):
-    filters = build_filters(data_referencia, data_inicial, data_final, setor, tipo, atribuicao)
+    filters = build_filters_for_user(current_user, db, data_referencia, data_inicial, data_final, setor, tipo, atribuicao)
     return JSONResponse(get_dashboard_data(db, filters))
 
 
@@ -1270,10 +1410,10 @@ def entries_exits(
     setor: str | None = None,
     tipo: str | None = None,
     atribuicao: str | None = None,
-    _: User = Depends(get_current_user_or_api_key),
+    current_user: User = Depends(get_current_user_or_api_key),
     db: Session = Depends(get_db),
 ):
-    filters = build_filters(data_referencia, data_inicial, data_final, setor, tipo, atribuicao)
+    filters = build_filters_for_user(current_user, db, data_referencia, data_inicial, data_final, setor, tipo, atribuicao)
     return JSONResponse(get_entries_exits_data(db, filters))
 
 
@@ -1285,10 +1425,10 @@ def productivity(
     setor: str | None = None,
     tipo: str | None = None,
     atribuicao: str | None = None,
-    _: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    filters = build_filters(data_referencia, data_inicial, data_final, setor, tipo, atribuicao)
+    filters = build_filters_for_user(current_user, db, data_referencia, data_inicial, data_final, setor, tipo, atribuicao)
     return JSONResponse(get_productivity_data(db, filters))
 
 
@@ -1300,10 +1440,10 @@ def stale_processes(
     setor: str | None = None,
     tipo: str | None = None,
     atribuicao: str | None = None,
-    _: User = Depends(get_current_user_or_api_key),
+    current_user: User = Depends(get_current_user_or_api_key),
     db: Session = Depends(get_db),
 ):
-    filters = build_filters(data_referencia, data_inicial, data_final, setor, tipo, atribuicao)
+    filters = build_filters_for_user(current_user, db, data_referencia, data_inicial, data_final, setor, tipo, atribuicao)
     return JSONResponse(get_stale_processes_data(db, filters))
 
 
@@ -1315,10 +1455,10 @@ def lead_time(
     setor: str | None = None,
     tipo: str | None = None,
     atribuicao: str | None = None,
-    _: User = Depends(get_current_user_or_api_key),
+    current_user: User = Depends(get_current_user_or_api_key),
     db: Session = Depends(get_db),
 ):
-    filters = build_filters(data_referencia, data_inicial, data_final, setor, tipo, atribuicao)
+    filters = build_filters_for_user(current_user, db, data_referencia, data_inicial, data_final, setor, tipo, atribuicao)
     return JSONResponse(get_lead_time_data(db, filters))
 
 
@@ -1330,12 +1470,12 @@ def forecast(
     setor: str | None = None,
     tipo: str | None = None,
     atribuicao: str | None = None,
-    _: User = Depends(get_current_user_or_api_key),
+    current_user: User = Depends(get_current_user_or_api_key),
     db: Session = Depends(get_db),
 ):
     """Tendências estimadas de volume, saldo setorial e processos em envelhecimento.
     Carregado sob demanda pela Central Executiva — não incluído no precompute."""
-    filters = build_filters(data_referencia, data_inicial, data_final, setor, tipo, atribuicao)
+    filters = build_filters_for_user(current_user, db, data_referencia, data_inicial, data_final, setor, tipo, atribuicao)
     return JSONResponse(get_forecast_data(db, filters))
 
 
@@ -1347,7 +1487,7 @@ def risk_score(
     setor: str | None = None,
     tipo: str | None = None,
     atribuicao: str | None = None,
-    _: User = Depends(get_current_user_or_api_key),
+    current_user: User = Depends(get_current_user_or_api_key),
     db: Session = Depends(get_db),
 ):
     """Score de risco composto por processo ativo.
@@ -1356,7 +1496,7 @@ def risk_score(
     PRECOMPUTE_HEAVY_ANALYTICS=true. Score é sobre o processo,
     não sobre o servidor atribuído.
     """
-    filters = build_filters(data_referencia, data_inicial, data_final, setor, tipo, atribuicao)
+    filters = build_filters_for_user(current_user, db, data_referencia, data_inicial, data_final, setor, tipo, atribuicao)
     return JSONResponse(get_risk_scores(db, filters))
 
 
@@ -1374,10 +1514,10 @@ def attributions_list(
     protocolo_busca: str | None = Query(None),
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=5000),
-    _: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    filters = build_filters(data_referencia, None, None, setor, tipo, atribuicao)
+    filters = build_filters_for_user(current_user, db, data_referencia, None, None, setor, tipo, atribuicao)
     result = get_attributions_data(db, filters)
 
     all_items = result["items"]
@@ -1423,10 +1563,10 @@ def attributions_list(
 def workload_balance_endpoint(
     data_referencia: date | None = None,
     setor: str | None = None,
-    _: User = Depends(get_current_user_or_api_key),
+    current_user: User = Depends(get_current_user_or_api_key),
     db: Session = Depends(get_db),
 ):
-    filters = build_filters(data_referencia, None, None, setor, None, None)
+    filters = build_filters_for_user(current_user, db, data_referencia, None, None, setor, None, None)
     return JSONResponse(get_workload_balance(db, filters))
 
 
@@ -1434,10 +1574,10 @@ def workload_balance_endpoint(
 def server_profile_endpoint(
     atribuicao: str = Query(..., min_length=1),
     data_referencia: date | None = None,
-    _: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    filters = build_filters(data_referencia, None, None, None, None, atribuicao)
+    filters = build_filters_for_user(current_user, db, data_referencia, None, None, None, None, atribuicao)
     return JSONResponse(get_server_profile(db, filters))
 
 
@@ -1449,16 +1589,16 @@ def multi_sector(
     setor: str | None = None,
     tipo: str | None = None,
     atribuicao: str | None = None,
-    _: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    filters = build_filters(data_referencia, data_inicial, data_final, setor, tipo, atribuicao)
+    filters = build_filters_for_user(current_user, db, data_referencia, data_inicial, data_final, setor, tipo, atribuicao)
     return JSONResponse(get_multi_sector_data(db, filters))
 
 
 @app.get("/api/reports/daily-summary")
 def daily_summary(
-    _: User = Depends(get_current_user_or_api_key),
+    current_user: User = Depends(get_current_user_or_api_key),
     db: Session = Depends(get_db),
 ):
     """Resumo diário compacto — usado pelo relatório WhatsApp e scripts externos.
@@ -1466,7 +1606,7 @@ def daily_summary(
     Agrega dashboard, fluxo do dia e críticos em uma única chamada leve,
     evitando que scripts externos façam múltiplas requisições analíticas pesadas.
     """
-    filters = AnalyticsFilters()
+    filters = AnalyticsFilters(setores_permitidos=get_user_setores(current_user, db))
     dashboard_data = get_dashboard_data(db, filters)
     flow_data      = get_entries_exits_data(db, filters)
     stale_data     = get_stale_processes_data(db, filters)

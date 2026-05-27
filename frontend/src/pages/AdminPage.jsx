@@ -37,6 +37,7 @@ const ACTION_LABELS = {
   "sei_usuario.unificado":{ label: "Histórico SEI unificado", color: "var(--accent-dark)" },
   "process_type_weight.salvo":   { label: "Peso de tipo salvo",    color: "var(--primary)" },
   "process_type_weight.removido":{ label: "Peso de tipo removido", color: "var(--danger)" },
+  "usuario.setores_atualizados": { label: "Setores atualizados",   color: "var(--primary)" },
 };
 
 function ActionBadge({ action }) {
@@ -100,6 +101,44 @@ export default function AdminPage() {
   const [auditTotalPages, setAuditTotalPages] = useState(1);
   const [auditLoading, setAuditLoading] = useState(false);
   const AUDIT_PAGE_SIZE = 50;
+
+  // ── Controle de acesso por divisão ─────────────────────────────────────
+  const [sectorEditing, setSectorEditing] = useState(null); // user_id sendo editado
+  const [sectorData, setSectorData] = useState({});         // { [user_id]: [setor, ...] }
+  const [sectorSaving, setSectorSaving] = useState(false);
+  const [sectorMsg, setSectorMsg] = useState("");
+  const ALL_SETORES = ["DIAPE", "DICAT", "DIJOR", "DICAF", "DICAF-CHEFIA", "DICAF-REPOSICOES"];
+
+  async function loadUserSectors(userId) {
+    try {
+      const { data } = await api.get(`/admin/users/${userId}/sectors`);
+      setSectorData((prev) => ({ ...prev, [userId]: data.setores }));
+    } catch {
+      setSectorData((prev) => ({ ...prev, [userId]: [] }));
+    }
+  }
+
+  async function saveUserSectors(userId, setores) {
+    setSectorSaving(true);
+    setSectorMsg("");
+    try {
+      await api.put(`/admin/users/${userId}/sectors`, { setores });
+      setSectorMsg("✓ Divisões salvas.");
+      setSectorData((prev) => ({ ...prev, [userId]: setores }));
+      setSectorEditing(null);
+    } catch (err) {
+      setSectorMsg(`✗ ${err.response?.data?.detail || "falha ao salvar"}`);
+    } finally {
+      setSectorSaving(false);
+    }
+  }
+
+  function toggleSetor(userId, setor, currentList) {
+    const next = currentList.includes(setor)
+      ? currentList.filter((s) => s !== setor)
+      : [...currentList, setor];
+    setSectorData((prev) => ({ ...prev, [userId]: next }));
+  }
 
   // ── Pesos por tipo ──────────────────────────────────────────────────────
   const [typeWeights, setTypeWeights] = useState([]);
@@ -379,51 +418,169 @@ export default function AdminPage() {
                 <p>Contas disponíveis para autenticação na aplicação.</p>
               </div>
             </div>
+            {sectorMsg && (
+              <div style={{
+                padding: "8px 14px", borderRadius: 8, marginBottom: 12,
+                background: sectorMsg.startsWith("✓") ? "rgba(26,122,80,.1)" : "rgba(191,53,53,.1)",
+                color: sectorMsg.startsWith("✓") ? "#1a7a50" : "#bf3535",
+                fontSize: "0.85rem", fontWeight: 600,
+              }}>
+                {sectorMsg}
+              </div>
+            )}
+
             {loading ? (
               <LoadingBlock label="Carregando usuários..." />
             ) : (
-              <DataTable
-                columns={[
-                  { key: "name", label: "Nome" },
-                  { key: "email", label: "Email" },
-                  {
-                    key: "is_admin",
-                    label: "Perfil",
-                    render: (value) => (
-                      <span style={{
-                        padding: "2px 9px", borderRadius: 8, fontSize: "0.75rem", fontWeight: 700,
-                        background: value ? "rgba(39,49,104,.1)" : "rgba(0,0,0,.05)",
-                        color: value ? "var(--primary)" : "var(--muted)",
-                      }}>
-                        {value ? "Administrador" : "Usuário"}
-                      </span>
-                    ),
-                  },
-                  { key: "created_at", label: "Criado em" },
-                  ...(user?.is_admin
-                    ? [
-                        {
-                          key: "actions",
-                          label: "Ações",
-                          render: (_, row) =>
-                            row.id === user.id ? (
-                              <span className="table-helper">Conta atual</span>
-                            ) : (
-                              <button
-                                type="button"
-                                className="table-button danger"
-                                onClick={() => handleDeleteUser(row)}
-                                disabled={deletingUserId === row.id}
-                              >
-                                {deletingUserId === row.id ? "Excluindo..." : "Excluir"}
-                              </button>
-                            ),
-                        },
-                      ]
-                    : []),
-                ]}
-                rows={users}
-              />
+              <div className="table-shell">
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>Nome</th>
+                      <th>Email</th>
+                      <th>Perfil</th>
+                      <th>Divisões</th>
+                      <th>Ações</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {users.map((row) => {
+                      const isEditing = sectorEditing === row.id;
+                      const rowSetores = sectorData[row.id] ?? null;
+
+                      return (
+                        <>
+                          <tr key={row.id}>
+                            <td style={{ fontWeight: 600 }}>{row.name}</td>
+                            <td style={{ fontSize: "0.82rem", color: "var(--muted)" }}>{row.email}</td>
+                            <td>
+                              <span style={{
+                                padding: "2px 9px", borderRadius: 8, fontSize: "0.75rem", fontWeight: 700,
+                                background: row.is_admin ? "rgba(39,49,104,.1)" : "rgba(0,0,0,.05)",
+                                color: row.is_admin ? "var(--primary)" : "var(--muted)",
+                              }}>
+                                {row.is_admin ? "Administrador" : "Usuário"}
+                              </span>
+                            </td>
+                            <td>
+                              {row.is_admin ? (
+                                <span style={{ fontSize: "0.78rem", color: "var(--muted)" }}>Todos os setores</span>
+                              ) : rowSetores === null ? (
+                                <span style={{ fontSize: "0.78rem", color: "var(--muted)", fontStyle: "italic" }}>—</span>
+                              ) : rowSetores.length === 0 ? (
+                                <span style={{ fontSize: "0.75rem", color: "#bf3535", fontWeight: 700 }}>Sem acesso</span>
+                              ) : (
+                                <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+                                  {rowSetores.map((s) => (
+                                    <span key={s} style={{
+                                      padding: "1px 7px", borderRadius: 8, fontSize: "0.72rem", fontWeight: 700,
+                                      background: "rgba(39,49,104,.08)", color: "var(--primary)",
+                                    }}>
+                                      {s}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+                            </td>
+                            <td>
+                              <div style={{ display: "flex", gap: 6 }}>
+                                {!row.is_admin && (
+                                  <button
+                                    type="button"
+                                    className="table-button"
+                                    style={{ fontSize: "0.75rem", padding: "4px 10px" }}
+                                    onClick={() => {
+                                      if (isEditing) {
+                                        setSectorEditing(null);
+                                      } else {
+                                        setSectorEditing(row.id);
+                                        setSectorMsg("");
+                                        if (rowSetores === null) loadUserSectors(row.id);
+                                      }
+                                    }}
+                                  >
+                                    {isEditing ? "Fechar" : "Divisões"}
+                                  </button>
+                                )}
+                                {row.id !== user.id ? (
+                                  <button
+                                    type="button"
+                                    className="table-button danger"
+                                    onClick={() => handleDeleteUser(row)}
+                                    disabled={deletingUserId === row.id}
+                                    style={{ fontSize: "0.75rem", padding: "4px 10px" }}
+                                  >
+                                    {deletingUserId === row.id ? "Excluindo..." : "Excluir"}
+                                  </button>
+                                ) : (
+                                  <span className="table-helper">Conta atual</span>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+
+                          {isEditing && (
+                            <tr key={`${row.id}-sectors`} style={{ background: "var(--primary-light)" }}>
+                              <td colSpan={5}>
+                                <div style={{ padding: "14px 16px" }}>
+                                  <p style={{ fontSize: "0.82rem", fontWeight: 700, marginBottom: 10, color: "var(--ink)" }}>
+                                    Divisões visíveis para <strong>{row.name}</strong>
+                                    <span style={{ fontWeight: 400, color: "var(--muted)", marginLeft: 6 }}>
+                                      — usuário sem divisão configurada não vê dado algum.
+                                    </span>
+                                  </p>
+                                  <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 14 }}>
+                                    {ALL_SETORES.map((s) => {
+                                      const checked = (rowSetores || []).includes(s);
+                                      return (
+                                        <label key={s} style={{
+                                          display: "flex", alignItems: "center", gap: 6,
+                                          padding: "6px 12px", borderRadius: 8, cursor: "pointer",
+                                          border: `1.5px solid ${checked ? "var(--primary)" : "var(--border)"}`,
+                                          background: checked ? "rgba(39,49,104,.08)" : "var(--panel)",
+                                          fontSize: "0.82rem", fontWeight: 700,
+                                          color: checked ? "var(--primary)" : "var(--muted)",
+                                        }}>
+                                          <input
+                                            type="checkbox"
+                                            checked={checked}
+                                            onChange={() => toggleSetor(row.id, s, rowSetores || [])}
+                                            style={{ display: "none" }}
+                                          />
+                                          {s}
+                                        </label>
+                                      );
+                                    })}
+                                  </div>
+                                  <div style={{ display: "flex", gap: 8 }}>
+                                    <button
+                                      type="button"
+                                      className="primary-button"
+                                      disabled={sectorSaving}
+                                      onClick={() => saveUserSectors(row.id, rowSetores || [])}
+                                      style={{ fontSize: "0.82rem", padding: "8px 18px" }}
+                                    >
+                                      {sectorSaving ? "Salvando..." : "Salvar divisões"}
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className="ghost-button"
+                                      onClick={() => setSectorEditing(null)}
+                                      style={{ fontSize: "0.82rem" }}
+                                    >
+                                      Cancelar
+                                    </button>
+                                  </div>
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             )}
           </section>
         </>

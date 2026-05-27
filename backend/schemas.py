@@ -71,6 +71,9 @@ class FilterOptions(BaseModel):
     tipos: list[str]
     atribuicoes: list[str]
     setores_validos: list[str] = []
+    # Controle de acesso: informa ao frontend se o usuário tem visão restrita
+    setor_restrito: bool = False
+    setores_do_usuario: list[str] = []  # lista de setores permitidos (vazia = nenhum)
 
 
 class SeiUserCreate(BaseModel):

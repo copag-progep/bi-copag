@@ -8,7 +8,7 @@ from datetime import date, datetime, timedelta
 from threading import Lock
 
 import pandas as pd
-from sqlalchemy import func
+from sqlalchemy import false as sql_false, func
 from sqlalchemy.orm import Session
 
 from .models import Processo, Upload
@@ -22,6 +22,11 @@ class AnalyticsFilters:
     setor: str | None = None
     tipo: str | None = None
     atribuicao: str | None = None
+    # Controle de acesso por divisão:
+    #   None  → sem restrição (admin ou API key)
+    #   ()    → nenhum setor permitido — retorna vazio
+    #   (...)  → só esses setores são visíveis
+    setores_permitidos: tuple[str, ...] | None = None
 
     def cache_key(self) -> tuple[object, ...]:
         return (
@@ -31,6 +36,7 @@ class AnalyticsFilters:
             self.setor,
             self.tipo,
             self.atribuicao,
+            self.setores_permitidos,
         )
 
 
@@ -180,8 +186,21 @@ def _cached_response(
 
 def _base_query(db: Session, filters: AnalyticsFilters):
     query = db.query(Processo)
-    if filters.setor:
+
+    # ── Controle de acesso por divisão (aplicado antes de qualquer outro filtro) ──
+    if filters.setores_permitidos is not None:
+        if len(filters.setores_permitidos) == 0:
+            # Nenhum setor permitido → retorna zero resultados
+            query = query.filter(sql_false())
+        elif filters.setor:
+            # Setor específico solicitado — já validado antes de chegar aqui
+            query = query.filter(Processo.setor == filters.setor.upper())
+        else:
+            # Agrega todos os setores permitidos do usuário
+            query = query.filter(Processo.setor.in_(filters.setores_permitidos))
+    elif filters.setor:
         query = query.filter(Processo.setor == filters.setor.upper())
+
     if filters.tipo:
         query = query.filter(Processo.tipo == filters.tipo)
     if filters.atribuicao:

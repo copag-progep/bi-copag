@@ -18,6 +18,10 @@ class User(Base):
     is_admin: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
 
+    sector_access: Mapped[list["UserSectorAccess"]] = relationship(
+        "UserSectorAccess", back_populates="user", cascade="all, delete-orphan", passive_deletes=True
+    )
+
 
 class Upload(Base):
     __tablename__ = "uploads"
@@ -102,6 +106,31 @@ class SeiUserAlias(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
 
     user: Mapped["SeiUser"] = relationship("SeiUser", back_populates="aliases")
+
+
+class UserSectorAccess(Base):
+    """Controle de acesso por divisão (setor) para usuários não-administradores.
+
+    Regras:
+      - Administradores não usam esta tabela — sempre têm acesso total.
+      - Usuários sem nenhuma linha aqui não têm acesso a dado algum (padrão seguro).
+      - Usuários com linhas aqui enxergam apenas os setores listados.
+    """
+    __tablename__ = "user_sector_access"
+    __table_args__ = (
+        sa.UniqueConstraint("user_id", "setor", name="uq_user_sector_access"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    user_id: Mapped[int] = mapped_column(
+        sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    setor: Mapped[str] = mapped_column(String(80), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=lambda: datetime.now(timezone.utc), nullable=False
+    )
+
+    user: Mapped["User"] = relationship("User", back_populates="sector_access")
 
 
 class ProcessTypeWeight(Base):

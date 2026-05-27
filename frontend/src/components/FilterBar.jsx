@@ -4,6 +4,11 @@ import { useFilters } from "../context/FiltersContext";
 export default function FilterBar() {
   const { filters, options, setFilter, clearFilters } = useFilters();
 
+  const setorRestrito = options.setor_restrito === true;
+  const setoresVisiveis = setorRestrito
+    ? (options.setores_do_usuario || [])
+    : [...new Set(["DIAPE", "DICAT", "DIJOR", "DICAF", "DICAF-CHEFIA", "DICAF-REPOSICOES", ...options.setores])].filter(Boolean);
+
   return (
     <section className="filter-bar">
       <div className="filter-header">
@@ -11,9 +16,28 @@ export default function FilterBar() {
           <p className="eyebrow">Filtros</p>
           <h2>Recorte analítico</h2>
         </div>
-        <button type="button" className="ghost-button" onClick={clearFilters}>
-          Limpar filtros
-        </button>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+          {setorRestrito && setoresVisiveis.length > 0 && (
+            <span style={{
+              fontSize: "0.78rem", fontWeight: 700, color: "var(--primary)",
+              background: "rgba(39,49,104,.08)", padding: "4px 10px", borderRadius: 8,
+              border: "1px solid rgba(39,49,104,.18)",
+            }}>
+              Visualizando: {setoresVisiveis.join(" · ")}
+            </span>
+          )}
+          {setorRestrito && setoresVisiveis.length === 0 && (
+            <span style={{
+              fontSize: "0.78rem", fontWeight: 700, color: "#bf3535",
+              background: "rgba(191,53,53,.08)", padding: "4px 10px", borderRadius: 8,
+            }}>
+              Sem acesso a divisões
+            </span>
+          )}
+          <button type="button" className="ghost-button" onClick={clearFilters}>
+            Limpar filtros
+          </button>
+        </div>
       </div>
 
       <div className="filter-grid">
@@ -50,14 +74,12 @@ export default function FilterBar() {
         <label className="field">
           <span>Setor</span>
           <select value={filters.setor} onChange={(event) => setFilter("setor", event.target.value)}>
-            <option value="">Todos</option>
-            {[...new Set(["DIAPE", "DICAT", "DIJOR", "DICAF", "DICAF-CHEFIA", "DICAF-REPOSICOES", ...options.setores])]
-              .filter(Boolean)
-              .map((value) => (
-                <option key={value} value={value}>
-                  {value}
-                </option>
-              ))}
+            <option value="">{setorRestrito ? "Todos os meus setores" : "Todos"}</option>
+            {setoresVisiveis.map((value) => (
+              <option key={value} value={value}>
+                {value}
+              </option>
+            ))}
           </select>
         </label>
 
