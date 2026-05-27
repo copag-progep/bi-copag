@@ -41,7 +41,9 @@ function formatDateTime(value) {
 export default function UploadPage() {
   const { user } = useAuth();
   const { reloadOptions, options } = useFilters();
-  const setores = options.setores_validos?.length ? options.setores_validos : FALLBACK_SETORES;
+  const setores = options.setor_restrito
+    ? (options.setores_do_usuario || [])
+    : (options.setores_validos?.length ? options.setores_validos : FALLBACK_SETORES);
 
   const [form, setForm] = useState({
     setor: setores[0] || "DIAPE",
@@ -60,6 +62,13 @@ export default function UploadPage() {
   const [deletingUploadId, setDeletingUploadId] = useState(null);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (!setores.length) return;
+    if (!setores.includes(form.setor)) {
+      setForm((current) => ({ ...current, setor: setores[0] }));
+    }
+  }, [setores.join("|"), form.setor]);
 
   async function loadUploads(page = currentPage) {
     setLoading(true);
@@ -274,6 +283,20 @@ export default function UploadPage() {
             <p className="eyebrow">Envio diário</p>
             <h1>Acesso restrito</h1>
             <span>Você não tem permissão para enviar relatórios. Solicite ao administrador.</span>
+          </div>
+        </section>
+      </div>
+    );
+  }
+
+  if (!user?.is_admin && user?.can_upload && setores.length === 0) {
+    return (
+      <div className="page-grid">
+        <section className="hero-panel">
+          <div>
+            <p className="eyebrow">Envio diário</p>
+            <h1>Nenhuma divisão habilitada</h1>
+            <span>Você pode enviar relatórios, mas ainda não há divisões liberadas para sua conta.</span>
           </div>
         </section>
       </div>

@@ -892,13 +892,20 @@ def update_monthly_stat(
 def list_uploads(
     page: int = Query(1, ge=1),
     page_size: int = Query(30, ge=1, le=100),
-    _: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> UploadListResponse:
-    total = db.query(Upload).count()
+    query = db.query(Upload)
+    setores_permitidos = get_user_setores(current_user, db)
+    if setores_permitidos is not None:
+        if len(setores_permitidos) == 0:
+            return UploadListResponse(items=[], page=page, page_size=page_size, total=0, total_pages=1)
+        query = query.filter(Upload.setor.in_(setores_permitidos))
+
+    total = query.count()
     total_pages = max((total + page_size - 1) // page_size, 1)
     items = (
-        db.query(Upload)
+        query
         .order_by(Upload.data_relatorio.desc(), Upload.data_upload.desc())
         .offset((page - 1) * page_size)
         .limit(page_size)
@@ -927,8 +934,15 @@ async def upload_snapshot(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Sem permissão para enviar relatórios. Solicite ao administrador.",
         )
-    if setor.upper() not in SETORES:
+    normalized_setor = setor.upper()
+    if normalized_setor not in SETORES:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Setor invalido.")
+    setores_permitidos = get_user_setores(current_user, db)
+    if setores_permitidos is not None and normalized_setor not in setores_permitidos:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Sem permissão para enviar relatórios do setor {normalized_setor}.",
+        )
     if not file.filename.lower().endswith(".csv"):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Envie um arquivo CSV.")
 
@@ -941,7 +955,7 @@ async def upload_snapshot(
             db=db,
             file_bytes=file_bytes,
             filename=file.filename,
-            setor=setor,
+            setor=normalized_setor,
             data_relatorio=data_relatorio,
         )
     except ValueError as exc:
