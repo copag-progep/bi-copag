@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState } from "react";
 
 import api from "../api/client";
+import { clearAnalyticsCache } from "../hooks/useAnalyticsData";
 
 
 const AuthContext = createContext(null);
@@ -26,6 +27,8 @@ export function AuthProvider({ children }) {
         setUser(data);
         localStorage.setItem("sei-bi-user", JSON.stringify(data));
       } catch {
+        // Sessão inválida — limpa cache para evitar que dados do usuário anterior sejam exibidos
+        clearAnalyticsCache();
         localStorage.removeItem("sei-bi-token");
         localStorage.removeItem("sei-bi-user");
         setToken(null);
@@ -39,6 +42,8 @@ export function AuthProvider({ children }) {
   }, [token]);
 
   async function login(credentials) {
+    // Limpa cache antes do login para evitar contaminação entre sessões de usuários diferentes
+    clearAnalyticsCache();
     const { data } = await api.post("/auth/login", credentials);
     localStorage.setItem("sei-bi-token", data.access_token);
     localStorage.setItem("sei-bi-user", JSON.stringify(data.user));
@@ -48,6 +53,8 @@ export function AuthProvider({ children }) {
   }
 
   function logout() {
+    // Limpa cache ao sair para não vazar dados do usuário para a próxima sessão
+    clearAnalyticsCache();
     localStorage.removeItem("sei-bi-token");
     localStorage.removeItem("sei-bi-user");
     setToken(null);

@@ -38,13 +38,22 @@ export function FiltersProvider({ children }) {
       const latestDate = data.datas.at(-1) || "";
 
       setOptions(data);
-      setFilters((current) => ({
-        ...current,
-        data_referencia:
-          focusLatestDate || !current.data_referencia
-            ? latestDate
-            : current.data_referencia,
-      }));
+      setFilters((current) => {
+        // Se o usuário tem exatamente um setor permitido, pré-seleciona automaticamente
+        // para deixar claro na UI qual recorte está sendo aplicado
+        const autoSetor =
+          data.setor_restrito && data.setores_do_usuario?.length === 1
+            ? data.setores_do_usuario[0]
+            : current.setor;
+        return {
+          ...current,
+          data_referencia:
+            focusLatestDate || !current.data_referencia
+              ? latestDate
+              : current.data_referencia,
+          setor: autoSetor,
+        };
+      });
     } catch {
       setOptions(EMPTY_OPTIONS);
     }

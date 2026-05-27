@@ -357,7 +357,7 @@ def _freshness_status(age_days: int | None, lagging: list[str], missing: list[st
 
 @app.get("/api/health/data-freshness")
 def data_freshness(
-    _: User = Depends(get_current_user_or_api_key),
+    current_user: User = Depends(get_current_user_or_api_key),
     db: Session = Depends(get_db),
 ):
     """Resumo de frescor e completude dos snapshots importados.
@@ -365,9 +365,19 @@ def data_freshness(
     A checagem usa somente a tabela de uploads para ser rápida e barata:
     identifica a data global mais recente, o último snapshot por setor e
     possíveis setores ausentes/defasados antes de o gestor interpretar os painéis.
+
+    Para usuários com restrição de setor, exibe apenas os setores permitidos.
     """
     reference_date = db.query(func.max(Upload.data_relatorio)).scalar()
     today = datetime.now(LOCAL_TIMEZONE).date()
+
+    # Filtra os setores a checar conforme a permissão do usuário
+    setores_permitidos = get_user_setores(current_user, db)
+    setores_a_checar = (
+        [s for s in SETORES if s in setores_permitidos]
+        if setores_permitidos is not None
+        else SETORES
+    )
 
     sectors: list[dict] = []
     missing_sectors: list[str] = []
@@ -375,7 +385,7 @@ def data_freshness(
     current_sectors: list[str] = []
     quality_alerts: list[dict] = []
 
-    for setor in SETORES:
+    for setor in setores_a_checar:
         latest = (
             db.query(Upload)
             .filter(Upload.setor == setor)
@@ -454,11 +464,11 @@ def data_freshness(
             "data_referencia_global": str(reference_date) if reference_date else None,
             "hoje": str(today),
             "idade_dias": age_days,
-            "setores_esperados": SETORES,
+            "setores_esperados": setores_a_checar,
             "setores_em_dia": current_sectors,
             "setores_defasados": lagging_sectors,
             "setores_ausentes": missing_sectors,
-            "total_setores_esperados": len(SETORES),
+            "total_setores_esperados": len(setores_a_checar),
             "total_setores_em_dia": len(current_sectors),
             "alertas_qualidade": quality_alerts,
             "setores": sectors,

@@ -1,15 +1,18 @@
 import { useEffect, useState } from "react";
 
 import api from "../api/client";
+import { useAuth } from "../context/AuthContext";
 
 const CACHE_TTL_MS = 5 * 60 * 1000;
 const CACHE_PREFIX = "sei-bi-cache:";
 
-function getCacheKey(endpoint, params) {
+function getCacheKey(endpoint, params, userId) {
   const sorted = Object.fromEntries(
     Object.entries(params).sort(([a], [b]) => a.localeCompare(b))
   );
-  return `${CACHE_PREFIX}${endpoint}:${JSON.stringify(sorted)}`;
+  // Inclui o ID do usuário para isolar o cache entre usuários com permissões diferentes
+  const userPart = userId != null ? `u${userId}:` : "";
+  return `${CACHE_PREFIX}${userPart}${endpoint}:${JSON.stringify(sorted)}`;
 }
 
 function readCache(key) {
@@ -48,7 +51,10 @@ export function clearAnalyticsCache() {
 export function useAnalyticsData(endpoint, params, options = {}) {
   const enabled = options.enabled ?? true;
   const timeout = options.timeout;
-  const cacheKey = getCacheKey(endpoint, params);
+  const { user } = useAuth();
+  // Cache key inclui user.id: usuários diferentes nunca compartilham cache.
+  // Quando user.id muda (troca de login), cacheKey muda e o hook re-fetcha automaticamente.
+  const cacheKey = getCacheKey(endpoint, params, user?.id);
 
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
