@@ -98,6 +98,11 @@ class SeiUser(Base):
         passive_deletes=True,
     )
 
+    @property
+    def setores(self) -> list[str]:
+        """Setores vinculados ao usuário SEI, prontos para serialização na API."""
+        return sorted(link.setor for link in self.setor_links)
+
 
 class SeiUserSetor(Base):
     """Vínculo entre um usuário SEI (servidor/atribuição) e os setores onde atua.

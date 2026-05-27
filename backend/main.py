@@ -864,6 +864,12 @@ def update_sei_user_sectors(
     old_rows = db.query(SeiUserSetor.setor).filter(SeiUserSetor.sei_user_id == sei_user_id).all()
     old_setores = sorted(r[0] for r in old_rows)
     new_setores = sorted({s.upper().strip() for s in payload.setores if s.strip()})
+    invalid_setores = [setor for setor in new_setores if setor not in SETORES]
+    if invalid_setores:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Setor(es) inválido(s): {', '.join(invalid_setores)}.",
+        )
 
     db.query(SeiUserSetor).filter(SeiUserSetor.sei_user_id == sei_user_id).delete()
     for setor in new_setores:
