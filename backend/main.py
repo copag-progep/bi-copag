@@ -368,9 +368,6 @@ def data_freshness(
 
     Para usuários com restrição de setor, exibe apenas os setores permitidos.
     """
-    reference_date = db.query(func.max(Upload.data_relatorio)).scalar()
-    today = datetime.now(LOCAL_TIMEZONE).date()
-
     # Filtra os setores a checar conforme a permissão do usuário
     setores_permitidos = get_user_setores(current_user, db)
     setores_a_checar = (
@@ -378,6 +375,14 @@ def data_freshness(
         if setores_permitidos is not None
         else SETORES
     )
+    reference_date = (
+        db.query(func.max(Upload.data_relatorio))
+        .filter(Upload.setor.in_(setores_a_checar))
+        .scalar()
+        if setores_a_checar
+        else None
+    )
+    today = datetime.now(LOCAL_TIMEZONE).date()
 
     sectors: list[dict] = []
     missing_sectors: list[str] = []
