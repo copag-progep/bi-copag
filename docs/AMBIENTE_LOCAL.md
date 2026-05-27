@@ -155,6 +155,21 @@ não cobrem todos os setores esperados.
 
 Evite usar o upload automático real do SEI para testes locais sem necessidade. O objetivo do ambiente local é validar a aplicação, não executar automações contra o SEI.
 
+## Testando Controle de Acesso Localmente
+
+Depois de subir backend e frontend locais, valide também os cenários de acesso por divisão:
+
+1. Entre com o usuário administrador local.
+2. Crie um usuário comum na página **Administração → Acessos**.
+3. Libere uma ou mais divisões para esse usuário.
+4. Habilite ou desabilite a opção **Pode enviar relatórios**, conforme o teste desejado.
+5. Saia da conta admin e entre com o usuário comum.
+6. Confira se os painéis, filtros, listas, indicadores mensais, histórico de uploads e badge de saúde mostram apenas os setores liberados.
+7. Em **Usuários SEI**, use **Inferir setores** ou configure manualmente os setores de cada usuário SEI.
+8. Valide se os filtros **Atribuição** e **Servidor** exibem apenas nomes vinculados aos setores permitidos.
+
+Para testar o fluxo de upload restrito, o usuário comum precisa ter a permissão de upload ativa e tentar enviar CSV apenas de setor liberado. Upload de setor não liberado deve ser bloqueado pela API.
+
 ## Cuidados Importantes
 
 - Não use `DATABASE_URL` da Aiven produção no `.env.local`.

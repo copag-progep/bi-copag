@@ -22,6 +22,9 @@ Plataforma web de Business Intelligence desenvolvida para a **COPAG (Coordenador
 | **Servidores** | Balanceamento de carga, classificação de sobrecarga, perfil longitudinal |
 | **Múltiplos setores** | Detecção de processos em mais de um setor no mesmo dia |
 | **Indicadores mensais** | Painel histórico com importação de CSV e lançamento manual |
+| **Controle por divisão** | Usuários comuns visualizam apenas os setores liberados pelo administrador |
+| **Permissão de upload** | O administrador define quais usuários podem enviar relatórios e de quais setores |
+| **Usuários SEI por setor** | Vincula servidores/atribuições aos setores para filtrar listas de Atribuição e Servidor |
 | **Busca global** | Histórico completo de movimentações de qualquer protocolo |
 | **Alertas por e-mail** | Notificação semanal de processos críticos (>30, >45, >90 dias), às sextas 21:00 BRT |
 | **Notificação in-app** | Sino com contagem em tempo real de processos ≥45 dias |
@@ -151,6 +154,14 @@ Por padrão, o frontend local usa o proxy do Vite para encaminhar `/api` para `h
 ## Setores monitorados
 
 `DIAPE` · `DICAT` · `DIJOR` · `DICAF` · `DICAF-CHEFIA` · `DICAF-REPOSICOES`
+
+## Controle de acesso por divisão
+
+Administradores têm visão completa da plataforma. Usuários comuns só visualizam dados dos setores liberados na aba **Acessos** da página Administração. Esse recorte é aplicado no backend e afeta painéis, KPIs, listas, filtros, indicadores mensais, histórico de uploads e badge de saúde dos dados.
+
+A permissão de envio de relatório é independente: além de ter acesso ao setor, o usuário precisa estar marcado como autorizado para upload. A página **Usuários SEI** também permite vincular servidores/atribuições a um ou mais setores, para que filtros como **Atribuição** e **Servidor** respeitem o escopo do usuário logado.
+
+Na métrica de **Múltiplos setores**, o sistema detecta a duplicidade olhando o snapshot completo e depois exibe apenas as ocorrências que envolvem setores visíveis ao usuário. Assim, um usuário restrito consegue ver que um processo do seu setor também aparece em outro setor sem ganhar acesso aos dados completos das demais divisões.
 
 ---
 

@@ -66,6 +66,19 @@ Para configurar ou recriar o ambiente, defina no Render:
 
 O backend aceita qualquer PostgreSQL compativel via `DATABASE_URL`; localmente, se essa variavel nao existir, usa SQLite.
 
+## Migrações e dados administrativos
+
+O backend executa `alembic upgrade head` na inicialização. Depois que uma migration já foi publicada em produção, não renomeie nem reutilize o mesmo `revision` em outro arquivo.
+
+As migrations recentes criam estruturas administrativas importantes:
+
+- `user_sector_access`: divisões que cada usuário comum pode visualizar.
+- `can_upload` em `users`: permissão individual para envio manual de relatórios.
+- `sei_user_setor`: vínculo entre usuários SEI/atribuições e setores.
+- `process_type_weights`: pesos por tipo de processo no Score de Risco.
+
+Após um deploy que crie `sei_user_setor`, entre como administrador em **Usuários SEI** e clique em **Inferir setores**. Isso preenche automaticamente os vínculos iniciais a partir dos processos históricos. Depois, revise manualmente os casos especiais.
+
 ## Migracao de banco
 
 Use `scripts/migrate_postgres.py` para copiar dados entre bancos PostgreSQL compativeis.

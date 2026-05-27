@@ -161,7 +161,13 @@ Campos principais:
 - `email`
 - `password_hash`
 - `is_admin`
+- `can_upload`
 - `created_at`
+
+Observacao:
+
+- `is_admin=True` concede acesso total.
+- `can_upload=True` autoriza usuario comum a acessar a tela Enviar Relatorio e executar upload manual, sempre respeitando os setores liberados.
 
 ### 6.2 Tabela `uploads`
 
@@ -245,6 +251,104 @@ Campos principais:
 Restricao importante:
 
 - unicidade por `setor + indicador + ano + num_mes`
+
+### 6.6 Tabela `sei_user_aliases`
+
+Responsabilidade:
+
+- consolidar nomes historicos ou alternativos de um mesmo usuario SEI
+
+Campos principais:
+
+- `sei_user_id`
+- `alias`
+- `alias_key`
+- `created_at`
+
+### 6.7 Tabela `user_sector_access`
+
+Responsabilidade:
+
+- controlar quais setores cada usuario comum pode visualizar
+
+Campos principais:
+
+- `user_id`
+- `setor`
+- `created_at`
+
+Regra:
+
+- administradores ignoram essa tabela e veem tudo
+- usuarios comuns veem apenas os setores cadastrados
+- usuario comum sem setor cadastrado nao deve receber dados analiticos
+
+### 6.8 Tabela `sei_user_setor`
+
+Responsabilidade:
+
+- vincular usuarios SEI/atribuicoes aos setores onde atuam
+
+Campos principais:
+
+- `sei_user_id`
+- `setor`
+
+Uso:
+
+- limita os filtros de Atribuicao e Servidor para usuarios restritos
+- permite vinculo com mais de um setor
+- pode ser preenchida manualmente ou por inferencia a partir dos processos historicos
+
+### 6.9 Tabela `process_type_weights`
+
+Responsabilidade:
+
+- configurar pesos por tipo de processo no Score de Risco
+
+Campos principais:
+
+- `tipo`
+- `peso`
+- `categoria`
+- `justificativa`
+- `ativo`
+
+Regra:
+
+- peso entre `0.80` e `1.50`
+- tipo sem configuracao usa peso neutro `1.00`
+
+## 6A. Controle de acesso por divisao
+
+O controle de acesso tem duas camadas diferentes:
+
+1. Usuario da aplicacao (`users`): pessoa que faz login no AnalyticSEI.
+2. Usuario SEI (`sei_users`): servidor/atribuicao que aparece nos processos importados do SEI.
+
+### Usuarios da aplicacao
+
+- Administrador ve todos os setores e acessa telas administrativas.
+- Usuario comum ve apenas os setores cadastrados em `user_sector_access`.
+- Usuario comum sem setores cadastrados nao deve receber dados analiticos.
+- `can_upload=True` libera upload manual, mas apenas para os setores permitidos.
+
+Esse recorte e aplicado no backend. Portanto, nao depende apenas de esconder filtros ou menus no frontend.
+
+### Usuarios SEI
+
+`sei_user_setor` informa em quais setores cada atribuicao atua. Essa tabela e usada para montar listas de filtro:
+
+- filtro Atribuicao no FilterBar
+- filtro Servidor na pagina Servidores
+
+Um usuario SEI pode estar vinculado a mais de um setor. A pagina Usuarios SEI permite editar manualmente esses vinculos ou inferi-los a partir dos processos historicos.
+
+### Cache e frescor dos dados
+
+- O cache analitico do frontend inclui o usuario na chave.
+- Logout, login e sessao invalida limpam o cache local.
+- O badge de frescor considera apenas os setores visiveis ao usuario logado.
 
 
 ## 7. Inicializacao da API
@@ -615,6 +719,9 @@ As principais rotas estao em `backend/main.py`.
 - `GET /api/admin/users`
 - `POST /api/admin/users`
 - `DELETE /api/admin/users/{user_id}`
+- `GET /api/admin/users/{user_id}/sectors`
+- `PUT /api/admin/users/{user_id}/sectors`
+- `PATCH /api/admin/users/{user_id}/permissions`
 
 ### 13.4 Usuarios SEI
 
@@ -623,6 +730,9 @@ As principais rotas estao em `backend/main.py`.
 - `POST /api/admin/sei-users/import`
 - `POST /api/admin/sei-users/import-rows`
 - `DELETE /api/admin/sei-users/{sei_user_id}`
+- `GET /api/admin/sei-users/{sei_user_id}/sectors`
+- `PUT /api/admin/sei-users/{sei_user_id}/sectors`
+- `POST /api/admin/sei-users/infer-sectors`
 
 ### 13.5 Indicadores mensais
 
@@ -641,6 +751,12 @@ As principais rotas estao em `backend/main.py`.
 ### 13.7 Metadata de filtros
 
 - `GET /api/meta/options`
+
+Observacao:
+
+- para usuarios restritos, retorna apenas setores permitidos
+- atribuicoes e servidores sao filtrados pelos vinculos de `sei_user_setor`
+- antes de qualquer vinculo explicito, ha fallback temporario por dados historicos para evitar tela vazia durante a configuracao inicial
 
 ### 13.8 Analytics
 
@@ -751,6 +867,7 @@ Fluxo:
 Detalhe de performance:
 
 - se ja existir usuario em cache no `localStorage`, o `loading` inicial nao bloqueia a interface desnecessariamente
+- o cache analitico em `sessionStorage` e isolado por usuario logado, evitando reaproveitar dados de outro perfil apos logout/login
 - o timeout padrao das chamadas analiticas no frontend e de 90 segundos
 - endpoints historicos mais pesados podem usar timeout especifico maior, como 120 segundos
 
@@ -767,8 +884,11 @@ Esse contexto:
 - guarda datas, setores, tipos e atribuicoes
 - mantem filtros correntes
 - converte filtros em query params
+- auto-seleciona o unico setor disponivel quando o usuario tem acesso a apenas uma divisao
 
 As paginas analiticas leem esse contexto para recarregar seus dados.
+
+Para usuarios restritos, a lista de setores, atribuicoes e servidores ja chega filtrada pelo backend. O frontend apenas reflete esse escopo.
 
 
 ## 18. Layout e navegacao
@@ -785,6 +905,7 @@ Comportamento:
 - rolagem propria da sidebar em telas menores
 - topbar com identificacao do usuario logado, badge de frescor dos dados, busca global e sino de notificacoes
 - barra de filtros visivel apenas em rotas analiticas
+- item Enviar Relatorio fica oculto para usuario comum sem permissao de upload
 
 
 ## 19. Paginas principais do frontend
@@ -892,6 +1013,12 @@ Consome:
 
 - `/analytics/multi-sector`
 
+Regra importante:
+
+- a deteccao de multiplos setores usa o snapshot global para saber se o protocolo aparece em mais de uma divisao
+- depois disso, a resposta e filtrada para mostrar apenas ocorrencias que envolvem setores visiveis ao usuario logado
+- isso permite que um usuario restrito saiba que um processo do seu setor tambem aparece em outro setor, sem receber a carteira completa da outra divisao
+
 ### 19.8 Enviar relatorio
 
 Arquivo:
@@ -912,6 +1039,13 @@ Recursos:
 - edicao de data do snapshot
 - exclusao de snapshot
 
+Restricoes:
+
+- administradores podem enviar qualquer setor
+- usuarios comuns precisam de `can_upload=True`
+- usuarios comuns so podem enviar CSV de setores liberados em `user_sector_access`
+- historico de uploads tambem respeita o escopo de setores do usuario
+
 ### 19.9 Administracao
 
 Arquivo:
@@ -923,7 +1057,17 @@ Consome:
 - `GET /admin/users`
 - `POST /admin/users`
 - `DELETE /admin/users/{id}`
+- `GET /admin/users/{id}/sectors`
+- `PUT /admin/users/{id}/sectors`
+- `PATCH /admin/users/{id}/permissions`
 - `GET /uploads`
+
+Recursos:
+
+- abas de Acessos, Uploads, Auditoria e Score de Risco
+- configuracao de divisoes visiveis por usuario
+- permissao individual para envio de relatorios
+- pesos por tipo de processo usados no Score de Risco
 
 ### 19.10 Usuarios SEI
 
@@ -937,6 +1081,17 @@ Consome:
 - `POST /admin/sei-users`
 - `POST /admin/sei-users/import-rows`
 - `DELETE /admin/sei-users/{id}`
+- `GET /admin/sei-users/{id}/sectors`
+- `PUT /admin/sei-users/{id}/sectors`
+- `POST /admin/sei-users/infer-sectors`
+
+Recursos:
+
+- DE-PARA de nomes e usuarios SEI
+- aliases historicos para consolidar mudancas de nome
+- edicao dos dados cadastrais
+- vinculo de cada usuario SEI a um ou mais setores
+- inferencia automatica de setores a partir dos processos historicos
 
 ### 19.11 Indicadores mensais
 
@@ -950,6 +1105,10 @@ Consome:
 - `POST /admin/monthly-stats/import`
 - `POST /admin/monthly-stats/month-entry`
 - `PATCH /admin/monthly-stats/{id}`
+
+Regra:
+
+- usuarios restritos veem apenas os setores liberados
 
 ### 19.12 Score de Risco
 

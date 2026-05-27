@@ -432,17 +432,17 @@ Ele guarda tanto dados operacionais, como processos e uploads, quanto dados admi
 | Central Executiva | Visão rápida das prioridades do dia, saúde dos dados, tendências e tempo de permanência |
 | Dashboard | Visão geral da situação dos processos |
 | Score de Risco | Ranking de processos que merecem maior atenção, com explicação dos fatores |
-| Enviar Relatório | Upload manual e histórico de uploads |
+| Enviar Relatório | Upload manual e histórico de uploads para usuários autorizados |
 | Entradas e Saídas | Análise do fluxo diário por setor |
 | Produtividade | Análise de produção por atribuição |
 | Processos Parados | Lista de processos com maior tempo sem movimentação |
-| Múltiplos Setores | Processos presentes em mais de um setor |
+| Múltiplos Setores | Processos presentes em mais de um setor, respeitando o escopo visível do usuário |
 | Atribuições | Carteira detalhada por servidor/atribuição |
 | Servidores | Carga e perfil longitudinal dos servidores |
-| Indicadores Mensais | Gestão de indicadores históricos |
+| Indicadores Mensais | Gestão de indicadores históricos filtrados por setor permitido |
 | Busca | Consulta de histórico por protocolo |
-| Usuários SEI | Cadastro de equivalência de nomes do SEI |
-| Administração | Gestão de usuários e log de auditoria |
+| Usuários SEI | Cadastro de equivalência de nomes do SEI, aliases e vínculos por setor |
+| Administração | Gestão de usuários, divisões, permissões, pesos do Score e log de auditoria |
 | Minha Conta | Dados pessoais e troca de senha |
 | Documentação | Documentação técnica dentro da própria plataforma |
 
@@ -450,7 +450,7 @@ Ele guarda tanto dados operacionais, como processos e uploads, quanto dados admi
 
 ## 11. Segurança e controle de acesso
 
-O AnalyticSEI possui controle de acesso por login e senha.
+O AnalyticSEI possui controle de acesso por login e senha e também por divisão. Isso permite liberar a plataforma para gestores de áreas específicas sem expor dados de todos os setores.
 
 ### 11.1 Login
 
@@ -471,15 +471,53 @@ Algumas telas são restritas a administradores, como:
 - Administração.
 - Usuários SEI.
 - Criação e exclusão de usuários.
+- Liberação de divisões por usuário.
+- Permissão para envio manual de relatórios.
 - Consulta ao log de auditoria.
 
-### 11.4 API key
+### 11.4 Acesso por divisão
+
+Administradores visualizam todos os setores. Usuários comuns visualizam apenas as divisões liberadas pelo administrador.
+
+Esse controle vale para:
+
+- Central Executiva.
+- Dashboard.
+- Entradas e Saídas.
+- Produtividade.
+- Múltiplos Setores.
+- Atribuições.
+- Score de Risco.
+- Servidores.
+- Indicadores Mensais.
+- Histórico de uploads.
+- Badge de saúde dos dados.
+
+Em termos simples: se um usuário comum tem acesso apenas a uma divisão, os números, listas, gráficos e filtros devem refletir apenas essa divisão.
+
+### 11.5 Permissão de upload
+
+Enviar relatórios é uma permissão separada. Um usuário comum só vê a tela "Enviar Relatório" se o administrador habilitar essa permissão.
+
+Mesmo habilitado, ele só pode enviar relatórios dos setores aos quais possui acesso.
+
+### 11.6 Usuários SEI vinculados a setores
+
+A tela "Usuários SEI" permite informar em quais setores cada servidor/atribuição atua.
+
+Isso é importante porque os filtros de "Atribuição" e "Servidor" passam a mostrar apenas nomes compatíveis com as divisões liberadas para o usuário logado.
+
+### 11.7 Cache isolado por usuário
+
+O sistema também separa o cache de dados por usuário. Assim, quando uma pessoa sai e outra entra no mesmo computador, a nova sessão não reutiliza dados carregados pela sessão anterior.
+
+### 11.8 API key
 
 As automações não usam login comum. Elas usam uma chave de API, configurada de forma secreta no GitHub e no Render.
 
 Essa chave permite que scripts automáticos enviem dados e consultem indicadores sem depender de uma pessoa logada.
 
-### 11.5 Log de auditoria
+### 11.9 Log de auditoria
 
 Ações críticas são registradas com data, usuário e detalhes.
 
@@ -489,19 +527,24 @@ Isso ajuda a responder perguntas como:
 - Quem alterou uma data de snapshot?
 - Quem excluiu um upload?
 - Quem criou ou alterou usuários?
+- Quem alterou divisões, permissões de upload ou vínculos de usuários SEI?
 
 ---
 
 ## 12. Banco de dados em linguagem simples
 
-O banco do AnalyticSEI é formado por seis tabelas principais.
+O banco do AnalyticSEI é formado por tabelas principais que guardam usuários, snapshots, processos, indicadores e regras de acesso.
 
 | Tabela | O que guarda | Exemplo de uso |
 |---|---|---|
 | `users` | Usuários do AnalyticSEI | Login, permissões e administradores |
+| `user_sector_access` | Divisões liberadas por usuário | Define quais setores um usuário comum pode visualizar |
 | `uploads` | Relatórios enviados | Histórico de arquivos importados por setor e data |
 | `processos` | Linhas dos relatórios do SEI | Cada processo em cada setor e data |
 | `sei_users` | Padronização de nomes | Liga variações do SEI ao nome correto do servidor |
+| `sei_user_aliases` | Nomes históricos ou alternativos | Consolida mudanças de nome ou grafia |
+| `sei_user_setor` | Setores por usuário SEI | Filtra listas de Atribuição e Servidor |
+| `process_type_weights` | Pesos por tipo de processo | Ajusta o Score de Risco conforme prioridade do tipo |
 | `monthly_stats` | Indicadores mensais | Indicadores lançados por mês e setor |
 | `audit_logs` | Registro de ações críticas | Uploads, exclusões, alterações e gestão de usuários |
 
