@@ -222,7 +222,16 @@ export default function AdminPage() {
         api.get("/admin/users"),
         api.get("/uploads", { params: { page: 1, page_size: 30 } }),
       ]);
-      setUsers(usersResponse.data);
+      const loadedUsers = usersResponse.data;
+      setUsers(loadedUsers);
+      setSectorData((prev) => ({
+        ...prev,
+        ...Object.fromEntries(
+          loadedUsers
+            .filter((row) => !row.is_admin)
+            .map((row) => [row.id, Array.isArray(row.setores) ? row.setores : []])
+        ),
+      }));
       setUploads(normalizeUploadsPayload(uploadsResponse.data).items);
     } catch (requestError) {
       setError(requestError.response?.data?.detail || "Falha ao carregar dados administrativos.");
@@ -457,7 +466,7 @@ export default function AdminPage() {
                   <tbody>
                     {users.map((row) => {
                       const isEditing = sectorEditing === row.id;
-                      const rowSetores = sectorData[row.id] ?? null;
+                      const rowSetores = sectorData[row.id] ?? (Array.isArray(row.setores) ? row.setores : null);
 
                       return (
                         <>

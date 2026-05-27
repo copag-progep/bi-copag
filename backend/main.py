@@ -46,6 +46,7 @@ from .database import SessionLocal, get_db, init_db
 from .models import AuditLog, MonthlyStat, ProcessTypeWeight, Processo, SeiUser, Upload, User, UserSectorAccess
 from .monthly_stats import MONTHLY_INDICATORS, import_monthly_stats_csv, update_monthly_stat_value, upsert_month_entry
 from .schemas import (
+    AdminUserRead,
     AuditLogRead,
     FilterOptions,
     MonthlyStatImportResult,
@@ -591,12 +592,29 @@ def process_search(
     })
 
 
-@app.get("/api/admin/users", response_model=list[UserRead])
+@app.get("/api/admin/users", response_model=list[AdminUserRead])
 def list_users(
     _: User = Depends(get_current_admin_user),
     db: Session = Depends(get_db),
-) -> list[User]:
-    return db.query(User).order_by(User.name.asc()).all()
+) -> list[dict]:
+    users = db.query(User).order_by(User.name.asc()).all()
+    sector_rows = db.query(UserSectorAccess.user_id, UserSectorAccess.setor).all()
+    sectors_by_user: dict[int, list[str]] = {}
+    for user_id, setor in sector_rows:
+        sectors_by_user.setdefault(user_id, []).append(setor)
+
+    return [
+        {
+            "id": user.id,
+            "name": user.name,
+            "email": user.email,
+            "is_admin": user.is_admin,
+            "can_upload": user.can_upload,
+            "created_at": user.created_at,
+            "setores": sorted(sectors_by_user.get(user.id, [])),
+        }
+        for user in users
+    ]
 
 
 @app.post("/api/admin/users", response_model=UserRead, status_code=status.HTTP_201_CREATED)
