@@ -45,7 +45,7 @@ function Icon({ name, size = 18 }) {
 const menuItems = [
   { to: "/executivo",           label: "Central Executiva",  icon: "executive" },
   { to: "/",                    label: "Dashboard",           icon: "dashboard", end: true },
-  { to: "/enviar-relatorio",    label: "Enviar Relatório",    icon: "upload" },
+  { to: "/enviar-relatorio",    label: "Enviar Relatório",    icon: "upload", requiresUpload: true },
   { to: "/entradas-saidas",     label: "Entradas e Saídas",   icon: "flow" },
   { to: "/produtividade",       label: "Produtividade",       icon: "prod" },
   { to: "/multiplos-setores",   label: "Múltiplos Setores",   icon: "multi" },
@@ -62,7 +62,11 @@ const menuItems = [
 
 export default function Sidebar({ open, collapsed, onClose, onToggleCollapse }) {
   const { user } = useAuth();
-  const visibleItems = menuItems.filter((item) => !item.adminOnly || user?.is_admin);
+  const visibleItems = menuItems.filter((item) => {
+    if (item.adminOnly && !user?.is_admin) return false;
+    if (item.requiresUpload && !user?.is_admin && !user?.can_upload) return false;
+    return true;
+  });
 
   return (
     <aside className={`sidebar ${open ? "open" : ""} ${collapsed ? "collapsed" : ""}`}>

@@ -37,7 +37,8 @@ const ACTION_LABELS = {
   "sei_usuario.unificado":{ label: "Histórico SEI unificado", color: "var(--accent-dark)" },
   "process_type_weight.salvo":   { label: "Peso de tipo salvo",    color: "var(--primary)" },
   "process_type_weight.removido":{ label: "Peso de tipo removido", color: "var(--danger)" },
-  "usuario.setores_atualizados": { label: "Setores atualizados",   color: "var(--primary)" },
+  "usuario.setores_atualizados":    { label: "Setores atualizados",           color: "var(--primary)" },
+  "usuario.permissoes_atualizadas": { label: "Permissões atualizadas",        color: "var(--primary)" },
 };
 
 function ActionBadge({ action }) {
@@ -130,6 +131,16 @@ export default function AdminPage() {
       setSectorMsg(`✗ ${err.response?.data?.detail || "falha ao salvar"}`);
     } finally {
       setSectorSaving(false);
+    }
+  }
+
+  async function toggleUploadPermission(userId, currentValue) {
+    try {
+      await api.patch(`/admin/users/${userId}/permissions`, { can_upload: !currentValue });
+      setSectorMsg(`✓ Permissão de upload ${!currentValue ? "habilitada" : "desabilitada"}.`);
+      await loadAdminData();
+    } catch (err) {
+      setSectorMsg(`✗ ${err.response?.data?.detail || "falha ao atualizar permissão"}`);
     }
   }
 
@@ -552,6 +563,31 @@ export default function AdminPage() {
                                       );
                                     })}
                                   </div>
+                                  <div style={{
+                                    marginBottom: 14, paddingTop: 14,
+                                    borderTop: "1px solid var(--border)",
+                                  }}>
+                                    <p style={{ fontSize: "0.82rem", fontWeight: 700, marginBottom: 8, color: "var(--ink)" }}>
+                                      Permissões adicionais
+                                    </p>
+                                    <label style={{
+                                      display: "flex", alignItems: "center", gap: 10,
+                                      padding: "8px 12px", borderRadius: 8, cursor: "pointer",
+                                      border: `1.5px solid ${row.can_upload ? "var(--primary)" : "var(--border)"}`,
+                                      background: row.can_upload ? "rgba(39,49,104,.06)" : "var(--panel)",
+                                      width: "fit-content",
+                                    }}>
+                                      <input
+                                        type="checkbox"
+                                        checked={row.can_upload || false}
+                                        onChange={() => toggleUploadPermission(row.id, row.can_upload)}
+                                      />
+                                      <span style={{ fontSize: "0.82rem", fontWeight: 700, color: row.can_upload ? "var(--primary)" : "var(--muted)" }}>
+                                        Pode enviar relatórios
+                                      </span>
+                                    </label>
+                                  </div>
+
                                   <div style={{ display: "flex", gap: 8 }}>
                                     <button
                                       type="button"

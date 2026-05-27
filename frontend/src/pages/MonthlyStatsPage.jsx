@@ -7,6 +7,7 @@ import DataTable from "../components/DataTable";
 import LoadingBlock from "../components/LoadingBlock";
 import StatCard from "../components/StatCard";
 import { useAuth } from "../context/AuthContext";
+import { useFilters } from "../context/FiltersContext";
 
 const ENTRY_FIELDS = [
   { key: "processos_gerados", indicator: "Processos gerados no período", shortLabel: "Proc. gerados" },
@@ -166,6 +167,7 @@ function buildEntryInitialState(defaultSetor) {
 
 export default function MonthlyStatsPage() {
   const { user } = useAuth();
+  const { options } = useFilters();
   const [data, setData] = useState({ rows: [], setores: [], indicadores: [], anos: [] });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -236,7 +238,11 @@ export default function MonthlyStatsPage() {
       )
     : 0;
   const managementRows = buildManagementRows(data.rows);
-  const availableSetores = data.setores.length ? data.setores : DEFAULT_SETORES;
+  // Para usuários restritos, fallback usa os setores permitidos em vez de todos os DEFAULT_SETORES
+  const fallbackSetores = options.setor_restrito && options.setores_do_usuario?.length
+    ? options.setores_do_usuario
+    : DEFAULT_SETORES;
+  const availableSetores = data.setores.length ? data.setores : fallbackSetores;
   const totalPages = Math.max(1, Math.ceil(managementRows.length / PAGE_SIZE));
   const paginatedManagementRows = managementRows.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 

@@ -265,6 +265,21 @@ export default function UploadPage() {
       : []),
   ];
 
+  // Guarda de segurança: redireciona se o usuário não tiver permissão de upload
+  if (!user?.is_admin && !user?.can_upload) {
+    return (
+      <div className="page-grid">
+        <section className="hero-panel">
+          <div>
+            <p className="eyebrow">Envio diário</p>
+            <h1>Acesso restrito</h1>
+            <span>Você não tem permissão para enviar relatórios. Solicite ao administrador.</span>
+          </div>
+        </section>
+      </div>
+    );
+  }
+
   return (
     <div className="page-grid">
       <section className="hero-panel">

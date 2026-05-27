@@ -23,6 +23,7 @@ class UserRead(BaseModel):
     name: str
     email: EmailStr
     is_admin: bool
+    can_upload: bool = False
     created_at: datetime
 
 

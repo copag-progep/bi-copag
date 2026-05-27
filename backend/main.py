@@ -831,10 +831,18 @@ def remove_sei_user_alias(
 
 @app.get("/api/monthly-stats")
 def list_monthly_stats(
-    _: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> dict:
-    rows = db.query(MonthlyStat).order_by(MonthlyStat.periodo.asc(), MonthlyStat.setor.asc(), MonthlyStat.indicador.asc()).all()
+    setores_permitidos = get_user_setores(current_user, db)
+    query = db.query(MonthlyStat).order_by(
+        MonthlyStat.periodo.asc(), MonthlyStat.setor.asc(), MonthlyStat.indicador.asc()
+    )
+    if setores_permitidos is not None:
+        if len(setores_permitidos) == 0:
+            return {"rows": [], "setores": [], "indicadores": list(MONTHLY_INDICATORS), "anos": []}
+        query = query.filter(MonthlyStat.setor.in_(setores_permitidos))
+    rows = query.all()
     return {
         "rows": [MonthlyStatRead.model_validate(row).model_dump(mode="json") for row in rows],
         "setores": sorted({row.setor for row in rows}),
@@ -914,6 +922,11 @@ async def upload_snapshot(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> UploadResult:
+    if not current_user.is_admin and not current_user.can_upload:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Sem permissão para enviar relatórios. Solicite ao administrador.",
+        )
     if setor.upper() not in SETORES:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Setor invalido.")
     if not file.filename.lower().endswith(".csv"):
@@ -1353,6 +1366,41 @@ def update_user_sectors(
     # Invalida cache analítico para que as novas restrições entrem em vigor imediatamente
     clear_analytics_cache()
     return {"ok": True, "user_id": user_id, "setores": new_setores}
+
+
+# ── Permissões adicionais por usuário ─────────────────────────────────────
+
+class UserPermissionsUpdate(BaseModel):
+    can_upload: bool
+
+
+@app.patch("/api/admin/users/{user_id}/permissions")
+def update_user_permissions(
+    user_id: int,
+    payload: UserPermissionsUpdate,
+    current_admin: User = Depends(get_current_admin_user),
+    db: Session = Depends(get_db),
+):
+    """Atualiza permissões adicionais de um usuário não-admin (can_upload, etc.)."""
+    target = db.query(User).filter(User.id == user_id).first()
+    if not target:
+        raise HTTPException(status_code=404, detail="Usuário não encontrado.")
+    if target.is_admin:
+        raise HTTPException(status_code=400, detail="Administradores têm acesso total — permissões não se aplicam.")
+
+    old_can_upload = target.can_upload
+    target.can_upload = payload.can_upload
+
+    _log_audit(
+        db,
+        action="usuario.permissoes_atualizadas",
+        entity_type="usuario",
+        entity_id=str(user_id),
+        details={"email": target.email, "can_upload_anterior": old_can_upload, "can_upload_novo": payload.can_upload},
+        user=current_admin,
+    )
+    db.commit()
+    return {"ok": True, "user_id": user_id, "can_upload": target.can_upload}
 
 
 @app.get("/api/alerts/summary")
