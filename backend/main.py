@@ -43,7 +43,7 @@ from .auth import (
 )
 from .csv_importer import SETORES, bootstrap_workspace_csvs, import_csv_snapshot
 from .database import SessionLocal, get_db, init_db
-from .models import AuditLog, MonthlyStat, ProcessTypeWeight, Processo, SeiUser, Upload, User, UserSectorAccess
+from .models import AuditLog, MonthlyStat, ProcessTypeWeight, Processo, SeiUser, SeiUserSetor, Upload, User, UserSectorAccess
 from .monthly_stats import MONTHLY_INDICATORS, import_monthly_stats_csv, update_monthly_stat_value, upsert_month_entry
 from .schemas import (
     AdminUserRead,
@@ -680,7 +680,12 @@ def list_sei_users(
     _: User = Depends(get_current_admin_user),
     db: Session = Depends(get_db),
 ) -> list[SeiUser]:
-    return db.query(SeiUser).options(selectinload(SeiUser.aliases)).order_by(SeiUser.nome.asc()).all()
+    return (
+        db.query(SeiUser)
+        .options(selectinload(SeiUser.aliases), selectinload(SeiUser.setor_links))
+        .order_by(SeiUser.nome.asc())
+        .all()
+    )
 
 
 @app.get("/api/admin/sei-users/attribution-candidates", response_model=list[SeiUserAttributionCandidate])
@@ -822,6 +827,112 @@ def remove_sei_user(
     clear_analytics_cache()
     background_tasks.add_task(precompute_analytics)
     return {"message": f"Usuario SEI {name} excluido com sucesso."}
+
+
+# ── Setores por usuário SEI ───────────────────────────────────────────────
+
+class SeiUserSetoresUpdate(BaseModel):
+    setores: list[str]
+
+
+@app.get("/api/admin/sei-users/{sei_user_id}/sectors")
+def get_sei_user_sectors(
+    sei_user_id: int,
+    _: User = Depends(get_current_admin_user),
+    db: Session = Depends(get_db),
+):
+    """Lista os setores onde um usuário SEI atua (vínculos explícitos)."""
+    sei_user = db.query(SeiUser).filter(SeiUser.id == sei_user_id).first()
+    if not sei_user:
+        raise HTTPException(status_code=404, detail="Usuário SEI não encontrado.")
+    rows = db.query(SeiUserSetor.setor).filter(SeiUserSetor.sei_user_id == sei_user_id).all()
+    return {"sei_user_id": sei_user_id, "nome": sei_user.nome, "setores": sorted(r[0] for r in rows)}
+
+
+@app.put("/api/admin/sei-users/{sei_user_id}/sectors")
+def update_sei_user_sectors(
+    sei_user_id: int,
+    payload: SeiUserSetoresUpdate,
+    current_admin: User = Depends(get_current_admin_user),
+    db: Session = Depends(get_db),
+):
+    """Redefine os setores de um usuário SEI (substituição completa)."""
+    sei_user = db.query(SeiUser).filter(SeiUser.id == sei_user_id).first()
+    if not sei_user:
+        raise HTTPException(status_code=404, detail="Usuário SEI não encontrado.")
+
+    old_rows = db.query(SeiUserSetor.setor).filter(SeiUserSetor.sei_user_id == sei_user_id).all()
+    old_setores = sorted(r[0] for r in old_rows)
+    new_setores = sorted({s.upper().strip() for s in payload.setores if s.strip()})
+
+    db.query(SeiUserSetor).filter(SeiUserSetor.sei_user_id == sei_user_id).delete()
+    for setor in new_setores:
+        db.add(SeiUserSetor(sei_user_id=sei_user_id, setor=setor))
+
+    _log_audit(
+        db,
+        action="sei_usuario.setores_atualizados",
+        entity_type="sei_usuario",
+        entity_id=str(sei_user_id),
+        details={"nome": sei_user.nome, "setores_anteriores": old_setores, "setores_novos": new_setores},
+        user=current_admin,
+    )
+    db.commit()
+    clear_analytics_cache()
+    return {"ok": True, "sei_user_id": sei_user_id, "setores": new_setores}
+
+
+@app.post("/api/admin/sei-users/infer-sectors")
+def infer_sei_user_sectors(
+    current_admin: User = Depends(get_current_admin_user),
+    db: Session = Depends(get_db),
+):
+    """Infere e cadastra setores para usuários SEI a partir dos processos históricos.
+
+    Para cada SEI user, vincula TODOS os setores onde aparece como
+    atribuicao_normalizada nos processos. Nunca remove vínculos explícitos
+    existentes — apenas adiciona os faltantes.
+    """
+    sei_users = db.query(SeiUser).all()
+    updated = 0
+    total_links_added = 0
+
+    for sei_user in sei_users:
+        # Setores onde este SEI user aparece nos processos
+        found_setores: set[str] = {
+            row[0]
+            for row in db.query(Processo.setor)
+            .filter(Processo.atribuicao_normalizada == sei_user.nome)
+            .distinct()
+            .all()
+            if row[0]
+        }
+        if not found_setores:
+            continue
+
+        existing: set[str] = {
+            row[0]
+            for row in db.query(SeiUserSetor.setor)
+            .filter(SeiUserSetor.sei_user_id == sei_user.id)
+            .all()
+        }
+        new_links = found_setores - existing
+        for setor in new_links:
+            db.add(SeiUserSetor(sei_user_id=sei_user.id, setor=setor))
+        if new_links:
+            updated += 1
+            total_links_added += len(new_links)
+
+    _log_audit(
+        db,
+        action="sei_usuario.setores_inferidos",
+        entity_type="sei_usuario",
+        details={"sei_users_atualizados": updated, "vinculos_adicionados": total_links_added},
+        user=current_admin,
+    )
+    db.commit()
+    clear_analytics_cache()
+    return {"ok": True, "sei_users_atualizados": updated, "vinculos_adicionados": total_links_added}
 
 
 @app.delete("/api/admin/sei-users/aliases/{alias_id}")
@@ -1472,10 +1583,44 @@ def filter_options(
     opts["setores_validos"] = SETORES
     setores_permitidos = get_user_setores(current_user, db)
     if setores_permitidos is not None:
-        # Restringe a lista de setores no dropdown ao que o usuário pode ver
+        # Restringe setores no dropdown ao que o usuário pode ver
         opts["setores"] = [s for s in opts["setores"] if s in setores_permitidos]
         opts["setor_restrito"] = True
         opts["setores_do_usuario"] = list(setores_permitidos)
+
+        # ── Filtro de atribuições por setor ─────────────────────────────
+        # Regra de fallback:
+        #   Se existe ao menos 1 vínculo explícito (sei_user_setor) no sistema
+        #   → usa apenas vínculos explícitos (comportamento definitivo).
+        #   Se não existe nenhum vínculo ainda
+        #   → infere pelo histórico de processos (fallback temporário, até o
+        #     admin rodar "Inferir setores" em Usuários SEI).
+        has_explicit_links = db.query(SeiUserSetor).limit(1).count() > 0
+
+        if has_explicit_links:
+            linked_nomes: set[str] = {
+                row[0]
+                for row in db.query(SeiUser.nome)
+                .join(SeiUserSetor, SeiUser.id == SeiUserSetor.sei_user_id)
+                .filter(SeiUserSetor.setor.in_(setores_permitidos))
+                .all()
+                if row[0]
+            }
+            opts["atribuicoes"] = [a for a in opts["atribuicoes"] if a in linked_nomes]
+        else:
+            # Fallback data-driven: atribuições que aparecem nos processos desses setores
+            data_atribs: set[str] = {
+                row[0]
+                for row in db.query(Processo.atribuicao_normalizada)
+                .filter(
+                    Processo.atribuicao_normalizada.is_not(None),
+                    Processo.setor.in_(setores_permitidos),
+                )
+                .distinct()
+                .all()
+                if row[0]
+            }
+            opts["atribuicoes"] = [a for a in opts["atribuicoes"] if a in data_atribs]
     else:
         opts["setor_restrito"] = False
         opts["setores_do_usuario"] = []

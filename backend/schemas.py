@@ -1,7 +1,7 @@
 """Schemas Pydantic para validação de entrada e serialização de resposta da API."""
 from datetime import date, datetime
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 
 class UserCreate(BaseModel):
@@ -104,6 +104,17 @@ class SeiUserRead(BaseModel):
     usuario_sei: str | None
     created_at: datetime
     aliases: list[SeiUserAliasRead] = Field(default_factory=list)
+    setores: list[str] = Field(default_factory=list)
+
+    @field_validator("setores", mode="before")
+    @classmethod
+    def extract_setor_names(cls, v: object) -> list[str]:
+        """Converte lista de SeiUserSetor (ORM) para lista de strings."""
+        if not v:
+            return []
+        if v and hasattr(v[0], "setor"):
+            return sorted(item.setor for item in v)
+        return list(v)
 
 
 class SeiUserAliasCreate(BaseModel):

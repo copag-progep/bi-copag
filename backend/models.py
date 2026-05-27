@@ -91,6 +91,36 @@ class SeiUser(Base):
         passive_deletes=True,
         order_by="SeiUserAlias.alias",
     )
+    setor_links: Mapped[list["SeiUserSetor"]] = relationship(
+        "SeiUserSetor",
+        back_populates="sei_user",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+
+
+class SeiUserSetor(Base):
+    """Vínculo entre um usuário SEI (servidor/atribuição) e os setores onde atua.
+
+    Usado para filtrar o dropdown de Atribuição para usuários com acesso restrito
+    por divisão. Admin vê todos; usuário restrito vê apenas atribuições dos SEI
+    users vinculados aos seus setores permitidos.
+    """
+    __tablename__ = "sei_user_setor"
+    __table_args__ = (
+        sa.UniqueConstraint("sei_user_id", "setor", name="uq_sei_user_setor"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    sei_user_id: Mapped[int] = mapped_column(
+        sa.ForeignKey("sei_users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    setor: Mapped[str] = mapped_column(String(80), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=lambda: datetime.now(timezone.utc), nullable=False
+    )
+
+    sei_user: Mapped["SeiUser"] = relationship("SeiUser", back_populates="setor_links")
 
 
 class SeiUserAlias(Base):

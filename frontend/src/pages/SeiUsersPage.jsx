@@ -127,6 +127,56 @@ export default function SeiUsersPage() {
     alias: "",
   });
 
+  // ── Setores por usuário SEI ─────────────────────────────────────────────
+  const ALL_SETORES = ["DIAPE", "DICAT", "DIJOR", "DICAF", "DICAF-CHEFIA", "DICAF-REPOSICOES"];
+  const [sectorEditingId, setSectorEditingId] = useState(null);
+  const [sectorMsg, setSectorMsg] = useState("");
+  const [sectorSaving, setSectorSaving] = useState(false);
+  const [inferring, setInferring] = useState(false);
+  // localSetores: { [seiUserId]: string[] } — edits em andamento
+  const [localSetores, setLocalSetores] = useState({});
+
+  function getSetores(row) {
+    return localSetores[row.id] ?? row.setores ?? [];
+  }
+
+  function toggleSeiSetor(id, setor, current) {
+    const next = current.includes(setor)
+      ? current.filter((s) => s !== setor)
+      : [...current, setor];
+    setLocalSetores((prev) => ({ ...prev, [id]: next }));
+  }
+
+  async function saveSeiUserSectors(id) {
+    setSectorSaving(true);
+    setSectorMsg("");
+    try {
+      await api.put(`/admin/sei-users/${id}/sectors`, { setores: localSetores[id] ?? [] });
+      setSectorMsg("✓ Setores salvos.");
+      setSectorEditingId(null);
+      await loadSeiUsers();
+    } catch (err) {
+      setSectorMsg(`✗ ${err.response?.data?.detail || "falha ao salvar"}`);
+    } finally {
+      setSectorSaving(false);
+    }
+  }
+
+  async function handleInferSectors() {
+    if (!window.confirm("Isso vai vincular automaticamente todos os usuários SEI aos setores onde aparecem nos processos. Continuar?")) return;
+    setInferring(true);
+    setSectorMsg("");
+    try {
+      const { data } = await api.post("/admin/sei-users/infer-sectors");
+      setSectorMsg(`✓ ${data.sei_users_atualizados} usuários atualizados (${data.vinculos_adicionados} vínculos adicionados).`);
+      await loadSeiUsers();
+    } catch (err) {
+      setSectorMsg(`✗ ${err.response?.data?.detail || "falha na inferência"}`);
+    } finally {
+      setInferring(false);
+    }
+  }
+
   if (!user?.is_admin) {
     return <div className="alert error">Acesso restrito a administradores.</div>;
   }
@@ -468,9 +518,34 @@ export default function SeiUsersPage() {
         <div className="panel-header">
           <div>
             <h3>Base atual de usuários SEI</h3>
-            <p>Essa lista é usada para consolidar a coluna Atribuição em todas as análises do sistema.</p>
+            <p>
+              Essa lista é usada para consolidar a coluna Atribuição.
+              Configure os <strong>Setores</strong> de cada usuário para controlar quais atribuições
+              aparecem no filtro para usuários restritos.
+            </p>
           </div>
+          <button
+            type="button"
+            className="table-button"
+            onClick={handleInferSectors}
+            disabled={inferring}
+            title="Vincula automaticamente cada usuário SEI aos setores onde aparece nos processos importados"
+          >
+            {inferring ? "Inferindo..." : "⟳ Inferir setores"}
+          </button>
         </div>
+
+        {sectorMsg && (
+          <div style={{
+            padding: "8px 14px", borderRadius: 8, marginBottom: 12,
+            background: sectorMsg.startsWith("✓") ? "rgba(26,122,80,.1)" : "rgba(191,53,53,.1)",
+            color: sectorMsg.startsWith("✓") ? "#1a7a50" : "#bf3535",
+            fontSize: "0.85rem", fontWeight: 600,
+          }}>
+            {sectorMsg}
+          </div>
+        )}
+
         {loading ? (
           <LoadingBlock label="Carregando usuários SEI..." />
         ) : (
@@ -479,6 +554,79 @@ export default function SeiUsersPage() {
               { key: "nome", label: "Nome" },
               { key: "nome_sei", label: "Nome SEI" },
               { key: "usuario_sei", label: "Usuário SEI" },
+              {
+                key: "setores",
+                label: "Setores",
+                render: (_, row) => {
+                  const isEditing = sectorEditingId === row.id;
+                  const currentSetores = getSetores(row);
+                  if (isEditing) {
+                    return (
+                      <div style={{ minWidth: 280 }}>
+                        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
+                          {ALL_SETORES.map((s) => {
+                            const checked = currentSetores.includes(s);
+                            return (
+                              <label key={s} style={{
+                                display: "flex", alignItems: "center", gap: 5,
+                                padding: "4px 10px", borderRadius: 8, cursor: "pointer",
+                                border: `1.5px solid ${checked ? "var(--primary)" : "var(--border)"}`,
+                                background: checked ? "rgba(39,49,104,.08)" : "var(--panel)",
+                                fontSize: "0.78rem", fontWeight: 700,
+                                color: checked ? "var(--primary)" : "var(--muted)",
+                              }}>
+                                <input
+                                  type="checkbox"
+                                  checked={checked}
+                                  onChange={() => toggleSeiSetor(row.id, s, currentSetores)}
+                                  style={{ display: "none" }}
+                                />
+                                {s}
+                              </label>
+                            );
+                          })}
+                        </div>
+                        <div style={{ display: "flex", gap: 6 }}>
+                          <button type="button" className="table-button"
+                            disabled={sectorSaving}
+                            onClick={() => saveSeiUserSectors(row.id)}
+                            style={{ fontSize: "0.75rem", padding: "4px 10px" }}
+                          >
+                            {sectorSaving ? "Salvando..." : "Salvar"}
+                          </button>
+                          <button type="button" className="ghost-button"
+                            onClick={() => { setSectorEditingId(null); setLocalSetores((p) => ({ ...p, [row.id]: row.setores ?? [] })); }}
+                            style={{ fontSize: "0.75rem" }}
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  }
+                  return (
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                      {currentSetores.length > 0
+                        ? currentSetores.map((s) => (
+                          <span key={s} style={{
+                            padding: "1px 7px", borderRadius: 8, fontSize: "0.72rem", fontWeight: 700,
+                            background: "rgba(39,49,104,.08)", color: "var(--primary)",
+                          }}>{s}</span>
+                        ))
+                        : <span style={{ fontSize: "0.78rem", color: "var(--muted)", fontStyle: "italic" }}>—</span>
+                      }
+                      <button
+                        type="button"
+                        className="table-button"
+                        onClick={() => { setSectorEditingId(row.id); setLocalSetores((p) => ({ ...p, [row.id]: row.setores ?? [] })); }}
+                        style={{ fontSize: "0.72rem", padding: "2px 8px", marginLeft: 2 }}
+                      >
+                        ✎
+                      </button>
+                    </div>
+                  );
+                },
+              },
               {
                 key: "aliases",
                 label: "Aliases históricos",

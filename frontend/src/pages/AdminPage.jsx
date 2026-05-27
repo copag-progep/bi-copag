@@ -38,7 +38,9 @@ const ACTION_LABELS = {
   "process_type_weight.salvo":   { label: "Peso de tipo salvo",    color: "var(--primary)" },
   "process_type_weight.removido":{ label: "Peso de tipo removido", color: "var(--danger)" },
   "usuario.setores_atualizados":    { label: "Setores atualizados",           color: "var(--primary)" },
-  "usuario.permissoes_atualizadas": { label: "Permissões atualizadas",        color: "var(--primary)" },
+  "usuario.permissoes_atualizadas":    { label: "Permissões atualizadas",        color: "var(--primary)" },
+  "sei_usuario.setores_atualizados":   { label: "Setores SEI atualizados",       color: "var(--primary)" },
+  "sei_usuario.setores_inferidos":     { label: "Setores SEI inferidos",         color: "var(--primary)" },
 };
 
 function ActionBadge({ action }) {
