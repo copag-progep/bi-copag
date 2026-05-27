@@ -504,6 +504,56 @@ def _finalized_by_attribution(frame: pd.DataFrame, available_dates: list[date]) 
     return [{"label": a, "value": v} for a, v in ranked]
 
 
+def _multi_sector_processes_for_filters(db: Session, filters: AnalyticsFilters) -> tuple[str | None, list[dict]]:
+    """Detecta protocolos em múltiplos setores usando contexto global do snapshot.
+
+    A detecção precisa enxergar todos os setores do dia; caso contrário, um usuário
+    filtrado por DIAPE nunca verá que um protocolo da DIAPE também aparece em DICAF.
+    Depois da detecção global, restringimos a lista aos protocolos que envolvem o
+    setor selecionado ou algum setor permitido ao usuário.
+    """
+    search_filters = AnalyticsFilters(
+        data_referencia=filters.data_referencia,
+        data_inicial=filters.data_inicial,
+        data_final=filters.data_final,
+        setor=None,
+        tipo=filters.tipo,
+        atribuicao=filters.atribuicao,
+    )
+    frame, reference_date, _ = _load_dataframe(db, search_filters, fields=FLOW_FIELDS)
+    current = _snapshot(frame, reference_date)
+    if current.empty:
+        return str(reference_date) if reference_date else None, []
+
+    grouped = current.groupby("protocolo").agg(setores=("setor", lambda values: sorted(set(values)))).reset_index()
+    grouped["quantidade_setores"] = grouped["setores"].apply(len)
+    duplicated = grouped[grouped["quantidade_setores"] > 1].sort_values("quantidade_setores", ascending=False)
+
+    visible_sectors: set[str] | None = None
+    if filters.setor:
+        visible_sectors = {filters.setor.upper()}
+    elif filters.setores_permitidos is not None:
+        visible_sectors = set(filters.setores_permitidos)
+
+    if visible_sectors is not None:
+        if not visible_sectors:
+            duplicated = duplicated.iloc[0:0]
+        else:
+            duplicated = duplicated[
+                duplicated["setores"].apply(lambda setores: bool(visible_sectors.intersection(setores)))
+            ]
+
+    processes = [
+        {
+            "protocolo": row["protocolo"],
+            "setores": row["setores"],
+            "data_relatorio": str(reference_date) if reference_date else None,
+        }
+        for _, row in duplicated.iterrows()
+    ]
+    return str(reference_date) if reference_date else None, processes
+
+
 def get_dashboard_data(db: Session, filters: AnalyticsFilters) -> dict:
     """KPIs, distribuição por setor/tipo/atribuição e evolução diária de processos ativos."""
     def build() -> dict:
@@ -511,11 +561,8 @@ def get_dashboard_data(db: Session, filters: AnalyticsFilters) -> dict:
         current = _snapshot(frame, reference_date)
 
         total_unique = int(current["protocolo"].nunique()) if not current.empty else 0
-        duplicates = 0
-        if not current.empty:
-            duplicates = int(
-                current.groupby("protocolo")["setor"].nunique().loc[lambda series: series > 1].shape[0]
-            )
+        _, multi_sector_processes = _multi_sector_processes_for_filters(db, filters)
+        duplicates = len(multi_sector_processes)
 
         evolution = []
         if not frame.empty:
@@ -780,35 +827,8 @@ def get_stale_processes_data(db: Session, filters: AnalyticsFilters) -> dict:
 def get_multi_sector_data(db: Session, filters: AnalyticsFilters) -> dict:
     """Processos presentes em mais de um setor no mesmo snapshot (possíveis duplicidades)."""
     def build() -> dict:
-        search_filters = AnalyticsFilters(
-            data_referencia=filters.data_referencia,
-            data_inicial=filters.data_inicial,
-            data_final=filters.data_final,
-            setor=None,
-            tipo=filters.tipo,
-            atribuicao=filters.atribuicao,
-        )
-        frame, reference_date, _ = _load_dataframe(db, search_filters, fields=FLOW_FIELDS)
-        current = _snapshot(frame, reference_date)
-        if current.empty:
-            return {"data_referencia": str(reference_date) if reference_date else None, "processos": []}
-
-        grouped = current.groupby("protocolo").agg(setores=("setor", lambda values: sorted(set(values)))).reset_index()
-        grouped["quantidade_setores"] = grouped["setores"].apply(len)
-        duplicated = grouped[grouped["quantidade_setores"] > 1].sort_values("quantidade_setores", ascending=False)
-
-        if filters.setor:
-            duplicated = duplicated[duplicated["setores"].apply(lambda setores: filters.setor.upper() in setores)]
-
-        processes = [
-            {
-                "protocolo": row["protocolo"],
-                "setores": row["setores"],
-                "data_relatorio": str(reference_date) if reference_date else None,
-            }
-            for _, row in duplicated.iterrows()
-        ]
-        return {"data_referencia": str(reference_date) if reference_date else None, "processos": processes}
+        reference_date, processes = _multi_sector_processes_for_filters(db, filters)
+        return {"data_referencia": reference_date, "processos": processes}
 
     return _cached_response(db, "multi-sector", filters, build)
 
