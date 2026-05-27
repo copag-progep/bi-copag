@@ -1,12 +1,20 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import api from "../api/client";
 import ErrorBlock from "../components/ErrorBlock";
 import LoadingBlock from "../components/LoadingBlock";
 import StatCard from "../components/StatCard";
 import { useFilters } from "../context/FiltersContext";
+import { useAnalyticsData } from "../hooks/useAnalyticsData";
 import { generateAttributionsExcel } from "../utils/attributionsExcel";
 import { generateAttributionsPdf } from "../utils/attributionsPdf";
+
+const NIVEL_LABEL = { critico: "Crítico", elevado: "Elevado", moderado: "Moderado" };
+
+function RiskBadgeInline({ nivel }) {
+  if (!nivel || nivel === "normal") return <span style={{ color: "var(--muted)" }}>—</span>;
+  return <span className={`risk-badge risk-badge-${nivel}`}>{NIVEL_LABEL[nivel] || nivel}</span>;
+}
 
 const PAGE_SIZE = 50;
 
@@ -72,6 +80,16 @@ export default function AttributionsPage() {
   const [excelLoading, setExcelLoading] = useState(false);
 
   const buscaRef = useRef(null);
+
+  // Risk score — carregado em paralelo, não bloqueia a tabela
+  const riskQuery = useAnalyticsData("/analytics/risk-score", toQueryParams());
+  const riskMap = useMemo(() => {
+    const map = {};
+    for (const p of riskQuery.data?.processos || []) {
+      map[`${p.protocolo}|${p.setor}`] = p.nivel;
+    }
+    return map;
+  }, [riskQuery.data]);
 
   // Reset page quando qualquer filtro/ordenação muda
   useEffect(() => {
@@ -430,12 +448,20 @@ export default function AttributionsPage() {
                 >
                   Dias <SortIcon col="dias" sortBy={sortBy} sortDir={sortDir} />
                 </th>
+                <th style={{ whiteSpace: "nowrap" }}>
+                  Risco
+                  {riskQuery.loading && (
+                    <span style={{ marginLeft: 5, fontSize: "0.7em", color: "var(--muted)", fontWeight: 400 }}>
+                      ···
+                    </span>
+                  )}
+                </th>
               </tr>
             </thead>
             <tbody>
               {items.length === 0 ? (
                 <tr>
-                  <td colSpan={6} style={{ textAlign: "center", color: "var(--muted)", padding: "28px" }}>
+                  <td colSpan={7} style={{ textAlign: "center", color: "var(--muted)", padding: "28px" }}>
                     Nenhum processo encontrado com os filtros atuais.
                   </td>
                 </tr>
@@ -474,6 +500,9 @@ export default function AttributionsPage() {
                     </td>
                     <td>
                       <DaysFlag days={item.dias_com_atribuicao} />
+                    </td>
+                    <td>
+                      <RiskBadgeInline nivel={riskMap[`${item.protocolo}|${item.setor}`]} />
                     </td>
                   </tr>
                 ))
