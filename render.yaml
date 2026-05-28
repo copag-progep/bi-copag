@@ -6,7 +6,7 @@ services:
     region: virginia
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn backend.main:app --host 0.0.0.0 --port $PORT
-    healthCheckPath: /api/health
+    healthCheckPath: /api/ping
     envVars:
       - key: DATABASE_URL
         sync: false
@@ -31,7 +31,7 @@ services:
       - key: ANALYTICS_LOOKBACK_DAYS
         value: "120"
       - key: DISABLE_STARTUP_PRECOMPUTE
-        value: "false"
+        value: "true"
       - key: PRECOMPUTE_HEAVY_ANALYTICS
         value: "false"
       - key: PRECOMPUTE_COOLDOWN_SECS

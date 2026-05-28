@@ -181,19 +181,36 @@ def precompute_analytics() -> None:
         _precompute_running = False
 
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    init_db()
-    ensure_default_user()
-    auto_import_workspace_data()
+def run_noncritical_startup_tasks() -> None:
+    """Executa rotinas úteis, mas não essenciais para a API aceitar tráfego.
+
+    No Render Free, qualquer bloqueio no lifespan atrasa a abertura da porta e
+    pode fazer o healthcheck falhar com connection refused. Por isso deixamos
+    apenas migrações e criação do admin no caminho crítico de startup.
+    """
+    try:
+        auto_import_workspace_data()
+    except Exception:
+        pass
+
     db = SessionLocal()
     try:
         if needs_processo_atribuicoes_sync(db):
             sync_processo_atribuicoes(db)
+    except Exception:
+        pass
     finally:
         db.close()
+
     if not DISABLE_STARTUP_PRECOMPUTE:
-        threading.Thread(target=precompute_analytics, daemon=True).start()
+        precompute_analytics()
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    init_db()
+    ensure_default_user()
+    threading.Thread(target=run_noncritical_startup_tasks, daemon=True).start()
     yield
 
 
