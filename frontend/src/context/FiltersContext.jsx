@@ -25,14 +25,17 @@ export function FiltersProvider({ children }) {
   const { isAuthenticated } = useAuth();
   const [filters, setFilters] = useState(INITIAL_FILTERS);
   const [options, setOptions] = useState(EMPTY_OPTIONS);
+  const [optionsLoading, setOptionsLoading] = useState(false);
 
   async function reloadOptions({ focusLatestDate = false } = {}) {
     if (!isAuthenticated) {
       setOptions(EMPTY_OPTIONS);
       setFilters(INITIAL_FILTERS);
+      setOptionsLoading(false);
       return;
     }
 
+    setOptionsLoading(true);
     try {
       const { data } = await api.get("/meta/options");
       const latestDate = data.datas.at(-1) || "";
@@ -56,6 +59,8 @@ export function FiltersProvider({ children }) {
       });
     } catch {
       setOptions(EMPTY_OPTIONS);
+    } finally {
+      setOptionsLoading(false);
     }
   }
 
@@ -83,6 +88,7 @@ export function FiltersProvider({ children }) {
       value={{
         filters,
         options,
+        optionsLoading,
         setFilter,
         clearFilters,
         setFilters,

@@ -64,7 +64,7 @@ function SortIcon({ col, sortBy, sortDir }) {
 
 
 export default function AttributionsPage() {
-  const { filters, toQueryParams } = useFilters();
+  const { filters, options, optionsLoading, setFilter, toQueryParams } = useFilters();
 
   const [data, setData]             = useState(null);
   const [page, setPage]             = useState(1);
@@ -80,6 +80,23 @@ export default function AttributionsPage() {
   const [excelLoading, setExcelLoading] = useState(false);
 
   const buscaRef = useRef(null);
+
+  const defaultSetor = useMemo(() => {
+    const setoresVisiveis = options.setor_restrito
+      ? (options.setores_do_usuario || [])
+      : [...new Set(["DIAPE", ...(options.setores || [])])].filter(Boolean);
+
+    if (setoresVisiveis.includes("DIAPE")) return "DIAPE";
+    return setoresVisiveis[0] || "";
+  }, [options]);
+
+  const waitingForDefaultSetor = !filters.setor && (optionsLoading || Boolean(defaultSetor));
+
+  useEffect(() => {
+    if (!filters.setor && defaultSetor) {
+      setFilter("setor", defaultSetor);
+    }
+  }, [filters.setor, defaultSetor, setFilter]);
 
   const riskParams = useMemo(() => toQueryParams(), [filters]);
   const shouldLoadRisk =
@@ -111,6 +128,12 @@ export default function AttributionsPage() {
     let cancelled = false;
 
     async function load() {
+      if (waitingForDefaultSetor) {
+        setLoading(true);
+        setError("");
+        return;
+      }
+
       setLoading(true);
       setError("");
       try {
@@ -138,7 +161,7 @@ export default function AttributionsPage() {
 
     load();
     return () => { cancelled = true; };
-  }, [filters, page, faixaIdx, sortBy, sortDir, buscaParam, retryCount]);
+  }, [filters, page, faixaIdx, sortBy, sortDir, buscaParam, retryCount, waitingForDefaultSetor]);
 
   function handleSort(col) {
     if (sortBy === col) {
