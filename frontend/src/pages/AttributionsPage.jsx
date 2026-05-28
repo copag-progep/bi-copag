@@ -81,15 +81,26 @@ export default function AttributionsPage() {
 
   const buscaRef = useRef(null);
 
-  // Risk score — carregado em paralelo, não bloqueia a tabela
-  const riskQuery = useAnalyticsData("/analytics/risk-score", toQueryParams());
+  const riskParams = useMemo(() => toQueryParams(), [filters]);
+  const shouldLoadRisk =
+    Boolean(riskParams.setor || riskParams.atribuicao) &&
+    !loading &&
+    !error &&
+    (data?.items?.length ?? 0) > 0;
+
+  // Risk score é pesado. Para proteger o Render Free, só carregamos após a
+  // tabela estar pronta e quando há recorte suficiente (setor ou atribuição).
+  const riskQuery = useAnalyticsData("/analytics/risk-score", riskParams, {
+    enabled: shouldLoadRisk,
+    timeout: 120000,
+  });
   const riskMap = useMemo(() => {
     const map = {};
-    for (const p of riskQuery.data?.processos || []) {
+    for (const p of shouldLoadRisk ? riskQuery.data?.processos || [] : []) {
       map[`${p.protocolo}|${p.setor}`] = p.nivel;
     }
     return map;
-  }, [riskQuery.data]);
+  }, [riskQuery.data, shouldLoadRisk]);
 
   // Reset page quando qualquer filtro/ordenação muda
   useEffect(() => {
@@ -450,7 +461,7 @@ export default function AttributionsPage() {
                 </th>
                 <th style={{ whiteSpace: "nowrap" }}>
                   Risco
-                  {riskQuery.loading && (
+                  {shouldLoadRisk && riskQuery.loading && (
                     <span style={{ marginLeft: 5, fontSize: "0.7em", color: "var(--muted)", fontWeight: 400 }}>
                       ···
                     </span>
