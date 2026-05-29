@@ -537,8 +537,8 @@ export default function DocumentacaoPage() {
       <footer className="doc-footer">
         <div className="doc-footer-brand">AnalyticSEI · COPAG · PROGEP · UFC</div>
         <div className="doc-footer-text">
-          Documentação gerada em maio de 2026 para a gestão COPAG/PROGEP/UFC.<br />
-          Desenvolvido com Claude Code (Anthropic) — repositório copag-progep/bi-copag.
+          Projeto de autoria de Anderson Santos, Administrador e Coordenador da COPAG.<br />
+          Desenvolvido com o auxílio de IA: Claude Code (Anthropic) e Codex (OpenAI) — repositório copag-progep/bi-copag.
         </div>
       </footer>
 
