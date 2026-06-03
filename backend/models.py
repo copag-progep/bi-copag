@@ -144,6 +144,87 @@ class SeiUserAlias(Base):
     user: Mapped["SeiUser"] = relationship("SeiUser", back_populates="aliases")
 
 
+class PautaSessao(Base):
+    """Sessão semanal da pauta executiva de processos prioritários.
+
+    Cada sessão agrupa os processos selecionados para uma semana de acompanhamento.
+    """
+    __tablename__ = "pauta_sessoes"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    titulo: Mapped[str] = mapped_column(String(255), nullable=False)
+    data_inicio: Mapped[date] = mapped_column(Date, nullable=False)
+    data_fim: Mapped[date | None] = mapped_column(Date, nullable=True)
+    data_reuniao: Mapped[date | None] = mapped_column(Date, nullable=True)
+    observacoes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    ativa: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    criado_por: Mapped[int | None] = mapped_column(
+        sa.ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+
+    itens: Mapped[list["PautaItem"]] = relationship(
+        "PautaItem", back_populates="sessao", cascade="all, delete-orphan", passive_deletes=True
+    )
+
+
+class PautaItem(Base):
+    """Item de pauta — processo específico incluído em uma sessão de acompanhamento.
+
+    Status:
+      pendente        → incluído, aguardando ação
+      em_acompanhamento → responsável confirmou ciência
+      saiu_do_setor   → processo não aparece mais no snapshot do setor (automático)
+      resolvido_manual → marcado manualmente como resolvido
+      arquivado       → removido da vista ativa pelo admin
+    """
+    __tablename__ = "pauta_itens"
+    __table_args__ = (
+        UniqueConstraint("sessao_id", "protocolo", "setor", "entrada_setor", name="uq_pauta_item"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    sessao_id: Mapped[int] = mapped_column(
+        sa.ForeignKey("pauta_sessoes.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    protocolo: Mapped[str] = mapped_column(String(120), nullable=False, index=True)
+    setor: Mapped[str] = mapped_column(String(80), nullable=False)
+    entrada_setor: Mapped[date | None] = mapped_column(Date, nullable=True)
+    data_referencia: Mapped[date | None] = mapped_column(Date, nullable=True)
+    ultima_presenca: Mapped[date | None] = mapped_column(Date, nullable=True)
+    atribuicao: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    tipo: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    dias_no_setor: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    score_risco: Mapped[float | None] = mapped_column(sa.Numeric(5, 3), nullable=True)
+    nivel_risco: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    assigned_to: Mapped[int | None] = mapped_column(
+        sa.ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    assigned_by: Mapped[int | None] = mapped_column(
+        sa.ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    status: Mapped[str] = mapped_column(String(30), default="pendente", nullable=False)
+    nota_admin: Mapped[str | None] = mapped_column(Text, nullable=True)
+    nota_responsavel: Mapped[str | None] = mapped_column(Text, nullable=True)
+    data_status: Mapped[date | None] = mapped_column(Date, nullable=True)
+    resolucao_automatica: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+
+    sessao: Mapped["PautaSessao"] = relationship("PautaSessao", back_populates="itens")
+
+
 class UserSectorAccess(Base):
     """Controle de acesso por divisão (setor) para usuários não-administradores.
 

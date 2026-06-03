@@ -43,7 +43,7 @@ from .auth import (
 )
 from .csv_importer import SETORES, bootstrap_workspace_csvs, import_csv_snapshot
 from .database import SessionLocal, get_db, init_db
-from .models import AuditLog, MonthlyStat, ProcessTypeWeight, Processo, SeiUser, SeiUserSetor, Upload, User, UserSectorAccess
+from .models import AuditLog, MonthlyStat, PautaItem, PautaSessao, ProcessTypeWeight, Processo, SeiUser, SeiUserSetor, Upload, User, UserSectorAccess
 from .monthly_stats import MONTHLY_INDICATORS, import_monthly_stats_csv, update_monthly_stat_value, upsert_month_entry
 from .schemas import (
     AdminUserRead,
@@ -981,6 +981,390 @@ def remove_sei_user_alias(
     return {"message": f"Alias historico {alias} removido com sucesso."}
 
 
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# PAUTA PRIORITÁRIA — detecção automática pós-upload e endpoints
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _check_pauta_resolution(db: Session, setor: str, data_relatorio: "date", total_records: int) -> None:
+    """Após um upload válido, verifica se itens de pauta ativos saíram do setor.
+
+    Regras conservadoras (não resolve com snapshot ruim):
+      - total_records > 0 (snapshot não está vazio)
+      - data_relatorio é a referência mais recente com registros válidos para o setor
+      - item estava pendente ou em_acompanhamento
+      - protocolo não aparece mais no snapshot atual do setor
+    """
+    if total_records <= 0:
+        return
+
+    # Confirma que este é o snapshot mais recente válido do setor
+    latest_valid = (
+        db.query(func.max(Upload.data_relatorio))
+        .filter(Upload.setor == setor, Upload.total_records > 0)
+        .scalar()
+    )
+    if latest_valid != data_relatorio:
+        return
+
+    current_protos: set[str] = {
+        row[0]
+        for row in db.query(Processo.protocolo)
+        .filter(Processo.setor == setor, Processo.data_relatorio == data_relatorio)
+        .all()
+        if row[0]
+    }
+
+    items = (
+        db.query(PautaItem)
+        .filter(PautaItem.setor == setor, PautaItem.status.in_(["pendente", "em_acompanhamento"]))
+        .all()
+    )
+
+    today = datetime.now(LOCAL_TIMEZONE).date()
+    for item in items:
+        if item.protocolo not in current_protos:
+            item.status = "saiu_do_setor"
+            item.data_status = data_relatorio
+            item.resolucao_automatica = True
+            item.updated_at = datetime.now(timezone.utc)
+    # commit é feito pelo chamador (após o upload)
+
+
+# ── Schemas Pydantic para Pauta ───────────────────────────────────────────
+
+class PautaSessaoCreate(BaseModel):
+    titulo: str = Field(min_length=3, max_length=255)
+    data_inicio: date
+    data_fim: date | None = None
+    data_reuniao: date | None = None
+    observacoes: str | None = None
+
+
+class PautaSessaoUpdate(BaseModel):
+    titulo: str | None = Field(default=None, min_length=3, max_length=255)
+    data_inicio: date | None = None
+    data_fim: date | None = None
+    data_reuniao: date | None = None
+    observacoes: str | None = None
+    ativa: bool | None = None
+
+
+class PautaItemCreate(BaseModel):
+    protocolo: str
+    setor: str
+    entrada_setor: date | None = None
+    data_referencia: date | None = None
+    ultima_presenca: date | None = None
+    atribuicao: str | None = None
+    tipo: str | None = None
+    dias_no_setor: int | None = None
+    score_risco: float | None = None
+    nivel_risco: str | None = None
+    assigned_to: int | None = None
+    nota_admin: str | None = None
+
+
+class PautaItemBulkCreate(BaseModel):
+    sessao_id: int
+    assigned_to: int | None = None
+    nota_admin: str | None = None
+    itens: list[PautaItemCreate]
+
+
+class PautaItemUpdate(BaseModel):
+    status: str | None = None  # em_acompanhamento | resolvido_manual | arquivado
+    nota_admin: str | None = None
+    nota_responsavel: str | None = None
+    assigned_to: int | None = None
+
+
+# ── Helpers ───────────────────────────────────────────────────────────────
+
+def _pauta_item_to_dict(item: PautaItem, users_map: dict) -> dict:
+    return {
+        "id": item.id,
+        "sessao_id": item.sessao_id,
+        "protocolo": item.protocolo,
+        "setor": item.setor,
+        "entrada_setor": str(item.entrada_setor) if item.entrada_setor else None,
+        "data_referencia": str(item.data_referencia) if item.data_referencia else None,
+        "ultima_presenca": str(item.ultima_presenca) if item.ultima_presenca else None,
+        "atribuicao": item.atribuicao,
+        "tipo": item.tipo,
+        "dias_no_setor": item.dias_no_setor,
+        "score_risco": float(item.score_risco) if item.score_risco is not None else None,
+        "nivel_risco": item.nivel_risco,
+        "assigned_to": item.assigned_to,
+        "assigned_to_nome": users_map.get(item.assigned_to, {}).get("name") if item.assigned_to else None,
+        "assigned_by": item.assigned_by,
+        "status": item.status,
+        "nota_admin": item.nota_admin,
+        "nota_responsavel": item.nota_responsavel,
+        "data_status": str(item.data_status) if item.data_status else None,
+        "resolucao_automatica": item.resolucao_automatica,
+        "created_at": item.created_at.isoformat() if item.created_at else None,
+        "updated_at": item.updated_at.isoformat() if item.updated_at else None,
+    }
+
+
+# ── Endpoints de Sessões ──────────────────────────────────────────────────
+
+@app.get("/api/pauta/sessoes")
+def list_pauta_sessoes(
+    ativa: bool | None = Query(None),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Lista sessões de pauta. Admin vê todas; usuário comum vê as que têm itens atribuídos a ele."""
+    query = db.query(PautaSessao).order_by(PautaSessao.data_inicio.desc())
+    if ativa is not None:
+        query = query.filter(PautaSessao.ativa == ativa)
+    sessoes = query.all()
+
+    users_map = {
+        u.id: {"name": u.name, "email": u.email}
+        for u in db.query(User).all()
+    }
+
+    result = []
+    for s in sessoes:
+        # Não admin: só mostra se tiver itens atribuídos a ele
+        if not current_user.is_admin:
+            has_items = db.query(PautaItem).filter(
+                PautaItem.sessao_id == s.id, PautaItem.assigned_to == current_user.id
+            ).first()
+            if not has_items:
+                continue
+
+        contagens = {st: 0 for st in ["pendente", "em_acompanhamento", "saiu_do_setor", "resolvido_manual", "arquivado"]}
+        for item in s.itens:
+            if not current_user.is_admin and item.assigned_to != current_user.id:
+                continue
+            contagens[item.status] = contagens.get(item.status, 0) + 1
+
+        result.append({
+            "id": s.id,
+            "titulo": s.titulo,
+            "data_inicio": str(s.data_inicio),
+            "data_fim": str(s.data_fim) if s.data_fim else None,
+            "data_reuniao": str(s.data_reuniao) if s.data_reuniao else None,
+            "observacoes": s.observacoes,
+            "ativa": s.ativa,
+            "criado_por": s.criado_por,
+            "criado_por_nome": users_map.get(s.criado_por, {}).get("name") if s.criado_por else None,
+            "created_at": s.created_at.isoformat() if s.created_at else None,
+            "contagens": contagens,
+            "total": sum(contagens.values()),
+        })
+    return result
+
+
+@app.post("/api/pauta/sessoes", status_code=201)
+def create_pauta_sessao(
+    payload: PautaSessaoCreate,
+    current_admin: User = Depends(get_current_admin_user),
+    db: Session = Depends(get_db),
+):
+    s = PautaSessao(
+        titulo=payload.titulo,
+        data_inicio=payload.data_inicio,
+        data_fim=payload.data_fim,
+        data_reuniao=payload.data_reuniao,
+        observacoes=payload.observacoes,
+        criado_por=current_admin.id,
+    )
+    db.add(s)
+    db.commit()
+    db.refresh(s)
+    _log_audit(db, action="pauta.sessao_criada", entity_type="pauta_sessao",
+               entity_id=str(s.id), details={"titulo": s.titulo}, user=current_admin)
+    db.commit()
+    return {"id": s.id, "titulo": s.titulo, "data_inicio": str(s.data_inicio)}
+
+
+@app.get("/api/pauta/sessoes/{sessao_id}")
+def get_pauta_sessao(
+    sessao_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    s = db.query(PautaSessao).filter(PautaSessao.id == sessao_id).first()
+    if not s:
+        raise HTTPException(status_code=404, detail="Sessão não encontrada.")
+
+    users_map = {u.id: {"name": u.name, "email": u.email} for u in db.query(User).all()}
+
+    itens = []
+    for item in sorted(s.itens, key=lambda x: (-(x.score_risco or 0), -(x.dias_no_setor or 0))):
+        if not current_user.is_admin and item.assigned_to != current_user.id:
+            continue
+        itens.append(_pauta_item_to_dict(item, users_map))
+
+    contagens = {st: 0 for st in ["pendente", "em_acompanhamento", "saiu_do_setor", "resolvido_manual", "arquivado"]}
+    for item in itens:
+        contagens[item["status"]] = contagens.get(item["status"], 0) + 1
+
+    return {
+        "id": s.id, "titulo": s.titulo, "data_inicio": str(s.data_inicio),
+        "data_fim": str(s.data_fim) if s.data_fim else None,
+        "data_reuniao": str(s.data_reuniao) if s.data_reuniao else None,
+        "observacoes": s.observacoes, "ativa": s.ativa,
+        "criado_por_nome": users_map.get(s.criado_por, {}).get("name") if s.criado_por else None,
+        "contagens": contagens, "itens": itens,
+    }
+
+
+@app.patch("/api/pauta/sessoes/{sessao_id}")
+def update_pauta_sessao(
+    sessao_id: int,
+    payload: PautaSessaoUpdate,
+    current_admin: User = Depends(get_current_admin_user),
+    db: Session = Depends(get_db),
+):
+    s = db.query(PautaSessao).filter(PautaSessao.id == sessao_id).first()
+    if not s:
+        raise HTTPException(status_code=404, detail="Sessão não encontrada.")
+    for field, value in payload.model_dump(exclude_none=True).items():
+        setattr(s, field, value)
+    s.updated_at = datetime.now(timezone.utc)
+    db.commit()
+    return {"ok": True}
+
+
+# ── Endpoints de Itens ────────────────────────────────────────────────────
+
+@app.post("/api/pauta/sessoes/{sessao_id}/itens", status_code=201)
+def add_pauta_item(
+    sessao_id: int,
+    payload: PautaItemCreate,
+    current_admin: User = Depends(get_current_admin_user),
+    db: Session = Depends(get_db),
+):
+    s = db.query(PautaSessao).filter(PautaSessao.id == sessao_id).first()
+    if not s:
+        raise HTTPException(status_code=404, detail="Sessão não encontrada.")
+
+    item = PautaItem(
+        sessao_id=sessao_id,
+        assigned_by=current_admin.id,
+        **payload.model_dump(),
+    )
+    db.add(item)
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="Processo já incluído nesta sessão com esta entrada.")
+    return {"id": item.id}
+
+
+@app.post("/api/pauta/sessoes/{sessao_id}/itens/bulk", status_code=201)
+def add_pauta_items_bulk(
+    sessao_id: int,
+    payload: PautaItemBulkCreate,
+    current_admin: User = Depends(get_current_admin_user),
+    db: Session = Depends(get_db),
+):
+    """Adiciona múltiplos processos de uma vez. Ignora duplicatas silenciosamente."""
+    s = db.query(PautaSessao).filter(PautaSessao.id == sessao_id).first()
+    if not s:
+        raise HTTPException(status_code=404, detail="Sessão não encontrada.")
+
+    added = 0
+    for item_data in payload.itens:
+        item = PautaItem(
+            sessao_id=sessao_id,
+            assigned_to=payload.assigned_to,
+            assigned_by=current_admin.id,
+            nota_admin=payload.nota_admin,
+            **item_data.model_dump(),
+        )
+        db.add(item)
+        try:
+            db.flush()
+            added += 1
+        except Exception:
+            db.rollback()
+            db.add(s)  # re-attach session after rollback
+    db.commit()
+    return {"added": added, "total_requested": len(payload.itens)}
+
+
+@app.patch("/api/pauta/itens/{item_id}")
+def update_pauta_item(
+    item_id: int,
+    payload: PautaItemUpdate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Admin pode alterar qualquer campo. Responsável pode alterar nota e status (em_acompanhamento, resolvido_manual)."""
+    item = db.query(PautaItem).filter(PautaItem.id == item_id).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Item não encontrado.")
+
+    allowed_statuses_for_user = {"em_acompanhamento", "resolvido_manual"}
+    if not current_user.is_admin:
+        if item.assigned_to != current_user.id:
+            raise HTTPException(status_code=403, detail="Sem permissão para editar este item.")
+        if payload.status and payload.status not in allowed_statuses_for_user:
+            raise HTTPException(status_code=403, detail="Status não permitido para este usuário.")
+        if payload.assigned_to is not None:
+            raise HTTPException(status_code=403, detail="Apenas admins podem reatribuir itens.")
+
+    data = payload.model_dump(exclude_none=True)
+    if "status" in data:
+        item.data_status = datetime.now(LOCAL_TIMEZONE).date()
+        item.resolucao_automatica = False
+    for field, value in data.items():
+        setattr(item, field, value)
+    item.updated_at = datetime.now(timezone.utc)
+    db.commit()
+    return {"ok": True}
+
+
+@app.delete("/api/pauta/itens/{item_id}")
+def delete_pauta_item(
+    item_id: int,
+    current_admin: User = Depends(get_current_admin_user),
+    db: Session = Depends(get_db),
+):
+    item = db.query(PautaItem).filter(PautaItem.id == item_id).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Item não encontrado.")
+    db.delete(item)
+    db.commit()
+    return {"ok": True}
+
+
+@app.get("/api/pauta/minha")
+def get_minha_pauta(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Retorna todos os itens atribuídos ao usuário atual, de sessões ativas, ordenados por risco."""
+    users_map = {u.id: {"name": u.name, "email": u.email} for u in db.query(User).all()}
+    items = (
+        db.query(PautaItem)
+        .join(PautaSessao, PautaItem.sessao_id == PautaSessao.id)
+        .filter(
+            PautaItem.assigned_to == current_user.id,
+            PautaSessao.ativa == True,
+            PautaItem.status.notin_(["arquivado"]),
+        )
+        .all()
+    )
+
+    return {
+        "user": {"id": current_user.id, "name": current_user.name},
+        "itens": sorted(
+            [_pauta_item_to_dict(i, users_map) for i in items],
+            key=lambda x: (-(x["score_risco"] or 0), -(x["dias_no_setor"] or 0)),
+        ),
+    }
+
+
 @app.get("/api/monthly-stats")
 def list_monthly_stats(
     current_user: User = Depends(get_current_user),
@@ -1126,6 +1510,13 @@ async def upload_snapshot(
                             "data_relatorio": str(result["data_relatorio"]),
                             "registros": result["total_registros"]},
                    user=current_user)
+        # Verifica se algum item de pauta saiu do setor neste snapshot
+        _check_pauta_resolution(
+            db,
+            setor=normalized_setor,
+            data_relatorio=data_relatorio,
+            total_records=result.get("total_registros", 0),
+        )
         db.commit()
 
     return UploadResult(**result)
