@@ -1109,6 +1109,45 @@ def _pauta_item_to_dict(item: PautaItem, users_map: dict) -> dict:
     }
 
 
+def _pauta_item_exists(
+    db: Session,
+    sessao_id: int,
+    protocolo: str,
+    setor: str,
+    entrada_setor: date | None,
+) -> bool:
+    query = db.query(PautaItem.id).filter(
+        PautaItem.sessao_id == sessao_id,
+        PautaItem.protocolo == protocolo,
+        PautaItem.setor == setor,
+    )
+    if entrada_setor is None:
+        query = query.filter(PautaItem.entrada_setor.is_(None))
+    else:
+        query = query.filter(PautaItem.entrada_setor == entrada_setor)
+    return query.first() is not None
+
+
+def _ensure_assignee_can_access_setor(db: Session, assigned_to: int | None, setor: str) -> None:
+    if assigned_to is None:
+        return
+    target = db.query(User).filter(User.id == assigned_to).first()
+    if not target:
+        raise HTTPException(status_code=400, detail="Responsável informado não encontrado.")
+    if target.is_admin:
+        return
+    has_access = (
+        db.query(UserSectorAccess.id)
+        .filter(UserSectorAccess.user_id == assigned_to, UserSectorAccess.setor == setor)
+        .first()
+    )
+    if not has_access:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Responsável não tem acesso ao setor {setor}.",
+        )
+
+
 # ── Endpoints de Sessões ──────────────────────────────────────────────────
 
 @app.get("/api/pauta/sessoes")
@@ -1246,17 +1285,17 @@ def add_pauta_item(
     if not s:
         raise HTTPException(status_code=404, detail="Sessão não encontrada.")
 
+    _ensure_assignee_can_access_setor(db, payload.assigned_to, payload.setor)
+    if _pauta_item_exists(db, sessao_id, payload.protocolo, payload.setor, payload.entrada_setor):
+        raise HTTPException(status_code=409, detail="Processo já incluído nesta sessão com esta entrada.")
+
     item = PautaItem(
         sessao_id=sessao_id,
         assigned_by=current_admin.id,
-        **payload.model_dump(),
+        **payload.model_dump(exclude_none=True),
     )
     db.add(item)
-    try:
-        db.commit()
-    except Exception:
-        db.rollback()
-        raise HTTPException(status_code=409, detail="Processo já incluído nesta sessão com esta entrada.")
+    db.commit()
     return {"id": item.id}
 
 
@@ -1274,20 +1313,19 @@ def add_pauta_items_bulk(
 
     added = 0
     for item_data in payload.itens:
+        _ensure_assignee_can_access_setor(db, payload.assigned_to, item_data.setor)
+        if _pauta_item_exists(db, sessao_id, item_data.protocolo, item_data.setor, item_data.entrada_setor):
+            continue
+        data = item_data.model_dump(exclude_none=True, exclude={"assigned_to", "nota_admin"})
         item = PautaItem(
             sessao_id=sessao_id,
             assigned_to=payload.assigned_to,
             assigned_by=current_admin.id,
             nota_admin=payload.nota_admin,
-            **item_data.model_dump(),
+            **data,
         )
         db.add(item)
-        try:
-            db.flush()
-            added += 1
-        except Exception:
-            db.rollback()
-            db.add(s)  # re-attach session after rollback
+        added += 1
     db.commit()
     return {"added": added, "total_requested": len(payload.itens)}
 
@@ -1314,6 +1352,8 @@ def update_pauta_item(
             raise HTTPException(status_code=403, detail="Apenas admins podem reatribuir itens.")
 
     data = payload.model_dump(exclude_none=True)
+    if "assigned_to" in data:
+        _ensure_assignee_can_access_setor(db, data["assigned_to"], item.setor)
     if "status" in data:
         item.data_status = datetime.now(LOCAL_TIMEZONE).date()
         item.resolucao_automatica = False
@@ -1574,6 +1614,12 @@ async def upload_snapshot_api_key(
                 "origem": "automacao",
             },
             user=bot,
+        )
+        _check_pauta_resolution(
+            db,
+            setor=result["setor"],
+            data_relatorio=result["data_relatorio"],
+            total_records=result.get("total_registros", 0),
         )
         db.commit()
         clear_analytics_cache()

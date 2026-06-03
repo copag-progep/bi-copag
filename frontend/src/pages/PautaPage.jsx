@@ -197,6 +197,8 @@ function AdicionarProcessosModal({ sessaoId, users, onClose, onAdded }) {
         protocolo: p.protocolo,
         setor: p.setor,
         entrada_setor: p.entrada_setor || null,
+        data_referencia: riskData?.data_referencia || null,
+        ultima_presenca: riskData?.data_referencia || null,
         atribuicao: p.atribuicao || null,
         tipo: p.tipo || null,
         dias_no_setor: p.dias_no_setor,
