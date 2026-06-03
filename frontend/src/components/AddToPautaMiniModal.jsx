@@ -26,9 +26,15 @@ export default function AddToPautaMiniModal({ processo, onClose, onAdded }) {
     ]).then(([s, u]) => {
       setSessoes(s.data);
       if (s.data.length > 0) setSessaoId(s.data[0].id);
-      setUsers(u.data.filter((usr) => !usr.is_admin));
+      setUsers(
+        u.data.filter((usr) =>
+          !usr.is_admin &&
+          Array.isArray(usr.setores) &&
+          usr.setores.includes(processo.setor)
+        )
+      );
     }).catch(() => {});
-  }, []);
+  }, [processo.setor]);
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -96,6 +102,7 @@ export default function AddToPautaMiniModal({ processo, onClose, onAdded }) {
           <select value={assignTo} onChange={(e) => setAssignTo(e.target.value)}>
             <option value="">Sem atribuição por agora</option>
             {users.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
+            {users.length === 0 && <option value="" disabled>Nenhum usuário com acesso a {processo.setor}</option>}
           </select>
         </label>
 

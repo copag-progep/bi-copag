@@ -119,7 +119,7 @@ export default function AttributionsPage() {
   const riskMap = useMemo(() => {
     const map = {};
     for (const p of shouldLoadRisk ? riskQuery.data?.processos || [] : []) {
-      map[`${p.protocolo}|${p.setor}`] = p.nivel;
+      map[`${p.protocolo}|${p.setor}`] = p;
     }
     return map;
   }, [riskQuery.data, shouldLoadRisk]);
@@ -542,14 +542,24 @@ export default function AttributionsPage() {
                       <DaysFlag days={item.dias_com_atribuicao} />
                     </td>
                     <td>
-                      <RiskBadgeInline nivel={riskMap[`${item.protocolo}|${item.setor}`]} />
+                      <RiskBadgeInline nivel={riskMap[`${item.protocolo}|${item.setor}`]?.nivel} />
                     </td>
                     {user?.is_admin && (
                       <td>
                         <button
                           type="button"
                           className="table-button"
-                          onClick={() => { setAddingProcess({ ...item, dias_no_setor: item.dias_com_atribuicao }); setPautaMsg(""); }}
+                          onClick={() => {
+                            const risk = riskMap[`${item.protocolo}|${item.setor}`];
+                            setAddingProcess({
+                              ...item,
+                              dias_no_setor: item.dias_com_atribuicao,
+                              entrada_setor: risk?.entrada_setor || null,
+                              score: risk?.score ?? null,
+                              nivel: risk?.nivel ?? null,
+                            });
+                            setPautaMsg("");
+                          }}
                           style={{ fontSize: "0.7rem", padding: "3px 8px", whiteSpace: "nowrap" }}
                         >
                           + Pauta

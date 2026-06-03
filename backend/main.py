@@ -2122,7 +2122,7 @@ def alerts_summary(
         "mais_de_30":    conta(30),
         "mais_de_45":    conta(45),
         "mais_de_90":    conta(90),
-        "total_badge":   conta(45),
+        "total_badge":   conta(45) + pauta_pendentes,
         "criticos":      criticos,
         "data_referencia": stale.get("data_referencia"),
         "pauta_pendentes": pauta_pendentes,

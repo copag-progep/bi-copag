@@ -63,11 +63,12 @@ export default function NotificationBell() {
     return () => document.removeEventListener("mousedown", handleClick);
   }, [open]);
 
-  const count           = summary?.total_badge     ?? 0;
+  const totalBadge      = summary?.total_badge     ?? 0;
+  const count           = summary?.mais_de_45      ?? 0;
   const criticos        = summary?.criticos         ?? [];
   const pautaPendentes  = summary?.pauta_pendentes  ?? 0;
   const pautaItens      = summary?.pauta_itens      ?? [];
-  const hasAlerts       = count > 0 || pautaPendentes > 0;
+  const hasAlerts       = totalBadge > 0;
 
   return (
     <div ref={dropdownRef} style={{ position: "relative" }}>
@@ -100,7 +101,7 @@ export default function NotificationBell() {
             padding: "1px 5px", minWidth: 17, textAlign: "center",
             border: "2px solid var(--bg)",
           }}>
-            {count > 99 ? "99+" : count}
+            {totalBadge > 99 ? "99+" : totalBadge}
           </span>
         )}
       </button>
