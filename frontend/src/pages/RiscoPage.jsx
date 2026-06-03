@@ -1,8 +1,10 @@
 import { Fragment, useState } from "react";
 import { Link } from "react-router-dom";
 
+import AddToPautaMiniModal from "../components/AddToPautaMiniModal";
 import ErrorBlock from "../components/ErrorBlock";
 import LoadingBlock from "../components/LoadingBlock";
+import { useAuth } from "../context/AuthContext";
 import { useFilters } from "../context/FiltersContext";
 import { useAnalyticsData } from "../hooks/useAnalyticsData";
 
@@ -118,6 +120,7 @@ const NIVEIS = ["todos", "critico", "elevado", "moderado", "normal"];
 const PAGE_SIZE = 100;
 
 export default function RiscoPage() {
+  const { user } = useAuth();
   const { toQueryParams } = useFilters();
   const { data, loading, error, retry } = useAnalyticsData(
     "/analytics/risk-score",
@@ -126,6 +129,8 @@ export default function RiscoPage() {
   const [nivelFiltro, setNivelFiltro] = useState("todos");
   const [expanded, setExpanded] = useState(null);
   const [page, setPage] = useState(1);
+  const [addingProcess, setAddingProcess] = useState(null);
+  const [pautaMsg, setPautaMsg] = useState("");
 
   if (loading) return <LoadingBlock label="Calculando scores de risco..." />;
   if (error)   return <ErrorBlock message={error} onRetry={retry} />;
@@ -204,6 +209,7 @@ export default function RiscoPage() {
                   <th>Dias</th>
                   <th>Score</th>
                   <th>Nível</th>
+                  {user?.is_admin && <th style={{ width: 70 }}>Pauta</th>}
                 </tr>
               </thead>
               <tbody>
@@ -227,10 +233,22 @@ export default function RiscoPage() {
                         <td><strong>{fmt(proc.dias_no_setor)}</strong></td>
                         <td><ScoreBar score={proc.score} nivel={proc.nivel} /></td>
                         <td><RiskBadge nivel={proc.nivel} /></td>
+                        {user?.is_admin && (
+                          <td>
+                            <button
+                              type="button"
+                              className="table-button"
+                              onClick={(e) => { e.stopPropagation(); setAddingProcess(proc); setPautaMsg(""); }}
+                              style={{ fontSize: "0.7rem", padding: "3px 8px", whiteSpace: "nowrap" }}
+                            >
+                              + Pauta
+                            </button>
+                          </td>
+                        )}
                       </tr>
                       {expanded === id && (
                         <tr className="risk-breakdown-row">
-                          <td colSpan={7}>
+                          <td colSpan={user?.is_admin ? 8 : 7}>
                             <ProcessBreakdown proc={proc} />
                           </td>
                         </tr>
@@ -269,6 +287,27 @@ export default function RiscoPage() {
           </div>
         )}
       </section>
+
+      {pautaMsg && (
+        <div style={{
+          padding: "10px 16px", borderRadius: 8,
+          background: "rgba(26,122,80,.1)", color: "#1a7a50",
+          fontSize: "0.85rem", fontWeight: 700,
+        }}>
+          {pautaMsg}
+        </div>
+      )}
+
+      {addingProcess && (
+        <AddToPautaMiniModal
+          processo={addingProcess}
+          onClose={() => setAddingProcess(null)}
+          onAdded={() => {
+            setAddingProcess(null);
+            setPautaMsg(`✓ "${addingProcess.protocolo}" adicionado à pauta.`);
+          }}
+        />
+      )}
 
       <div className="risk-disclaimer">
         {riskData.nota}

@@ -63,8 +63,11 @@ export default function NotificationBell() {
     return () => document.removeEventListener("mousedown", handleClick);
   }, [open]);
 
-  const count    = summary?.total_badge ?? 0;
-  const criticos = summary?.criticos    ?? [];
+  const count           = summary?.total_badge     ?? 0;
+  const criticos        = summary?.criticos         ?? [];
+  const pautaPendentes  = summary?.pauta_pendentes  ?? 0;
+  const pautaItens      = summary?.pauta_itens      ?? [];
+  const hasAlerts       = count > 0 || pautaPendentes > 0;
 
   return (
     <div ref={dropdownRef} style={{ position: "relative" }}>
@@ -72,24 +75,24 @@ export default function NotificationBell() {
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        title={count > 0 ? `${count} processo(s) sem movimentação ≥45 dias` : "Alertas críticos"}
+        title={hasAlerts ? `${count} críticos ≥45d · ${pautaPendentes} na pauta` : "Alertas"}
         style={{
           appearance: "none",
-          border: `1.5px solid ${count > 0 ? "rgba(191,53,53,0.3)" : "var(--border-strong)"}`,
+          border: `1.5px solid ${hasAlerts ? "rgba(191,53,53,0.3)" : "var(--border-strong)"}`,
           borderRadius: 999,
           padding: "7px 11px",
           cursor: "pointer",
           fontFamily: "inherit",
-          background: count > 0 ? "rgba(191,53,53,0.07)" : "var(--primary-light)",
-          color: count > 0 ? "var(--danger)" : "var(--muted)",
+          background: hasAlerts ? "rgba(191,53,53,0.07)" : "var(--primary-light)",
+          color: hasAlerts ? "var(--danger)" : "var(--muted)",
           display: "inline-flex",
           alignItems: "center",
           position: "relative",
           transition: "all 0.15s ease",
         }}
       >
-        <BellIcon active={count > 0} />
-        {count > 0 && (
+        <BellIcon active={hasAlerts} />
+        {hasAlerts && (
           <span style={{
             position: "absolute", top: -5, right: -5,
             background: "var(--danger)", color: "#fff",
@@ -114,11 +117,11 @@ export default function NotificationBell() {
           <div style={{
             padding: "12px 16px",
             borderBottom: "1px solid var(--border)",
-            background: count > 0 ? "rgba(191,53,53,0.05)" : "var(--primary-light)",
+            background: hasAlerts ? "rgba(191,53,53,0.05)" : "var(--primary-light)",
           }}>
             <div style={{ fontWeight: 800, fontSize: "0.9rem", color: "var(--ink)", display: "flex", alignItems: "center", gap: 8 }}>
-              <BellIcon active={count > 0} />
-              Alertas de processos críticos
+              <BellIcon active={hasAlerts} />
+              Alertas
             </div>
             <div style={{ fontSize: "0.72rem", color: "var(--muted)", marginTop: 4, display: "flex", gap: 12 }}>
               <span style={{ color: "#d4750e", fontWeight: 700 }}>{summary?.mais_de_30 ?? 0} &gt;30d</span>
@@ -158,13 +161,46 @@ export default function NotificationBell() {
                 <button
                   type="button"
                   onClick={() => { navigate("/atribuicoes"); setOpen(false); }}
-                  style={{
-                    appearance: "none", border: "none", background: "none",
-                    color: "var(--accent)", fontWeight: 700, fontSize: "0.82rem",
-                    cursor: "pointer",
-                  }}
+                  style={{ appearance: "none", border: "none", background: "none", color: "var(--accent)", fontWeight: 700, fontSize: "0.82rem", cursor: "pointer" }}
                 >
                   Ver todos em Atribuições →
+                </button>
+              </div>
+            </>
+          )}
+
+          {/* ── Seção Pauta ── */}
+          {pautaPendentes > 0 && (
+            <>
+              <div style={{ padding: "10px 16px 6px", borderTop: "1px solid var(--border)", background: "rgba(39,49,104,.04)" }}>
+                <div style={{ fontWeight: 800, fontSize: "0.82rem", color: "var(--primary)", display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/>
+                  </svg>
+                  {pautaPendentes} item{pautaPendentes !== 1 ? "s" : ""} na pauta prioritária
+                </div>
+                {pautaItens.map((item, i) => (
+                  <div key={i} style={{ padding: "5px 0", borderBottom: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <div>
+                      <code style={{ fontSize: "0.75rem", color: "var(--primary)", fontWeight: 700 }}>{item.protocolo}</code>
+                      <span style={{ fontSize: "0.68rem", color: "var(--muted)", marginLeft: 6 }}>{item.setor}</span>
+                    </div>
+                    {item.nivel_risco && (
+                      <span style={{ fontSize: "0.68rem", fontWeight: 700, padding: "1px 6px", borderRadius: 6,
+                        color: item.nivel_risco === "critico" ? "#bf3535" : item.nivel_risco === "elevado" ? "#d4750e" : "#8a5b00",
+                        background: item.nivel_risco === "critico" ? "rgba(191,53,53,.1)" : "rgba(212,117,14,.1)" }}>
+                        {item.nivel_risco}
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
+              <div style={{ padding: "8px 16px", textAlign: "center" }}>
+                <button type="button"
+                  onClick={() => { navigate("/pauta"); setOpen(false); }}
+                  style={{ appearance: "none", border: "none", background: "none", color: "var(--accent)", fontWeight: 700, fontSize: "0.82rem", cursor: "pointer" }}
+                >
+                  Ver pauta completa →
                 </button>
               </div>
             </>

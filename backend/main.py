@@ -1405,6 +1405,77 @@ def get_minha_pauta(
     }
 
 
+class CopyPendingPayload(BaseModel):
+    titulo: str = Field(min_length=3, max_length=255)
+    data_inicio: date
+    data_fim: date | None = None
+    data_reuniao: date | None = None
+
+
+@app.post("/api/pauta/sessoes/{sessao_id}/copy-pending", status_code=201)
+def copy_pending_to_new_session(
+    sessao_id: int,
+    payload: CopyPendingPayload,
+    current_admin: User = Depends(get_current_admin_user),
+    db: Session = Depends(get_db),
+):
+    """Copia itens pendentes/em_acompanhamento de uma sessão para uma nova sessão.
+
+    Útil para sessões semanais: pendências não resolvidas migram automaticamente
+    para a pauta da semana seguinte, mantendo o histórico original intacto.
+    """
+    source = db.query(PautaSessao).filter(PautaSessao.id == sessao_id).first()
+    if not source:
+        raise HTTPException(status_code=404, detail="Sessão de origem não encontrada.")
+
+    pending = [i for i in source.itens if i.status in ("pendente", "em_acompanhamento")]
+    if not pending:
+        raise HTTPException(status_code=400, detail="Nenhum item pendente nesta sessão.")
+
+    new_session = PautaSessao(
+        titulo=payload.titulo,
+        data_inicio=payload.data_inicio,
+        data_fim=payload.data_fim,
+        data_reuniao=payload.data_reuniao,
+        criado_por=current_admin.id,
+    )
+    db.add(new_session)
+    db.flush()
+
+    copiados = 0
+    for item in pending:
+        new_item = PautaItem(
+            sessao_id=new_session.id,
+            protocolo=item.protocolo,
+            setor=item.setor,
+            entrada_setor=item.entrada_setor,
+            data_referencia=item.data_referencia,
+            ultima_presenca=item.ultima_presenca,
+            atribuicao=item.atribuicao,
+            tipo=item.tipo,
+            dias_no_setor=item.dias_no_setor,
+            score_risco=item.score_risco,
+            nivel_risco=item.nivel_risco,
+            assigned_to=item.assigned_to,
+            assigned_by=current_admin.id,
+            nota_admin=item.nota_admin,
+            status="pendente",
+        )
+        db.add(new_item)
+        copiados += 1
+
+    _log_audit(
+        db,
+        action="pauta.pendencias_copiadas",
+        entity_type="pauta_sessao",
+        entity_id=str(sessao_id),
+        details={"origem": source.titulo, "nova_sessao": payload.titulo, "itens_copiados": copiados},
+        user=current_admin,
+    )
+    db.commit()
+    return {"nova_sessao_id": new_session.id, "titulo": payload.titulo, "itens_copiados": copiados}
+
+
 @app.get("/api/monthly-stats")
 def list_monthly_stats(
     current_user: User = Depends(get_current_user),
@@ -2024,6 +2095,29 @@ def alerts_summary(
         key=lambda p: -p.get("dias_sem_movimentacao", 0),
     )[:8]
 
+    # ── Pauta: itens pendentes do usuário (ou de todos para admin) ──────
+    pauta_query = (
+        db.query(PautaItem)
+        .join(PautaSessao, PautaItem.sessao_id == PautaSessao.id)
+        .filter(
+            PautaSessao.ativa == True,
+            PautaItem.status.in_(["pendente", "em_acompanhamento"]),
+        )
+    )
+    if not current_user.is_admin:
+        pauta_query = pauta_query.filter(PautaItem.assigned_to == current_user.id)
+
+    pauta_pendentes = pauta_query.count()
+    pauta_itens_raw = pauta_query.order_by(PautaItem.score_risco.desc().nullslast()).limit(5).all()
+    pauta_itens = [
+        {
+            "id": i.id, "protocolo": i.protocolo, "setor": i.setor,
+            "nivel_risco": i.nivel_risco, "dias_no_setor": i.dias_no_setor,
+            "status": i.status,
+        }
+        for i in pauta_itens_raw
+    ]
+
     return JSONResponse({
         "mais_de_30":    conta(30),
         "mais_de_45":    conta(45),
@@ -2031,6 +2125,8 @@ def alerts_summary(
         "total_badge":   conta(45),
         "criticos":      criticos,
         "data_referencia": stale.get("data_referencia"),
+        "pauta_pendentes": pauta_pendentes,
+        "pauta_itens":     pauta_itens,
     })
 
 

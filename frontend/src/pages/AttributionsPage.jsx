@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import api from "../api/client";
+import AddToPautaMiniModal from "../components/AddToPautaMiniModal";
 import ErrorBlock from "../components/ErrorBlock";
 import LoadingBlock from "../components/LoadingBlock";
 import StatCard from "../components/StatCard";
+import { useAuth } from "../context/AuthContext";
 import { useFilters } from "../context/FiltersContext";
 import { useAnalyticsData } from "../hooks/useAnalyticsData";
 import { generateAttributionsExcel } from "../utils/attributionsExcel";
@@ -64,7 +66,10 @@ function SortIcon({ col, sortBy, sortDir }) {
 
 
 export default function AttributionsPage() {
+  const { user } = useAuth();
   const { filters, options, optionsLoading, setFilter, toQueryParams } = useFilters();
+  const [addingProcess, setAddingProcess] = useState(null);
+  const [pautaMsg, setPautaMsg] = useState("");
 
   const [data, setData]             = useState(null);
   const [page, setPage]             = useState(1);
@@ -490,12 +495,13 @@ export default function AttributionsPage() {
                     </span>
                   )}
                 </th>
+                {user?.is_admin && <th style={{ width: 70 }}>Pauta</th>}
               </tr>
             </thead>
             <tbody>
               {items.length === 0 ? (
                 <tr>
-                  <td colSpan={7} style={{ textAlign: "center", color: "var(--muted)", padding: "28px" }}>
+                  <td colSpan={user?.is_admin ? 8 : 7} style={{ textAlign: "center", color: "var(--muted)", padding: "28px" }}>
                     Nenhum processo encontrado com os filtros atuais.
                   </td>
                 </tr>
@@ -538,6 +544,18 @@ export default function AttributionsPage() {
                     <td>
                       <RiskBadgeInline nivel={riskMap[`${item.protocolo}|${item.setor}`]} />
                     </td>
+                    {user?.is_admin && (
+                      <td>
+                        <button
+                          type="button"
+                          className="table-button"
+                          onClick={() => { setAddingProcess({ ...item, dias_no_setor: item.dias_com_atribuicao }); setPautaMsg(""); }}
+                          style={{ fontSize: "0.7rem", padding: "3px 8px", whiteSpace: "nowrap" }}
+                        >
+                          + Pauta
+                        </button>
+                      </td>
+                    )}
                   </tr>
                 ))
               )}
@@ -569,6 +587,23 @@ export default function AttributionsPage() {
           </div>
         </div>
       </section>
+
+      {pautaMsg && (
+        <div style={{ padding: "10px 16px", borderRadius: 8, background: "rgba(26,122,80,.1)", color: "#1a7a50", fontSize: "0.85rem", fontWeight: 700 }}>
+          {pautaMsg}
+        </div>
+      )}
+
+      {addingProcess && (
+        <AddToPautaMiniModal
+          processo={addingProcess}
+          onClose={() => setAddingProcess(null)}
+          onAdded={() => {
+            setAddingProcess(null);
+            setPautaMsg(`✓ "${addingProcess.protocolo}" adicionado à pauta.`);
+          }}
+        />
+      )}
     </div>
   );
 }

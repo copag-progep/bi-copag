@@ -64,6 +64,69 @@ function KpiPill({ label, value, color }) {
   );
 }
 
+// ── Formulário: copiar pendências para nova sessão ────────────────────────
+function CopiarPendenciasForm({ sessaoId, onCreated, onCancel }) {
+  const today = new Date().toISOString().slice(0, 10);
+  const [form, setForm] = useState({ titulo: "", data_inicio: today, data_fim: "", data_reuniao: "" });
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState("");
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    setSaving(true);
+    setErr("");
+    try {
+      const { data } = await api.post(`/pauta/sessoes/${sessaoId}/copy-pending`, {
+        titulo: form.titulo,
+        data_inicio: form.data_inicio,
+        data_fim: form.data_fim || null,
+        data_reuniao: form.data_reuniao || null,
+      });
+      onCreated(data);
+    } catch (ex) {
+      setErr(ex.response?.data?.detail || "Falha ao copiar pendências.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      <label className="field">
+        <span>Título da nova sessão</span>
+        <input type="text" required value={form.titulo}
+          onChange={(e) => setForm((p) => ({ ...p, titulo: e.target.value }))}
+          placeholder="ex: Pauta COPAG — Semana 10/06 a 14/06" />
+      </label>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+        <label className="field">
+          <span>Início do período</span>
+          <input type="date" required value={form.data_inicio}
+            onChange={(e) => setForm((p) => ({ ...p, data_inicio: e.target.value }))} />
+        </label>
+        <label className="field">
+          <span>Fim do período</span>
+          <input type="date" value={form.data_fim}
+            onChange={(e) => setForm((p) => ({ ...p, data_fim: e.target.value }))} />
+        </label>
+        <label className="field">
+          <span>Data da reunião</span>
+          <input type="date" value={form.data_reuniao}
+            onChange={(e) => setForm((p) => ({ ...p, data_reuniao: e.target.value }))} />
+        </label>
+      </div>
+      {err && <div style={{ color: "#bf3535", fontSize: "0.85rem", fontWeight: 600 }}>{err}</div>}
+      <div style={{ display: "flex", gap: 8 }}>
+        <button type="submit" className="primary-button" disabled={saving} style={{ fontSize: "0.85rem", padding: "8px 18px" }}>
+          {saving ? "Copiando..." : "Criar nova sessão com pendências"}
+        </button>
+        <button type="button" className="ghost-button" onClick={onCancel} style={{ fontSize: "0.85rem" }}>Cancelar</button>
+      </div>
+    </form>
+  );
+}
+
+
 // ── Formulário de nova sessão ─────────────────────────────────────────────
 function NovaSessaoForm({ onCreated, onCancel }) {
   const today = new Date().toISOString().slice(0, 10);
@@ -438,6 +501,7 @@ export default function PautaPage() {
   const [error, setError] = useState("");
   const [showNovaSessao, setShowNovaSessao] = useState(false);
   const [showAdicionarModal, setShowAdicionarModal] = useState(false);
+  const [showCopiarForm, setShowCopiarForm] = useState(false);
   const [msg, setMsg] = useState("");
 
   async function loadSessoes() {
@@ -531,10 +595,19 @@ export default function PautaPage() {
                 + Nova sessão
               </button>
               {sessaoAtual && (
-                <button type="button" className="table-button" onClick={() => setShowAdicionarModal(true)}
-                  style={{ fontSize: "0.82rem", padding: "8px 16px", whiteSpace: "nowrap" }}>
-                  + Adicionar processos
-                </button>
+                <>
+                  <button type="button" className="table-button" onClick={() => setShowAdicionarModal(true)}
+                    style={{ fontSize: "0.82rem", padding: "8px 16px", whiteSpace: "nowrap" }}>
+                    + Adicionar processos
+                  </button>
+                  {(sessaoData?.contagens?.pendente > 0 || sessaoData?.contagens?.em_acompanhamento > 0) && (
+                    <button type="button" className="ghost-button" onClick={() => setShowCopiarForm(true)}
+                      style={{ fontSize: "0.82rem", padding: "8px 16px", whiteSpace: "nowrap" }}
+                      title="Copia itens pendentes desta sessão para uma nova sessão">
+                      ↗ Copiar pendências
+                    </button>
+                  )}
+                </>
               )}
             </>
           )}
@@ -551,6 +624,30 @@ export default function PautaPage() {
           </div>
         )}
       </section>
+
+      {/* Formulário: copiar pendências para nova sessão */}
+      {showCopiarForm && sessaoAtual && (
+        <section className="panel">
+          <div className="panel-header">
+            <div>
+              <h3>Copiar pendências para nova sessão</h3>
+              <p>
+                Copia processos com status <strong>Pendente</strong> e <strong>Em acompanhamento</strong> desta sessão para uma nova.
+                Os itens originais permanecem intactos.
+              </p>
+            </div>
+          </div>
+          <CopiarPendenciasForm
+            sessaoId={sessaoAtual}
+            onCreated={(nova) => {
+              setShowCopiarForm(false);
+              setMsg(`✓ ${nova.itens_copiados} item(s) copiado(s) para "${nova.titulo}".`);
+              loadSessoes().then(() => setSessaoAtual(nova.nova_sessao_id));
+            }}
+            onCancel={() => setShowCopiarForm(false)}
+          />
+        </section>
+      )}
 
       {/* Formulário nova sessão */}
       {showNovaSessao && (
