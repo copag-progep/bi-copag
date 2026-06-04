@@ -8,11 +8,11 @@ import { useAuth } from "../context/AuthContext";
 import { useFilters } from "../context/FiltersContext";
 
 const STATUS_CFG = {
-  pendente:          { label: "Pendente",           color: "#8a5b00",   bg: "rgba(254,187,18,.14)" },
-  em_acompanhamento: { label: "Em acompanhamento",  color: "#273168",   bg: "rgba(39,49,104,.1)"  },
-  saiu_do_setor:     { label: "Saiu do setor",      color: "#1a7a50",   bg: "rgba(26,122,80,.1)"  },
-  resolvido_manual:  { label: "Resolvido",           color: "#1a7a50",   bg: "rgba(26,122,80,.1)"  },
-  arquivado:         { label: "Arquivado",           color: "var(--muted)", bg: "rgba(0,0,0,.06)" },
+  pendente:          { label: "Pendente",                  color: "#8a5b00",      bg: "rgba(254,187,18,.14)" },
+  em_acompanhamento: { label: "Em acompanhamento",         color: "#273168",      bg: "rgba(39,49,104,.1)"  },
+  saiu_do_setor:     { label: "✓ Resolvido automaticamente", color: "#1a7a50",   bg: "rgba(26,122,80,.1)"  },
+  resolvido_manual:  { label: "✓ Resolvido manualmente",  color: "#1a7a50",      bg: "rgba(26,122,80,.1)"  },
+  arquivado:         { label: "Arquivado",                 color: "var(--muted)", bg: "rgba(0,0,0,.06)"     },
 };
 
 const NIVEL_CFG = {
@@ -22,14 +22,21 @@ const NIVEL_CFG = {
   normal:   { color: "#1a7a50", bg: "rgba(26,122,80,.08)" },
 };
 
-function StatusBadge({ status }) {
+function StatusBadge({ status, dataStatus }) {
   const cfg = STATUS_CFG[status] || STATUS_CFG.pendente;
+  const dateStr = dataStatus
+    ? new Intl.DateTimeFormat("pt-BR", { timeZone: "UTC" }).format(new Date(`${dataStatus}T00:00:00Z`))
+    : null;
+  const isResolved = status === "saiu_do_setor" || status === "resolvido_manual";
   return (
-    <span style={{
-      padding: "2px 9px", borderRadius: 8, fontSize: "0.73rem", fontWeight: 700,
-      color: cfg.color, background: cfg.bg, whiteSpace: "nowrap",
-    }}>
+    <span
+      style={{ padding: "2px 9px", borderRadius: 8, fontSize: "0.73rem", fontWeight: 700, color: cfg.color, background: cfg.bg, whiteSpace: "nowrap" }}
+      title={isResolved && dateStr ? `${cfg.label} em ${dateStr}` : undefined}
+    >
       {cfg.label}
+      {isResolved && dateStr && (
+        <span style={{ marginLeft: 5, fontWeight: 500, opacity: 0.8 }}>· {dateStr}</span>
+      )}
     </span>
   );
 }
@@ -437,11 +444,12 @@ function PautaItemRow({ item, isAdmin, onUpdated, onDelete }) {
       <td><strong>{item.dias_no_setor ?? "—"}</strong></td>
       <td><NivelBadge nivel={item.nivel_risco} /></td>
       <td style={{ fontSize: "0.78rem" }}>{item.assigned_to_nome || <span style={{ color: "var(--muted)", fontStyle: "italic" }}>Sem atribuição</span>}</td>
-      <td><StatusBadge status={item.status} /></td>
+      <td><StatusBadge status={item.status} dataStatus={item.data_status} /></td>
       <td style={{ fontSize: "0.78rem", color: "var(--muted)", maxWidth: 200 }}>
         {item.nota_admin || "—"}
       </td>
       <td>
+        {/* Nota do responsável — editável por qualquer um atribuído */}
         {editing ? (
           <div style={{ display: "flex", gap: 4 }}>
             <input type="text" value={nota} onChange={(e) => setNota(e.target.value)}
@@ -456,13 +464,16 @@ function PautaItemRow({ item, isAdmin, onUpdated, onDelete }) {
             <span style={{ fontSize: "0.78rem", color: item.nota_responsavel ? "var(--ink)" : "var(--muted)", fontStyle: item.nota_responsavel ? "normal" : "italic" }}>
               {item.nota_responsavel || "—"}
             </span>
-            <button type="button" className="ghost-button" onClick={() => setEditing(true)}
-              style={{ fontSize: "0.7rem", padding: "1px 6px" }}>✎</button>
+            {isActive && (
+              <button type="button" className="ghost-button" onClick={() => setEditing(true)}
+                style={{ fontSize: "0.7rem", padding: "1px 6px" }}>✎</button>
+            )}
           </div>
         )}
       </td>
       <td>
         <div style={{ display: "flex", gap: 4, flexWrap: "nowrap" }}>
+          {/* Confirmar ciência: só aparece quando pendente, para qualquer um atribuído */}
           {item.status === "pendente" && (
             <button type="button" className="table-button" disabled={saving}
               onClick={() => handleStatusChange("em_acompanhamento")}
@@ -470,11 +481,18 @@ function PautaItemRow({ item, isAdmin, onUpdated, onDelete }) {
               Confirmar ciência
             </button>
           )}
-          {isActive && (
+
+          {/* Forçar resolução: exclusivo do admin, com confirmação */}
+          {isAdmin && isActive && (
             <button type="button" className="table-button" disabled={saving}
-              onClick={() => handleStatusChange("resolvido_manual")}
-              style={{ fontSize: "0.7rem", padding: "3px 8px" }}>
-              ✓ Resolvido
+              onClick={() => {
+                if (window.confirm("Este processo ainda pode constar no setor.\nDeseja encerrar manualmente na pauta mesmo assim?")) {
+                  handleStatusChange("resolvido_manual");
+                }
+              }}
+              style={{ fontSize: "0.7rem", padding: "3px 8px", color: "var(--muted)", borderColor: "var(--border)" }}
+              title="Encerrar manualmente — a resolução normalmente é detectada automaticamente via snapshot">
+              Forçar resolução
             </button>
           )}
           {isAdmin && (
@@ -679,6 +697,21 @@ export default function PautaPage() {
               </p>
             </div>
           </div>
+
+          {/* Aviso de resolução automática — visível apenas para responsáveis (não-admin) */}
+          {!user?.is_admin && totalAtivos > 0 && (
+            <div style={{
+              display: "flex", alignItems: "center", gap: 8, padding: "8px 14px",
+              borderRadius: 8, marginBottom: 12,
+              background: "rgba(39,49,104,.06)", border: "1px solid rgba(39,49,104,.15)",
+              fontSize: "0.78rem", color: "var(--muted)",
+            }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, color: "var(--primary)" }}>
+                <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+              </svg>
+              A resolução é detectada automaticamente quando o processo deixar de constar no snapshot do setor. Confirme sua ciência para registrar o acompanhamento.
+            </div>
+          )}
 
           {loadingSessao ? (
             <LoadingBlock label="Carregando itens..." />

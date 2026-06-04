@@ -1022,7 +1022,6 @@ def _check_pauta_resolution(db: Session, setor: str, data_relatorio: "date", tot
         .all()
     )
 
-    today = datetime.now(LOCAL_TIMEZONE).date()
     for item in items:
         if item.protocolo not in current_protos:
             item.status = "saiu_do_setor"
@@ -1337,19 +1336,43 @@ def update_pauta_item(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Admin pode alterar qualquer campo. Responsável pode alterar nota e status (em_acompanhamento, resolvido_manual)."""
+    """Atualiza um item de pauta.
+
+    Regras de permissão:
+      Admin:
+        - Pode alterar qualquer campo, incluindo nota_admin, assigned_to e resolvido_manual.
+      Responsável (não-admin):
+        - Só pode alterar nota_responsavel.
+        - Só pode mudar status para em_acompanhamento, e apenas se o status atual for pendente.
+        - Não pode alterar nota_admin, assigned_to, nem declarar resolução.
+        - A resolução é exclusivamente automática (detectada via snapshot).
+    """
     item = db.query(PautaItem).filter(PautaItem.id == item_id).first()
     if not item:
         raise HTTPException(status_code=404, detail="Item não encontrado.")
 
-    allowed_statuses_for_user = {"em_acompanhamento", "resolvido_manual"}
     if not current_user.is_admin:
         if item.assigned_to != current_user.id:
             raise HTTPException(status_code=403, detail="Sem permissão para editar este item.")
-        if payload.status and payload.status not in allowed_statuses_for_user:
-            raise HTTPException(status_code=403, detail="Status não permitido para este usuário.")
+
+        # Campos restritos para o responsável
         if payload.assigned_to is not None:
             raise HTTPException(status_code=403, detail="Apenas admins podem reatribuir itens.")
+        if payload.nota_admin is not None:
+            raise HTTPException(status_code=403, detail="Apenas admins podem editar a nota da gestão.")
+
+        # Status: responsável só pode confirmar ciência (pendente → em_acompanhamento)
+        if payload.status is not None:
+            if payload.status != "em_acompanhamento":
+                raise HTTPException(
+                    status_code=403,
+                    detail="Responsável não pode declarar resolução. A resolução é automática via snapshot.",
+                )
+            if item.status != "pendente":
+                raise HTTPException(
+                    status_code=409,
+                    detail=f"Não é possível confirmar ciência: status atual é '{item.status}'.",
+                )
 
     data = payload.model_dump(exclude_none=True)
     if "assigned_to" in data:
