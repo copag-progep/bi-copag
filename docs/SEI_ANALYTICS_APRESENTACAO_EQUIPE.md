@@ -129,6 +129,14 @@ O objetivo é ajudar o gestor a responder: "por onde começo?". Cada processo mo
 
 Para evitar falsa precisão, a interface trabalha principalmente com níveis: Crítico, Elevado, Moderado e Normal. O número do score serve para ordenar processos dentro desses níveis.
 
+### Pauta Prioritária
+
+A Pauta Prioritária transforma o ranking de risco em acompanhamento semanal. O administrador cria uma sessão de reunião, adiciona processos críticos a partir do Score de Risco ou da tela Atribuições, atribui responsáveis e registra uma orientação.
+
+O responsável não declara que resolveu o processo. Ele confirma ciência e pode registrar uma atualização. A resolução é detectada automaticamente pelo sistema quando, após novo upload válido, o processo deixa de constar no snapshot do setor acompanhado. Isso indica que ele foi concluído no setor ou encaminhado para fora dele.
+
+A pauta também gera PDF para reunião, permite copiar pendências para a semana seguinte, encerra sessões com registro de auditoria e mostra métricas administrativas de eficiência.
+
 ### 3.4 Processos parados
 
 Mostra processos com maior tempo sem movimentação inferida no setor atual. A tela usa paginação para evitar listas muito longas e facilitar a navegação.
@@ -432,6 +440,7 @@ Ele guarda tanto dados operacionais, como processos e uploads, quanto dados admi
 | Central Executiva | Visão rápida das prioridades do dia, saúde dos dados, tendências e tempo de permanência |
 | Dashboard | Visão geral da situação dos processos |
 | Score de Risco | Ranking de processos que merecem maior atenção, com explicação dos fatores |
+| Pauta Prioritária | Lista semanal de processos críticos para acompanhamento, com responsáveis, notas, PDF de reunião e resolução automática quando o processo sai do setor |
 | Enviar Relatório | Upload manual e histórico de uploads para usuários autorizados |
 | Entradas e Saídas | Análise do fluxo diário por setor |
 | Produtividade | Análise de produção por atribuição |
@@ -545,6 +554,8 @@ O banco do AnalyticSEI é formado por tabelas principais que guardam usuários, 
 | `sei_user_aliases` | Nomes históricos ou alternativos | Consolida mudanças de nome ou grafia |
 | `sei_user_setor` | Setores por usuário SEI | Filtra listas de Atribuição e Servidor |
 | `process_type_weights` | Pesos por tipo de processo | Ajusta o Score de Risco conforme prioridade do tipo |
+| `pauta_sessoes` | Sessões de acompanhamento | Organiza a pauta semanal da reunião |
+| `pauta_itens` | Processos priorizados na pauta | Guarda responsáveis, notas, risco e status de cada processo acompanhado |
 | `monthly_stats` | Indicadores mensais | Indicadores lançados por mês e setor |
 | `audit_logs` | Registro de ações críticas | Uploads, exclusões, alterações e gestão de usuários |
 

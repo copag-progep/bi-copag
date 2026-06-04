@@ -319,6 +319,73 @@ Regra:
 - peso entre `0.80` e `1.50`
 - tipo sem configuracao usa peso neutro `1.00`
 
+### 6.10 Tabela `pauta_sessoes`
+
+Responsabilidade:
+
+- representar uma sessao semanal da Pauta Prioritaria
+
+Campos principais:
+
+- `titulo`
+- `data_inicio`
+- `data_fim`
+- `data_reuniao`
+- `observacoes`
+- `ativa`
+- `criado_por`
+- `created_at`
+- `updated_at`
+
+Regra:
+
+- sessoes ativas aparecem na tela principal da pauta
+- encerrar uma sessao altera `ativa=false` e registra auditoria `pauta.sessao_encerrada`
+
+### 6.11 Tabela `pauta_itens`
+
+Responsabilidade:
+
+- armazenar os processos selecionados para acompanhamento em cada sessao da Pauta Prioritaria
+
+Campos principais:
+
+- `sessao_id`
+- `protocolo`
+- `setor`
+- `entrada_setor`
+- `data_referencia`
+- `ultima_presenca`
+- `atribuicao`
+- `tipo`
+- `dias_no_setor`
+- `score_risco`
+- `nivel_risco`
+- `assigned_to`
+- `assigned_by`
+- `status`
+- `nota_admin`
+- `nota_responsavel`
+- `data_status`
+- `resolucao_automatica`
+
+Restricao importante:
+
+- unicidade por `sessao_id + protocolo + setor + entrada_setor`
+
+Status:
+
+- `pendente`: item incluido, aguardando ciencia do responsavel
+- `em_acompanhamento`: responsavel confirmou ciencia
+- `saiu_do_setor`: resolvido automaticamente porque o protocolo deixou de aparecer no snapshot do setor
+- `resolvido_manual`: override excepcional feito por administrador
+- `arquivado`: item removido da vista ativa sem apagar historico
+
+Regra de integridade:
+
+- responsaveis nao podem declarar resolucao
+- a resolucao operacional padrao vem do upload: se o processo sair da lista do setor no snapshot mais recente valido, o item muda automaticamente para `saiu_do_setor`
+
 ## 6A. Controle de acesso por divisao
 
 O controle de acesso tem duas camadas diferentes:
@@ -675,6 +742,43 @@ Regras metodologicas:
 - pesos e thresholds sao configuraveis por variaveis `RISK_WEIGHT_*`, `RISK_TREND_*` e `RISK_*_THRESHOLD`
 - o endpoint e sob demanda e so entra em precompute se `PRECOMPUTE_HEAVY_ANALYTICS=true`
 
+### 11.12 Pauta Prioritaria
+
+Modulo de gestao ativa que transforma o diagnostico do Score de Risco em acompanhamento semanal.
+
+Componentes principais:
+
+- sessoes semanais em `pauta_sessoes`
+- itens de pauta em `pauta_itens`
+- atribuicao a usuarios da plataforma com acesso ao setor do processo
+- notas da gestao (`nota_admin`) e notas do responsavel (`nota_responsavel`)
+- integracao com `/risco` e `/atribuicoes` pelo botao `+ Pauta`
+- sino de notificacoes mostrando tambem itens pendentes da pauta
+- exportacao PDF da pauta de reuniao
+- metricas administrativas em `/api/pauta/metricas`
+
+Fluxo operacional:
+
+1. Administrador cria uma sessao semanal.
+2. Administrador adiciona processos criticos a partir do Score de Risco, da tela Atribuicoes ou do modal em lote da propria pauta.
+3. Administrador atribui responsavel e registra uma orientacao.
+4. Responsavel confirma ciencia e pode atualizar sua nota.
+5. Apos cada upload valido do setor, `_check_pauta_resolution()` verifica se o protocolo ainda aparece no snapshot.
+6. Se o protocolo nao aparece mais, o item muda para `saiu_do_setor` com `resolucao_automatica=True`.
+
+Regras de permissao:
+
+- responsavel comum so pode editar `nota_responsavel`
+- responsavel comum so pode mudar `pendente -> em_acompanhamento`
+- responsavel comum nao pode marcar resolucao manual
+- administrador pode forcar `resolvido_manual` em casos excepcionais
+
+Fechamento de ciclo:
+
+- o administrador pode gerar PDF da sessao para reuniao
+- pendencias podem ser copiadas para nova sessao
+- encerrar sessao registra auditoria `pauta.sessao_encerrada`
+
 
 ## 12. Indicadores mensais
 
@@ -773,6 +877,26 @@ Observacao:
 - `GET /api/analytics/risk-score`
 - `GET /api/alerts/summary`
 
+### 13.9 Pauta Prioritaria
+
+- `GET /api/pauta/sessoes`
+- `POST /api/pauta/sessoes`
+- `GET /api/pauta/sessoes/{sessao_id}`
+- `PATCH /api/pauta/sessoes/{sessao_id}`
+- `POST /api/pauta/sessoes/{sessao_id}/itens`
+- `POST /api/pauta/sessoes/{sessao_id}/itens/bulk`
+- `PATCH /api/pauta/itens/{item_id}`
+- `DELETE /api/pauta/itens/{item_id}`
+- `GET /api/pauta/minha`
+- `POST /api/pauta/sessoes/{sessao_id}/copy-pending`
+- `GET /api/pauta/metricas`
+
+Observacoes:
+
+- `PATCH /api/pauta/itens/{item_id}` limita usuario comum a confirmar ciencia e editar sua nota
+- `PATCH /api/pauta/sessoes/{sessao_id}` registra auditoria quando encerra sessao (`ativa=false`)
+- `GET /api/pauta/metricas` e admin-only
+
 
 ## 14. Regras importantes do endpoint de uploads
 
@@ -836,6 +960,7 @@ Rotas principais:
 - `/multiplos-setores`
 - `/atribuicoes`
 - `/risco`
+- `/pauta`
 - `/servidores`
 - `/busca`
 - `/indicadores-mensais`
@@ -1127,6 +1252,41 @@ Entrega:
 - indicadores de processos criticos, elevados e moderados
 - linha expansivel com contribuicao de cada fator
 - aviso explicito de que o score e do processo, nao do servidor
+
+### 19.13 Pauta Prioritaria
+
+Arquivo:
+
+- `frontend/src/pages/PautaPage.jsx`
+- `frontend/src/components/AddToPautaMiniModal.jsx`
+- `frontend/src/utils/generatePautaPdf.js`
+
+Consome:
+
+- `/pauta/sessoes`
+- `/pauta/sessoes/{id}`
+- `/pauta/sessoes/{id}/itens`
+- `/pauta/sessoes/{id}/itens/bulk`
+- `/pauta/itens/{id}`
+- `/pauta/sessoes/{id}/copy-pending`
+- `/pauta/metricas`
+- `/admin/users`
+- `/analytics/risk-score`
+
+Entrega:
+
+- criacao de sessoes semanais
+- inclusao individual de processos pelo modal `+ Pauta`
+- inclusao em lote a partir do Score de Risco
+- atribuicao de responsaveis com acesso ao setor
+- nota da gestao e nota do responsavel
+- confirmacao de ciencia pelo responsavel
+- resolucao automatica quando o processo sai do snapshot do setor
+- override manual de resolucao apenas para admin
+- copia de pendencias para nova sessao
+- encerramento de sessao com auditoria
+- exportacao PDF da pauta da reuniao
+- metricas administrativas de eficiencia
 
 
 ## 20. Graficos

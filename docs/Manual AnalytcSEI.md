@@ -146,6 +146,7 @@ O menu lateral dá acesso às principais áreas:
 - Múltiplos Setores
 - Atribuições
 - Score de Risco
+- Pauta Prioritária
 - Servidores
 - Indicadores Mensais
 - Minha Conta
@@ -1057,6 +1058,58 @@ Use essa tela para montar uma fila de atenção:
 
 ---
 
+## 13.1. Tela Pauta Prioritária
+
+### Objetivo da tela
+
+Transformar os processos críticos em acompanhamento semanal. A Pauta Prioritária é usada para montar a lista da reunião, atribuir responsáveis e acompanhar se os processos saíram do setor.
+
+### Quem usa
+
+Administradores:
+
+- criam sessões de pauta;
+- adicionam processos a partir do Score de Risco, da tela Atribuições ou da própria página da pauta;
+- escolhem o responsável;
+- registram a nota da gestão;
+- geram PDF da reunião;
+- encerram a sessão e copiam pendências para a próxima semana;
+- consultam métricas administrativas.
+
+Responsáveis:
+
+- veem apenas os itens atribuídos a eles;
+- confirmam ciência;
+- registram atualização na nota do responsável.
+
+### Como a resolução funciona
+
+O responsável não marca o processo como resolvido.
+
+A resolução é automática. Depois de cada upload válido do setor, o sistema verifica se o protocolo ainda aparece no snapshot. Se o processo deixar de constar na lista do setor, o item da pauta muda para **Resolvido automaticamente**.
+
+Isso significa que o processo foi concluído naquele setor ou encaminhado para fora dele. Em casos excepcionais, apenas o administrador pode usar a opção **Forçar resolução**, que fica registrada como resolução manual.
+
+### PDF da pauta
+
+O botão **PDF** gera um documento da sessão selecionada com:
+
+- título da sessão;
+- período e data da reunião;
+- resumo de status;
+- protocolo, setor, tipo, dias, risco, responsável, status e nota da gestão.
+
+### Métricas
+
+Administradores podem abrir o painel de métricas da pauta para acompanhar:
+
+- tempo médio até resolução automática;
+- quantidade de resoluções manuais;
+- pendências arrastadas de sessões encerradas;
+- eficiência por sessão.
+
+---
+
 ## 14. Funcionalidade Processos sem movimentação
 
 ### Onde aparece
@@ -1819,18 +1872,20 @@ Use esta ordem:
 
 1. Central Executiva.
 2. Score de Risco.
-3. Atribuições.
-4. Entradas e Saídas.
-5. Produtividade.
+3. Pauta Prioritária.
+4. Atribuições.
+5. Entradas e Saídas.
+6. Produtividade.
 
 ### Para análise semanal
 
 Use:
 
 1. Dashboard.
-2. Servidores.
-3. Indicadores Mensais, quando aplicável.
-4. Relatório semanal por e-mail.
+2. Pauta Prioritária.
+3. Servidores.
+4. Indicadores Mensais, quando aplicável.
+5. Relatório semanal por e-mail.
 
 ### Para auditoria e manutenção
 

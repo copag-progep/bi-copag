@@ -76,6 +76,7 @@ As migrations recentes criam estruturas administrativas importantes:
 - `can_upload` em `users`: permissão individual para envio manual de relatórios.
 - `sei_user_setor`: vínculo entre usuários SEI/atribuições e setores.
 - `process_type_weights`: pesos por tipo de processo no Score de Risco.
+- `pauta_sessoes` e `pauta_itens`: sessões e processos acompanhados na Pauta Prioritária.
 
 Após um deploy que crie `sei_user_setor`, entre como administrador em **Usuários SEI** e clique em **Inferir setores**. Isso preenche automaticamente os vínculos iniciais a partir dos processos históricos. Depois, revise manualmente os casos especiais.
 

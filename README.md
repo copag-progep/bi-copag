@@ -18,6 +18,7 @@ Plataforma web de Business Intelligence desenvolvida para a **COPAG (Coordenador
 | **Tempo de permanência** | Lead time estimado dos processos que saíram da carteira, com média, mediana, P90, faixas por duração e ranking por setor |
 | **Tendências estimadas** | Forecasting simples na Central Executiva: projeção de estoque ativo, tendência por setor e estimativa de críticos |
 | **Score de Risco** | Ranking de processos por prioridade de atenção, com explicação dos fatores do score |
+| **Pauta Prioritária** | Sessões semanais para acompanhar processos críticos, atribuir responsáveis, registrar notas, gerar PDF, encerrar ciclos e medir eficiência |
 | **Atribuições** | Carteira completa com flags de criticidade por tempo (6 faixas até 90d+) |
 | **Servidores** | Balanceamento de carga, classificação de sobrecarga, perfil longitudinal |
 | **Múltiplos setores** | Detecção de processos em mais de um setor no mesmo dia |
@@ -27,12 +28,13 @@ Plataforma web de Business Intelligence desenvolvida para a **COPAG (Coordenador
 | **Usuários SEI por setor** | Vincula servidores/atribuições aos setores para filtrar listas de Atribuição e Servidor |
 | **Busca global** | Histórico completo de movimentações de qualquer protocolo |
 | **Alertas por e-mail** | Notificação semanal de processos críticos (>30, >45, >90 dias), às sextas 21:00 BRT |
-| **Notificação in-app** | Sino com contagem em tempo real de processos ≥45 dias |
+| **Notificação in-app** | Sino com contagem em tempo real de processos ≥45 dias e itens pendentes da Pauta Prioritária |
 | **Saúde dos dados** | Badge de frescor no topo, indicando data de referência, setores ausentes/defasados e alertas de qualidade |
 | **Upload automático** | Script que acessa o SEI e envia dados sem intervenção humana (19h BRT) |
 | **Relatório diário** | E-mail automático seg–sex às 19:30 BRT com ativos, fluxo por setor e alertas |
 | **Relatório semanal** | E-mail automático toda sexta com resumo dos indicadores |
 | **Exportação PDF / Excel** | Relatório de atribuições com identidade visual Progep/UFC |
+| **Exportação de pauta em PDF** | Documento de reunião com processos priorizados, responsáveis, status e notas da gestão |
 | **Log de auditoria** | Registro de todas as ações críticas do sistema |
 
 ---
@@ -162,6 +164,14 @@ Administradores têm visão completa da plataforma. Usuários comuns só visuali
 A permissão de envio de relatório é independente: além de ter acesso ao setor, o usuário precisa estar marcado como autorizado para upload. A página **Usuários SEI** também permite vincular servidores/atribuições a um ou mais setores, para que filtros como **Atribuição** e **Servidor** respeitem o escopo do usuário logado.
 
 Na métrica de **Múltiplos setores**, o sistema detecta a duplicidade olhando o snapshot completo e depois exibe apenas as ocorrências que envolvem setores visíveis ao usuário. Assim, um usuário restrito consegue ver que um processo do seu setor também aparece em outro setor sem ganhar acesso aos dados completos das demais divisões.
+
+## Pauta Prioritária
+
+A **Pauta Prioritária** transforma o Score de Risco em rotina de acompanhamento semanal. Administradores criam sessões, adicionam processos críticos a partir das páginas **Score de Risco** ou **Atribuições**, atribuem responsáveis da plataforma e registram orientações para reunião.
+
+Responsáveis não marcam processos como resolvidos manualmente. Eles apenas confirmam ciência e registram atualizações. A resolução é detectada automaticamente após upload válido: se o protocolo deixar de constar no snapshot do setor acompanhado, o item muda para **Resolvido automaticamente** (`saiu_do_setor`). O administrador mantém um override excepcional, registrado como **Resolvido manualmente**.
+
+O módulo também permite copiar pendências para a próxima sessão, encerrar sessões com auditoria, gerar PDF da pauta de reunião e acompanhar métricas administrativas como tempo médio até resolução automática, overrides manuais e pendências arrastadas.
 
 ---
 
