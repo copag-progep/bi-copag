@@ -6,6 +6,7 @@ import ErrorBlock from "../components/ErrorBlock";
 import LoadingBlock from "../components/LoadingBlock";
 import { useAuth } from "../context/AuthContext";
 import { useFilters } from "../context/FiltersContext";
+import { generatePautaPdf } from "../utils/generatePautaPdf";
 
 const STATUS_CFG = {
   pendente:          { label: "Pendente",                  color: "#8a5b00",      bg: "rgba(254,187,18,.14)" },
@@ -520,7 +521,49 @@ export default function PautaPage() {
   const [showNovaSessao, setShowNovaSessao] = useState(false);
   const [showAdicionarModal, setShowAdicionarModal] = useState(false);
   const [showCopiarForm, setShowCopiarForm] = useState(false);
+  const [showEncerrarModal, setShowEncerrarModal] = useState(false);
+  const [showMetricas, setShowMetricas] = useState(false);
+  const [metricas, setMetricas] = useState(null);
+  const [pdfLoading, setPdfLoading] = useState(false);
   const [msg, setMsg] = useState("");
+
+  async function loadMetricas() {
+    if (!user?.is_admin) return;
+    try {
+      const { data } = await api.get("/pauta/metricas");
+      setMetricas(data);
+    } catch {
+      // silencioso
+    }
+  }
+
+  async function handleEncerrarSessao(copiarPendencias) {
+    try {
+      await api.patch(`/pauta/sessoes/${sessaoAtual}`, { ativa: false });
+      if (copiarPendencias) {
+        setShowEncerrarModal(false);
+        setShowCopiarForm(true);
+      } else {
+        setShowEncerrarModal(false);
+        setMsg("✓ Sessão encerrada.");
+        loadSessoes();
+      }
+      loadMetricas();
+    } catch (err) {
+      setMsg(`✗ ${err.response?.data?.detail || "falha ao encerrar sessão"}`);
+      setShowEncerrarModal(false);
+    }
+  }
+
+  async function handleGerarPdf() {
+    if (!sessaoData) return;
+    setPdfLoading(true);
+    try {
+      generatePautaPdf(sessaoData);
+    } finally {
+      setPdfLoading(false);
+    }
+  }
 
   async function loadSessoes() {
     try {
@@ -551,6 +594,7 @@ export default function PautaPage() {
     loadSessoes();
     if (user?.is_admin) {
       api.get("/admin/users").then((r) => setUsers(r.data)).catch(() => {});
+      loadMetricas();
     }
   }, []);
 
@@ -612,7 +656,7 @@ export default function PautaPage() {
                 style={{ fontSize: "0.82rem", padding: "8px 16px", whiteSpace: "nowrap" }}>
                 + Nova sessão
               </button>
-              {sessaoAtual && (
+              {sessaoAtual && sessaoData && (
                 <>
                   <button type="button" className="table-button" onClick={() => setShowAdicionarModal(true)}
                     style={{ fontSize: "0.82rem", padding: "8px 16px", whiteSpace: "nowrap" }}>
@@ -623,6 +667,20 @@ export default function PautaPage() {
                       style={{ fontSize: "0.82rem", padding: "8px 16px", whiteSpace: "nowrap" }}
                       title="Copia itens pendentes desta sessão para uma nova sessão">
                       ↗ Copiar pendências
+                    </button>
+                  )}
+                  <button type="button" className="ghost-button"
+                    onClick={handleGerarPdf} disabled={pdfLoading}
+                    style={{ fontSize: "0.82rem", padding: "8px 16px", whiteSpace: "nowrap" }}
+                    title="Exportar PDF da pauta desta sessão">
+                    {pdfLoading ? "Gerando..." : "⬇ PDF"}
+                  </button>
+                  {sessaoData?.ativa && (
+                    <button type="button" className="ghost-button"
+                      onClick={() => setShowEncerrarModal(true)}
+                      style={{ fontSize: "0.82rem", padding: "8px 16px", whiteSpace: "nowrap", color: "#bf3535" }}
+                      title="Encerrar e arquivar esta sessão">
+                      Encerrar sessão
                     </button>
                   )}
                 </>
@@ -642,6 +700,114 @@ export default function PautaPage() {
           </div>
         )}
       </section>
+
+      {/* Modal: encerrar sessão */}
+      {showEncerrarModal && sessaoData && (
+        <div style={{
+          position: "fixed", inset: 0, background: "rgba(0,0,0,.45)", zIndex: 1000,
+          display: "flex", alignItems: "center", justifyContent: "center", padding: 16,
+        }} onClick={() => setShowEncerrarModal(false)}>
+          <div style={{
+            background: "var(--panel)", borderRadius: "var(--radius-lg)", border: "1px solid var(--border)",
+            boxShadow: "0 16px 48px rgba(0,0,0,.25)", width: "100%", maxWidth: 480, padding: 28,
+          }} onClick={(e) => e.stopPropagation()}>
+            <h3 style={{ margin: "0 0 6px", color: "var(--ink)" }}>Encerrar sessão</h3>
+            <p style={{ fontSize: "0.85rem", color: "var(--muted)", marginBottom: 18 }}>
+              <strong>{sessaoData.titulo}</strong>
+            </p>
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 20 }}>
+              {[
+                { label: "Resolvidos", value: (sessaoData.contagens?.saiu_do_setor || 0) + (sessaoData.contagens?.resolvido_manual || 0), color: "#1a7a50" },
+                { label: "Pendentes", value: (sessaoData.contagens?.pendente || 0) + (sessaoData.contagens?.em_acompanhamento || 0), color: "#8a5b00" },
+                { label: "Total", value: sessaoData.itens?.length || 0, color: "var(--primary)" },
+              ].map((kpi) => (
+                <div key={kpi.label} style={{ textAlign: "center", padding: "12px 8px", borderRadius: 8, background: "var(--bg)", border: "1px solid var(--border)" }}>
+                  <strong style={{ display: "block", fontSize: "1.5rem", fontWeight: 800, color: kpi.color, lineHeight: 1 }}>{kpi.value}</strong>
+                  <small style={{ fontSize: "0.72rem", color: "var(--muted)", fontWeight: 700, textTransform: "uppercase" }}>{kpi.label}</small>
+                </div>
+              ))}
+            </div>
+
+            {((sessaoData.contagens?.pendente || 0) + (sessaoData.contagens?.em_acompanhamento || 0)) > 0 && (
+              <div style={{ padding: "10px 14px", borderRadius: 8, background: "rgba(254,187,18,.12)", border: "1px solid rgba(254,187,18,.3)", marginBottom: 18, fontSize: "0.82rem", color: "#8a5b00", fontWeight: 600 }}>
+                ⚠ {(sessaoData.contagens?.pendente || 0) + (sessaoData.contagens?.em_acompanhamento || 0)} processo(s) ainda pendente(s). Deseja copiá-los para uma nova sessão?
+              </div>
+            )}
+
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {((sessaoData.contagens?.pendente || 0) + (sessaoData.contagens?.em_acompanhamento || 0)) > 0 && (
+                <button type="button" className="primary-button"
+                  onClick={() => handleEncerrarSessao(true)}
+                  style={{ fontSize: "0.85rem", padding: "9px 16px" }}>
+                  Encerrar e copiar pendências
+                </button>
+              )}
+              <button type="button" className="table-button"
+                onClick={() => handleEncerrarSessao(false)}
+                style={{ fontSize: "0.85rem", padding: "9px 16px" }}>
+                Encerrar sem copiar
+              </button>
+              <button type="button" className="ghost-button" onClick={() => setShowEncerrarModal(false)}
+                style={{ fontSize: "0.85rem" }}>
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Painel de métricas (admin, colapsável) */}
+      {user?.is_admin && metricas && (
+        <section className="panel">
+          <button type="button" onClick={() => setShowMetricas((v) => !v)}
+            style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", background: "none", border: "none", cursor: "pointer", fontFamily: "inherit", padding: 0 }}>
+            <h3 style={{ margin: 0, color: "var(--ink)", fontSize: "1rem" }}>Métricas de eficiência</h3>
+            <span style={{ fontSize: "0.75rem", color: "var(--muted)", marginLeft: "auto" }}>{showMetricas ? "▲ Recolher" : "▼ Expandir"}</span>
+          </button>
+
+          {showMetricas && (
+            <div style={{ marginTop: 16 }}>
+              {/* KPIs globais */}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginBottom: 20 }}>
+                {[
+                  { label: "Tempo médio até resolução automática", value: metricas.tempo_medio_auto_dias != null ? `${metricas.tempo_medio_auto_dias}d` : "—", hint: "Apenas saiu_do_setor" },
+                  { label: "Overrides manuais (histórico)", value: metricas.overrides_manuais_total, hint: "resolvido_manual, admin only" },
+                  { label: "Pendências arrastadas", value: metricas.pendencias_arrastadas, hint: "Itens ativos em sessões encerradas" },
+                ].map((kpi) => (
+                  <div key={kpi.label} style={{ padding: 14, borderRadius: 10, background: "var(--bg)", border: "1px solid var(--border)" }}>
+                    <div style={{ fontSize: "1.5rem", fontWeight: 800, color: "var(--primary)", lineHeight: 1 }}>{kpi.value}</div>
+                    <div style={{ fontSize: "0.78rem", fontWeight: 700, color: "var(--ink)", marginTop: 4 }}>{kpi.label}</div>
+                    <div style={{ fontSize: "0.7rem", color: "var(--muted)", marginTop: 2 }}>{kpi.hint}</div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Eficiência por sessão */}
+              <p style={{ fontSize: "0.8rem", fontWeight: 700, color: "var(--muted)", marginBottom: 8, textTransform: "uppercase", letterSpacing: ".05em" }}>
+                Eficiência por sessão (últimas {metricas.sessoes?.length})
+              </p>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {(metricas.sessoes || []).map((s) => (
+                  <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <span style={{ fontSize: "0.75rem", color: "var(--muted)", minWidth: 180, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}
+                      title={s.titulo}>{s.titulo}</span>
+                    <div style={{ flex: 1, height: 12, borderRadius: 999, background: "var(--primary-light)", overflow: "hidden", position: "relative" }}>
+                      <div style={{ height: "100%", width: `${s.taxa_auto_pct}%`, background: "#1a7a50", borderRadius: 999 }} />
+                      {s.resolvidos_manual > 0 && (
+                        <div style={{ position: "absolute", top: 0, left: `${s.taxa_auto_pct}%`, height: "100%", width: `${Math.round(s.resolvidos_manual / s.total * 100)}%`, background: "#4ade80", opacity: .6 }} />
+                      )}
+                    </div>
+                    <span style={{ fontSize: "0.72rem", fontWeight: 700, color: "#1a7a50", minWidth: 36, textAlign: "right" }}>{s.taxa_auto_pct}%</span>
+                    <span style={{ fontSize: "0.7rem", color: "var(--muted)", minWidth: 60 }}>{s.resolvidos_auto}/{s.total} auto</span>
+                    {!s.ativa && <span style={{ fontSize: "0.65rem", color: "var(--muted)", background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 4, padding: "1px 5px" }}>encerrada</span>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </section>
+      )}
 
       {/* Formulário: copiar pendências para nova sessão */}
       {showCopiarForm && sessaoAtual && (

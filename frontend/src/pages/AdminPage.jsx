@@ -41,6 +41,9 @@ const ACTION_LABELS = {
   "usuario.permissoes_atualizadas":    { label: "Permissões atualizadas",        color: "var(--primary)" },
   "sei_usuario.setores_atualizados":   { label: "Setores SEI atualizados",       color: "var(--primary)" },
   "sei_usuario.setores_inferidos":     { label: "Setores SEI inferidos",         color: "var(--primary)" },
+  "pauta.sessao_criada":               { label: "Pauta: sessão criada",           color: "var(--primary)" },
+  "pauta.sessao_encerrada":            { label: "Pauta: sessão encerrada",        color: "var(--muted)"   },
+  "pauta.pendencias_copiadas":         { label: "Pauta: pendências copiadas",     color: "var(--primary)" },
 };
 
 function ActionBadge({ action }) {

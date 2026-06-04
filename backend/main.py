@@ -1264,9 +1264,31 @@ def update_pauta_sessao(
     s = db.query(PautaSessao).filter(PautaSessao.id == sessao_id).first()
     if not s:
         raise HTTPException(status_code=404, detail="Sessão não encontrada.")
+
+    was_active = s.ativa
     for field, value in payload.model_dump(exclude_none=True).items():
         setattr(s, field, value)
     s.updated_at = datetime.now(timezone.utc)
+
+    # Auditoria de encerramento — registra contagens finais da sessão
+    if was_active and s.ativa is False:
+        contagens: dict[str, int] = {}
+        for item in s.itens:
+            contagens[item.status] = contagens.get(item.status, 0) + 1
+        _log_audit(
+            db,
+            action="pauta.sessao_encerrada",
+            entity_type="pauta_sessao",
+            entity_id=str(sessao_id),
+            details={
+                "titulo": s.titulo,
+                "data_inicio": str(s.data_inicio),
+                "contagens": contagens,
+                "total": sum(contagens.values()),
+            },
+            user=current_admin,
+        )
+
     db.commit()
     return {"ok": True}
 
@@ -1497,6 +1519,87 @@ def copy_pending_to_new_session(
     )
     db.commit()
     return {"nova_sessao_id": new_session.id, "titulo": payload.titulo, "itens_copiados": copiados}
+
+
+@app.get("/api/pauta/metricas")
+def get_pauta_metricas(
+    ultimas_n: int = Query(8, ge=1, le=52),
+    current_admin: User = Depends(get_current_admin_user),
+    db: Session = Depends(get_db),
+):
+    """Indicadores de eficiência da pauta — admin only.
+
+    Métricas por sessão (sem mistura global ambígua):
+      - Percentual de resolução automática por sessão
+      - Overrides manuais separados
+      - Tempo médio até saída do setor (somente saiu_do_setor)
+      - Pendências arrastadas (itens ativos em sessões encerradas)
+    """
+    from datetime import timedelta
+
+    sessoes = (
+        db.query(PautaSessao)
+        .order_by(PautaSessao.data_inicio.desc())
+        .limit(ultimas_n)
+        .all()
+    )
+
+    # Pendências arrastadas: itens ativos em sessões encerradas
+    pendencias_arrastadas = (
+        db.query(PautaItem)
+        .join(PautaSessao, PautaItem.sessao_id == PautaSessao.id)
+        .filter(PautaSessao.ativa == False, PautaItem.status.in_(["pendente", "em_acompanhamento"]))
+        .count()
+    )
+
+    # Tempo médio até resolução automática (created_at → data_status)
+    itens_auto = (
+        db.query(PautaItem)
+        .join(PautaSessao, PautaItem.sessao_id == PautaSessao.id)
+        .filter(PautaItem.status == "saiu_do_setor", PautaItem.data_status.is_not(None))
+        .all()
+    )
+    duracoes = []
+    for i in itens_auto:
+        if i.data_status and i.created_at:
+            delta = i.data_status - i.created_at.date()
+            if 0 <= delta.days <= 365:  # sanidade
+                duracoes.append(delta.days)
+    tempo_medio_dias = round(sum(duracoes) / len(duracoes), 1) if duracoes else None
+
+    # Métricas por sessão
+    sessoes_data = []
+    for s in reversed(sessoes):  # cronológico
+        ct: dict[str, int] = {}
+        for item in s.itens:
+            ct[item.status] = ct.get(item.status, 0) + 1
+
+        total = sum(ct.values())
+        resolvidos_auto   = ct.get("saiu_do_setor", 0)
+        resolvidos_manual = ct.get("resolvido_manual", 0)
+        ativos = ct.get("pendente", 0) + ct.get("em_acompanhamento", 0)
+
+        sessoes_data.append({
+            "id":              s.id,
+            "titulo":          s.titulo,
+            "data_inicio":     str(s.data_inicio),
+            "data_fim":        str(s.data_fim) if s.data_fim else None,
+            "ativa":           s.ativa,
+            "total":           total,
+            "ativos":          ativos,
+            "resolvidos_auto": resolvidos_auto,
+            "resolvidos_manual": resolvidos_manual,
+            "arquivados":      ct.get("arquivado", 0),
+            "taxa_auto_pct":   round(resolvidos_auto / total * 100) if total else 0,
+            "taxa_total_pct":  round((resolvidos_auto + resolvidos_manual) / total * 100) if total else 0,
+        })
+
+    return JSONResponse({
+        "sessoes":              sessoes_data,
+        "tempo_medio_auto_dias": tempo_medio_dias,
+        "overrides_manuais_total": sum(s["resolvidos_manual"] for s in sessoes_data),
+        "pendencias_arrastadas": pendencias_arrastadas,
+    })
 
 
 @app.get("/api/monthly-stats")
