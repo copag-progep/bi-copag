@@ -521,6 +521,7 @@ export default function PautaPage() {
   const [showNovaSessao, setShowNovaSessao] = useState(false);
   const [showAdicionarModal, setShowAdicionarModal] = useState(false);
   const [showCopiarForm, setShowCopiarForm] = useState(false);
+  const [closeAfterCopy, setCloseAfterCopy] = useState(false);
   const [showEncerrarModal, setShowEncerrarModal] = useState(false);
   const [showMetricas, setShowMetricas] = useState(false);
   const [metricas, setMetricas] = useState(null);
@@ -538,17 +539,19 @@ export default function PautaPage() {
   }
 
   async function handleEncerrarSessao(copiarPendencias) {
+    if (copiarPendencias) {
+      setShowEncerrarModal(false);
+      setCloseAfterCopy(true);
+      setShowCopiarForm(true);
+      return;
+    }
+
     try {
       await api.patch(`/pauta/sessoes/${sessaoAtual}`, { ativa: false });
-      if (copiarPendencias) {
-        setShowEncerrarModal(false);
-        setShowCopiarForm(true);
-      } else {
-        setShowEncerrarModal(false);
-        setMsg("✓ Sessão encerrada.");
-        loadSessoes();
-      }
-      loadMetricas();
+      setShowEncerrarModal(false);
+      setMsg("✓ Sessão encerrada.");
+      await loadSessoes();
+      await loadMetricas();
     } catch (err) {
       setMsg(`✗ ${err.response?.data?.detail || "falha ao encerrar sessão"}`);
       setShowEncerrarModal(false);
@@ -565,11 +568,16 @@ export default function PautaPage() {
     }
   }
 
-  async function loadSessoes() {
+  async function loadSessoes(preferredId = sessaoAtual) {
     try {
       const { data } = await api.get("/pauta/sessoes", { params: { ativa: true } });
       setSessoes(data);
-      if (!sessaoAtual && data.length > 0) setSessaoAtual(data[0].id);
+      if (data.length === 0) {
+        setSessaoAtual(null);
+        setSessaoData(null);
+      } else if (!preferredId || !data.some((s) => s.id === preferredId)) {
+        setSessaoAtual(data[0].id);
+      }
     } catch {
       setError("Falha ao carregar pautas.");
     } finally {
@@ -823,12 +831,27 @@ export default function PautaPage() {
           </div>
           <CopiarPendenciasForm
             sessaoId={sessaoAtual}
-            onCreated={(nova) => {
+            onCreated={async (nova) => {
               setShowCopiarForm(false);
-              setMsg(`✓ ${nova.itens_copiados} item(s) copiado(s) para "${nova.titulo}".`);
-              loadSessoes().then(() => setSessaoAtual(nova.nova_sessao_id));
+              try {
+                if (closeAfterCopy) {
+                  await api.patch(`/pauta/sessoes/${sessaoAtual}`, { ativa: false });
+                  setCloseAfterCopy(false);
+                  setMsg(`✓ Sessão encerrada e ${nova.itens_copiados} item(s) copiado(s) para "${nova.titulo}".`);
+                } else {
+                  setMsg(`✓ ${nova.itens_copiados} item(s) copiado(s) para "${nova.titulo}".`);
+                }
+                await loadSessoes(nova.nova_sessao_id);
+                setSessaoAtual(nova.nova_sessao_id);
+                await loadMetricas();
+              } catch (err) {
+                setMsg(`✗ ${err.response?.data?.detail || "pendências copiadas, mas falha ao encerrar sessão"}`);
+              }
             }}
-            onCancel={() => setShowCopiarForm(false)}
+            onCancel={() => {
+              setCloseAfterCopy(false);
+              setShowCopiarForm(false);
+            }}
           />
         </section>
       )}
