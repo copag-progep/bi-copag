@@ -36,3 +36,17 @@ services:
         value: "false"
       - key: PRECOMPUTE_COOLDOWN_SECS
         value: "120"
+      # Estabilização de memória (Render Free, 512MB):
+      # precompute pós-upload desativado — cache populado sob demanda
+      - key: DISABLE_POST_CHANGE_PRECOMPUTE
+        value: "true"
+      # Cache LRU com orçamento de memória
+      - key: ANALYTICS_CACHE_MAX_ENTRIES
+        value: "30"
+      - key: ANALYTICS_CACHE_MAX_TOTAL_MB
+        value: "32"
+      - key: ANALYTICS_CACHE_MAX_ITEM_MB
+        value: "6"
+      # Serializa builds pesados: 1 por vez por processo
+      - key: ANALYTICS_BUILD_CONCURRENCY
+        value: "1"

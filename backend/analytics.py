@@ -1,11 +1,16 @@
 from __future__ import annotations
 
+import json
+import logging
 import os
+import resource
+import sys
 import time
+from collections import OrderedDict
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
-from threading import Lock
+from threading import Lock, Semaphore
 
 import pandas as pd
 from sqlalchemy import false as sql_false, func
@@ -84,8 +89,21 @@ SPAN_FIELDS = ["protocolo", "atribuicao", "tipo", "setor", "data_relatorio"]
 ASSIGNMENT_FIELDS = ["protocolo", "atribuicao", "setor", "data_relatorio"]
 ATTRIBUTION_FIELDS = ["protocolo", "atribuicao", "tipo", "setor", "data_relatorio"]
 
-_ANALYTICS_CACHE: dict[tuple[object, ...], dict] = {}
+# Cache LRU com orçamento de memória: além do limite por quantidade, cada
+# payload tem o tamanho estimado (via JSON) e o total é limitado por bytes.
+# Payloads individuais acima de _CACHE_MAX_ITEM_BYTES não são cacheados.
+_ANALYTICS_CACHE: "OrderedDict[tuple[object, ...], tuple[dict, int]]" = OrderedDict()
 _CACHE_LOCK = Lock()
+_CACHE_MAX_ENTRIES = int(os.getenv("ANALYTICS_CACHE_MAX_ENTRIES", "40"))
+_CACHE_MAX_TOTAL_BYTES = int(os.getenv("ANALYTICS_CACHE_MAX_TOTAL_MB", "48")) * 1024 * 1024
+_CACHE_MAX_ITEM_BYTES = int(os.getenv("ANALYTICS_CACHE_MAX_ITEM_MB", "8")) * 1024 * 1024
+_cache_total_bytes = 0
+
+# Serializa execuções pesadas de analytics: apenas 1 build por processo de
+# cada vez, evitando picos compostos de DataFrames simultâneos no Render Free.
+_BUILD_SEMAPHORE = Semaphore(int(os.getenv("ANALYTICS_BUILD_CONCURRENCY", "1")))
+
+logger = logging.getLogger("analytics")
 
 _SIG_CACHE: tuple[tuple, float] | None = None
 _SIG_TTL = 5.0  # segundos — evita roundtrip ao banco em requests consecutivos
@@ -114,11 +132,47 @@ _RISK_MIN_P90_DAYS = float(os.getenv("RISK_MIN_P90_DAYS",       "7"))
 _RISK_ABS_NORM     = 90  # dias considerados como 100% no fator de tempo absoluto
 
 
+def _rss_mb() -> float:
+    """RSS atual do processo em MB (Linux: KB; macOS: bytes)."""
+    rss = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+    return rss / 1024 / (1 if sys.platform.startswith("linux") else 1024)
+
+
 def clear_analytics_cache() -> None:
-    global _SIG_CACHE
+    global _SIG_CACHE, _cache_total_bytes
     with _CACHE_LOCK:
         _ANALYTICS_CACHE.clear()
+        _cache_total_bytes = 0
         _SIG_CACHE = None
+
+
+def _estimate_payload_bytes(payload: dict) -> int:
+    """Estimativa barata do tamanho do payload via serialização JSON."""
+    try:
+        return len(json.dumps(payload, ensure_ascii=False, default=str).encode("utf-8"))
+    except Exception:
+        return _CACHE_MAX_ITEM_BYTES + 1  # não cacheia se não conseguir medir
+
+
+def _cache_put(key: tuple, payload: dict) -> None:
+    """Insere no cache LRU respeitando orçamento de memória e tamanho máximo por item."""
+    global _cache_total_bytes
+    size = _estimate_payload_bytes(payload)
+    if size > _CACHE_MAX_ITEM_BYTES:
+        logger.info("cache skip (payload %.1fMB > limite): %s", size / 1048576, key[0])
+        return
+    with _CACHE_LOCK:
+        if key in _ANALYTICS_CACHE:
+            _cache_total_bytes -= _ANALYTICS_CACHE[key][1]
+            del _ANALYTICS_CACHE[key]
+        _ANALYTICS_CACHE[key] = (payload, size)
+        _cache_total_bytes += size
+        # Expulsão LRU: por quantidade e por orçamento total de bytes
+        while _ANALYTICS_CACHE and (
+            len(_ANALYTICS_CACHE) > _CACHE_MAX_ENTRIES or _cache_total_bytes > _CACHE_MAX_TOTAL_BYTES
+        ):
+            _, (_, evicted_size) = _ANALYTICS_CACHE.popitem(last=False)
+            _cache_total_bytes -= evicted_size
 
 
 def _uploads_signature(db: Session) -> tuple[object, ...]:
@@ -174,13 +228,34 @@ def _cached_response(
         *extra_key,
     )
     with _CACHE_LOCK:
-        cached = _ANALYTICS_CACHE.get(key)
-    if cached is not None:
-        return cached
+        entry = _ANALYTICS_CACHE.get(key)
+        if entry is not None:
+            _ANALYTICS_CACHE.move_to_end(key)  # LRU: marca como recém-usado
+            return entry[0]
 
-    payload = builder()
-    with _CACHE_LOCK:
-        _ANALYTICS_CACHE[key] = payload
+    # Serializa builds pesados: 1 por vez no processo (evita picos compostos de RAM)
+    with _BUILD_SEMAPHORE:
+        # Double-check: outro request pode ter construído enquanto aguardávamos
+        with _CACHE_LOCK:
+            entry = _ANALYTICS_CACHE.get(key)
+            if entry is not None:
+                _ANALYTICS_CACHE.move_to_end(key)
+                return entry[0]
+
+        rss_before = _rss_mb()
+        started = time.monotonic()
+        payload = builder()
+        elapsed = time.monotonic() - started
+        rss_after = _rss_mb()
+        with _CACHE_LOCK:
+            n_entries = len(_ANALYTICS_CACHE)
+            total_mb = _cache_total_bytes / 1048576
+        logger.info(
+            "analytics build=%s dur=%.1fs rss=%.0f->%.0fMB cache=%d itens/%.1fMB",
+            cache_name, elapsed, rss_before, rss_after, n_entries, total_mb,
+        )
+
+    _cache_put(key, payload)
     return payload
 
 
@@ -222,9 +297,28 @@ def _normalize_fields(fields: Sequence[str] | None) -> list[str]:
     return requested
 
 
+# Colunas de baixa cardinalidade: usamos sys.intern nas strings para que
+# valores repetidos ("DIAPE" em 30 mil linhas) compartilhem o mesmo objeto.
+# Nota: dtype "category" daria ganho maior, mas groupby multi-coluna com
+# categóricas usa observed=False por padrão no pandas 2.x (produto cartesiano
+# de grupos), o que quebraria _build_presence_spans. Fica para refactor futuro
+# com observed=True auditado em todos os call sites.
+_INTERN_FIELDS = ("setor", "tipo", "atribuicao", "ponto_controle", "unidade_envio")
+
+
 def _rows_to_dataframe(rows: list[tuple], fields: Sequence[str]) -> pd.DataFrame:
     if not rows:
         return pd.DataFrame(columns=list(fields) + ["report_day"])
+
+    intern_idx = [i for i, f in enumerate(fields) if f in _INTERN_FIELDS]
+    if intern_idx:
+        rows = [
+            tuple(
+                sys.intern(v) if i in intern_idx and isinstance(v, str) else v
+                for i, v in enumerate(row)
+            )
+            for row in rows
+        ]
 
     frame = pd.DataFrame.from_records(rows, columns=list(fields))
     for field, default_value in PROCESS_FIELD_DEFAULTS.items():
@@ -351,6 +445,10 @@ def _load_dataframe(
     ]
     frame = _rows_to_dataframe(rows, requested_fields)
     dates = sorted(frame["report_day"].unique().tolist()) if not frame.empty else []
+    logger.info(
+        "load_dataframe rows=%d fields=%d lookback=%s rss=%.0fMB",
+        len(rows), len(requested_fields), apply_lookback, _rss_mb(),
+    )
     return frame, reference_date, dates
 
 

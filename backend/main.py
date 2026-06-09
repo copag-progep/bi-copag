@@ -133,6 +133,13 @@ _last_precompute_started: float = 0.0
 _PRECOMPUTE_COOLDOWN = float(os.getenv("PRECOMPUTE_COOLDOWN_SECS", "120"))
 
 
+# Desativa os pré-cálculos automáticos disparados após uploads e alterações
+# administrativas. Em instâncias com pouca RAM (Render Free), cada precompute
+# reconstrói vários DataFrames em sequência — DISABLE_POST_CHANGE_PRECOMPUTE=true
+# deixa o cache ser populado sob demanda pelo primeiro acesso de cada página.
+DISABLE_POST_CHANGE_PRECOMPUTE = os.getenv("DISABLE_POST_CHANGE_PRECOMPUTE", "false").lower() in {"1", "true", "yes", "on"}
+
+
 def precompute_analytics() -> None:
     """Pré-computa endpoints analíticos leves com filtros padrão.
 
@@ -142,6 +149,8 @@ def precompute_analytics() -> None:
     """
     global _precompute_running, _last_precompute_started
     import time as _time
+    if DISABLE_POST_CHANGE_PRECOMPUTE:
+        return
     if _precompute_running:
         return
     now = _time.monotonic()
