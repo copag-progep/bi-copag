@@ -10,6 +10,7 @@ from collections import OrderedDict
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
+import threading
 from threading import Lock, Semaphore
 
 import pandas as pd
@@ -101,7 +102,10 @@ _cache_total_bytes = 0
 
 # Serializa execuções pesadas de analytics: apenas 1 build por processo de
 # cada vez, evitando picos compostos de DataFrames simultâneos no Render Free.
+# Reentrante por thread: builds aninhados (ex: risk-score chama stale/lead-time
+# dentro do próprio build) não readquirem o semáforo — senão seria deadlock.
 _BUILD_SEMAPHORE = Semaphore(int(os.getenv("ANALYTICS_BUILD_CONCURRENCY", "1")))
+_build_tls = threading.local()
 
 logger = logging.getLogger("analytics")
 
@@ -233,8 +237,14 @@ def _cached_response(
             _ANALYTICS_CACHE.move_to_end(key)  # LRU: marca como recém-usado
             return entry[0]
 
-    # Serializa builds pesados: 1 por vez no processo (evita picos compostos de RAM)
-    with _BUILD_SEMAPHORE:
+    # Serializa builds pesados: 1 por vez no processo (evita picos compostos
+    # de RAM). Reentrante por thread: se esta thread já segura o semáforo
+    # (build aninhado, ex: risk-score → stale), não readquire — deadlock.
+    already_holding = getattr(_build_tls, "holding", False)
+    if not already_holding:
+        _BUILD_SEMAPHORE.acquire()
+        _build_tls.holding = True
+    try:
         # Double-check: outro request pode ter construído enquanto aguardávamos
         with _CACHE_LOCK:
             entry = _ANALYTICS_CACHE.get(key)
@@ -254,6 +264,10 @@ def _cached_response(
             "analytics build=%s dur=%.1fs rss=%.0f->%.0fMB cache=%d itens/%.1fMB",
             cache_name, elapsed, rss_before, rss_after, n_entries, total_mb,
         )
+    finally:
+        if not already_holding:
+            _build_tls.holding = False
+            _BUILD_SEMAPHORE.release()
 
     _cache_put(key, payload)
     return payload
