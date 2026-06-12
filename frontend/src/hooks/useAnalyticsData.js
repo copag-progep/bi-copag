@@ -4,7 +4,9 @@ import api from "../api/client";
 import { useAuth } from "../context/AuthContext";
 
 const CACHE_TTL_MS = 5 * 60 * 1000;
-const CACHE_PREFIX = "sei-bi-cache:";
+// v2: bump invalida payloads gravados antes da correção de escopo setorial
+// (dados sem restrição podiam ficar cacheados sob a chave de usuário restrito)
+const CACHE_PREFIX = "sei-bi-cache-v2:";
 
 function getCacheKey(endpoint, params, userId) {
   const sorted = Object.fromEntries(
@@ -55,6 +57,11 @@ export function useAnalyticsData(endpoint, params, options = {}) {
   // Cache key inclui user.id: usuários diferentes nunca compartilham cache.
   // Quando user.id muda (troca de login), cacheKey muda e o hook re-fetcha automaticamente.
   const cacheKey = getCacheKey(endpoint, params, user?.id);
+  // Cache persistente apenas para admins com identidade confirmada:
+  // - user.id indefinido (sessão em restauração) → sem cache, evita chave anônima
+  // - não-admin → sem stale-while-revalidate: se o admin alterar permissões,
+  //   o usuário nunca vê dados antigos antes da resposta atual do servidor
+  const canUseCache = Boolean(user?.id) && user?.is_admin === true;
 
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -74,7 +81,7 @@ export function useAnalyticsData(endpoint, params, options = {}) {
       };
     }
 
-    const cached = readCache(cacheKey);
+    const cached = canUseCache ? readCache(cacheKey) : null;
     if (cached) {
       setData(cached);
       setLoading(false);
@@ -95,7 +102,7 @@ export function useAnalyticsData(endpoint, params, options = {}) {
             setData(response.data);
             setStale(false);
             setLoading(false);
-            writeCache(cacheKey, response.data);
+            if (canUseCache) writeCache(cacheKey, response.data);
           }
         })
         .catch((err) => {
@@ -122,7 +129,7 @@ export function useAnalyticsData(endpoint, params, options = {}) {
     return () => {
       cancelled = true;
     };
-  }, [cacheKey, retryCount, enabled, timeout]);
+  }, [cacheKey, retryCount, enabled, timeout, canUseCache]);
 
   return {
     data,

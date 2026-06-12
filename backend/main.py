@@ -280,7 +280,8 @@ def get_user_setores(user: User, db: Session) -> tuple[str, ...] | None:
         .filter(UserSectorAccess.user_id == user.id)
         .all()
     )
-    return tuple(row[0].upper() for row in rows)
+    # sorted: chave de cache estável independente da ordem de inserção no banco
+    return tuple(sorted(row[0].upper() for row in rows))
 
 
 def build_filters_for_user(
@@ -1156,6 +1157,21 @@ def _ensure_assignee_can_access_setor(db: Session, assigned_to: int | None, seto
         )
 
 
+def _pauta_item_visible_to(item: PautaItem, user: User, setores: tuple[str, ...] | None) -> bool:
+    """Escopo cumulativo da pauta para não-admin:
+    o item deve estar atribuído ao usuário E o setor do item deve pertencer
+    ao escopo setorial ATUAL do usuário. Se o admin removeu o acesso a um
+    setor depois da atribuição, os itens daquele setor deixam de ser visíveis.
+    """
+    if user.is_admin:
+        return True
+    if item.assigned_to != user.id:
+        return False
+    if setores is None:
+        return True
+    return item.setor in setores
+
+
 # ── Endpoints de Sessões ──────────────────────────────────────────────────
 
 @app.get("/api/pauta/sessoes")
@@ -1164,11 +1180,14 @@ def list_pauta_sessoes(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Lista sessões de pauta. Admin vê todas; usuário comum vê as que têm itens atribuídos a ele."""
+    """Lista sessões de pauta. Admin vê todas; usuário comum vê apenas as que
+    têm itens atribuídos a ele em setores do seu escopo atual."""
     query = db.query(PautaSessao).order_by(PautaSessao.data_inicio.desc())
     if ativa is not None:
         query = query.filter(PautaSessao.ativa == ativa)
     sessoes = query.all()
+
+    setores_atuais = get_user_setores(current_user, db)
 
     users_map = {
         u.id: {"name": u.name, "email": u.email}
@@ -1177,19 +1196,15 @@ def list_pauta_sessoes(
 
     result = []
     for s in sessoes:
-        # Não admin: só mostra se tiver itens atribuídos a ele
-        if not current_user.is_admin:
-            has_items = db.query(PautaItem).filter(
-                PautaItem.sessao_id == s.id, PautaItem.assigned_to == current_user.id
-            ).first()
-            if not has_items:
-                continue
-
         contagens = {st: 0 for st in ["pendente", "em_acompanhamento", "saiu_do_setor", "resolvido_manual", "arquivado"]}
         for item in s.itens:
-            if not current_user.is_admin and item.assigned_to != current_user.id:
+            if not _pauta_item_visible_to(item, current_user, setores_atuais):
                 continue
             contagens[item.status] = contagens.get(item.status, 0) + 1
+
+        # Não admin: sessão só aparece se tiver ao menos um item visível
+        if not current_user.is_admin and sum(contagens.values()) == 0:
+            continue
 
         result.append({
             "id": s.id,
@@ -1241,13 +1256,19 @@ def get_pauta_sessao(
     if not s:
         raise HTTPException(status_code=404, detail="Sessão não encontrada.")
 
+    setores_atuais = get_user_setores(current_user, db)
     users_map = {u.id: {"name": u.name, "email": u.email} for u in db.query(User).all()}
 
     itens = []
     for item in sorted(s.itens, key=lambda x: (-(x.score_risco or 0), -(x.dias_no_setor or 0))):
-        if not current_user.is_admin and item.assigned_to != current_user.id:
+        if not _pauta_item_visible_to(item, current_user, setores_atuais):
             continue
         itens.append(_pauta_item_to_dict(item, users_map))
+
+    # Não-admin sem itens visíveis: 404 — não confirma sequer que a sessão
+    # existe, e não vaza título/observações de pautas alheias
+    if not current_user.is_admin and not itens:
+        raise HTTPException(status_code=404, detail="Sessão não encontrada.")
 
     contagens = {st: 0 for st in ["pendente", "em_acompanhamento", "saiu_do_setor", "resolvido_manual", "arquivado"]}
     for item in itens:
@@ -1449,6 +1470,10 @@ def get_minha_pauta(
         )
         .all()
     )
+
+    # Escopo cumulativo: além de atribuído, o setor precisa estar no escopo atual
+    setores_atuais = get_user_setores(current_user, db)
+    items = [i for i in items if _pauta_item_visible_to(i, current_user, setores_atuais)]
 
     return {
         "user": {"id": current_user.id, "name": current_user.name},
@@ -2152,10 +2177,40 @@ def update_user_sectors(
 
     old_rows = db.query(UserSectorAccess.setor).filter(UserSectorAccess.user_id == user_id).all()
     old_setores = sorted(row[0] for row in old_rows)
+    new_setores = sorted({s.upper().strip() for s in payload.setores if s.strip()})
+
+    # Valida contra a lista oficial de setores do sistema
+    invalidos = [s for s in new_setores if s not in SETORES]
+    if invalidos:
+        raise HTTPException(status_code=400, detail=f"Setor(es) inválido(s): {', '.join(invalidos)}.")
+
+    # Remoção de setor com pauta ativa: bloqueia até o admin reatribuir os itens,
+    # evitando itens atribuídos a um responsável que não pode mais vê-los
+    removidos = set(old_setores) - set(new_setores)
+    if removidos:
+        conflitos = (
+            db.query(PautaItem)
+            .join(PautaSessao, PautaItem.sessao_id == PautaSessao.id)
+            .filter(
+                PautaItem.assigned_to == user_id,
+                PautaItem.setor.in_(removidos),
+                PautaItem.status.in_(["pendente", "em_acompanhamento"]),
+                PautaSessao.ativa == True,
+            )
+            .count()
+        )
+        if conflitos:
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    f"O usuário tem {conflitos} item(ns) ativo(s) na Pauta Prioritária "
+                    f"nos setores removidos ({', '.join(sorted(removidos))}). "
+                    "Reatribua ou resolva esses itens antes de remover o acesso."
+                ),
+            )
 
     # Substituição completa
     db.query(UserSectorAccess).filter(UserSectorAccess.user_id == user_id).delete()
-    new_setores = sorted({s.upper().strip() for s in payload.setores if s.strip()})
     for setor in new_setores:
         db.add(UserSectorAccess(user_id=user_id, setor=setor))
 
@@ -2219,7 +2274,8 @@ def alerts_summary(
 ):
     """Resumo rápido de processos críticos para o sino de notificações.
     Usa o cache do stale-processes — resposta muito rápida."""
-    stale = get_stale_processes_data(db, AnalyticsFilters(setores_permitidos=get_user_setores(current_user, db)))
+    setores_atuais = get_user_setores(current_user, db)
+    stale = get_stale_processes_data(db, AnalyticsFilters(setores_permitidos=setores_atuais))
     processos = stale.get("processos", [])
 
     def conta(min_dias: int) -> int:
@@ -2231,6 +2287,7 @@ def alerts_summary(
     )[:8]
 
     # ── Pauta: itens pendentes do usuário (ou de todos para admin) ──────
+    # Escopo cumulativo: atribuído ao usuário E setor no escopo atual
     pauta_query = (
         db.query(PautaItem)
         .join(PautaSessao, PautaItem.sessao_id == PautaSessao.id)
@@ -2241,6 +2298,11 @@ def alerts_summary(
     )
     if not current_user.is_admin:
         pauta_query = pauta_query.filter(PautaItem.assigned_to == current_user.id)
+        if setores_atuais is not None:
+            if len(setores_atuais) == 0:
+                pauta_query = pauta_query.filter(text("1=0"))
+            else:
+                pauta_query = pauta_query.filter(PautaItem.setor.in_(setores_atuais))
 
     pauta_pendentes = pauta_query.count()
     pauta_itens_raw = pauta_query.order_by(PautaItem.score_risco.desc().nullslast()).limit(5).all()
@@ -2270,12 +2332,12 @@ def filter_options(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> FilterOptions:
-    opts = get_filter_options(db)
-    opts["setores_validos"] = SETORES
     setores_permitidos = get_user_setores(current_user, db)
+    # Opções já derivadas exclusivamente dos setores permitidos (datas, tipos,
+    # setores e atribuições) — nenhum metadado de divisões não autorizadas
+    opts = get_filter_options(db, setores_permitidos)
+    opts["setores_validos"] = SETORES
     if setores_permitidos is not None:
-        # Restringe setores no dropdown ao que o usuário pode ver
-        opts["setores"] = [s for s in opts["setores"] if s in setores_permitidos]
         opts["setor_restrito"] = True
         opts["setores_do_usuario"] = list(setores_permitidos)
 

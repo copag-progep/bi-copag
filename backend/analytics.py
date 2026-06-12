@@ -8,7 +8,7 @@ import sys
 import time
 from collections import OrderedDict
 from collections.abc import Callable, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date, datetime, timedelta
 import threading
 from threading import Lock, Semaphore
@@ -357,11 +357,33 @@ def _distinct_values(db: Session, column) -> list:
     return [row[0] for row in values if row[0] not in (None, "")]
 
 
-def get_filter_options(db: Session) -> dict:
+def get_filter_options(db: Session, setores_permitidos: tuple[str, ...] | None = None) -> dict:
+    """Opções de filtros (datas, setores, tipos, atribuições).
+
+    Para usuários restritos, TODAS as listas são derivadas exclusivamente dos
+    processos dos setores permitidos — datas e tipos de divisões não
+    autorizadas não são expostos nem como metadado.
+    """
     def build() -> dict:
+        base = db.query(Processo)
+        if setores_permitidos is not None:
+            if len(setores_permitidos) == 0:
+                return {"datas": [], "setores": [], "tipos": [], "atribuicoes": []}
+            base = base.filter(Processo.setor.in_(setores_permitidos))
+
+        def distinct(column) -> list:
+            values = (
+                base.with_entities(column)
+                .filter(column.is_not(None))
+                .distinct()
+                .order_by(column.asc())
+                .all()
+            )
+            return [row[0] for row in values if row[0] not in (None, "")]
+
         datas = [
             row[0]
-            for row in db.query(Processo.data_relatorio)
+            for row in base.with_entities(Processo.data_relatorio)
             .distinct()
             .order_by(Processo.data_relatorio.asc())
             .all()
@@ -369,30 +391,20 @@ def get_filter_options(db: Session) -> dict:
         ]
         return {
             "datas": datas,
-            "setores": _distinct_values(db, Processo.setor),
-            "tipos": _distinct_values(db, Processo.tipo),
-            "atribuicoes": _distinct_values(db, Processo.atribuicao_normalizada),
+            "setores": distinct(Processo.setor),
+            "tipos": distinct(Processo.tipo),
+            "atribuicoes": distinct(Processo.atribuicao_normalizada),
         }
 
-    return _cached_response(db, "filter-options", None, build)
+    return _cached_response(db, "filter-options", None, build, extra_key=(setores_permitidos,))
 
 
 def _available_dates(db: Session, filters: AnalyticsFilters | None = None) -> list[date]:
-    query = db.query(Processo)
-    if filters:
-        if filters.setor:
-            query = query.filter(Processo.setor == filters.setor.upper())
-        if filters.tipo:
-            query = query.filter(Processo.tipo == filters.tipo)
-        if filters.atribuicao:
-            if filters.atribuicao == "__sem_atribuicao__":
-                query = query.filter(Processo.atribuicao_normalizada.is_(None))
-            else:
-                query = query.filter(Processo.atribuicao_normalizada == filters.atribuicao)
-        if filters.data_inicial:
-            query = query.filter(Processo.data_relatorio >= filters.data_inicial)
-        if filters.data_final:
-            query = query.filter(Processo.data_relatorio <= filters.data_final)
+    # Reutiliza _base_query — ponto ÚNICO de aplicação de escopo (inclusive
+    # setores_permitidos). Antes esta função duplicava os filtros manualmente
+    # e ignorava o escopo setorial, fazendo a data de referência de um usuário
+    # restrito ser escolhida com base em snapshots de setores não autorizados.
+    query = _base_query(db, filters) if filters else db.query(Processo)
 
     values = (
         query.with_entities(Processo.data_relatorio)
@@ -424,14 +436,10 @@ def _effective_filters(filters: AnalyticsFilters) -> AnalyticsFilters:
     if filters.data_inicial is not None or _ANALYTICS_LOOKBACK_DAYS <= 0:
         return filters
     cutoff = date.today() - timedelta(days=_ANALYTICS_LOOKBACK_DAYS)
-    return AnalyticsFilters(
-        data_referencia=filters.data_referencia,
-        data_inicial=cutoff,
-        data_final=filters.data_final,
-        setor=filters.setor,
-        tipo=filters.tipo,
-        atribuicao=filters.atribuicao,
-    )
+    # dataclasses.replace preserva TODOS os demais campos por construção —
+    # inclusive setores_permitidos. Nunca reconstruir AnalyticsFilters campo
+    # a campo: omissões silenciosas já causaram vazamento de escopo setorial.
+    return replace(filters, data_inicial=cutoff)
 
 
 def _load_dataframe(
@@ -617,21 +625,14 @@ def _finalized_by_attribution(frame: pd.DataFrame, available_dates: list[date]) 
 
 
 def _multi_sector_processes_for_filters(db: Session, filters: AnalyticsFilters) -> tuple[str | None, list[dict]]:
-    """Detecta protocolos em múltiplos setores usando contexto global do snapshot.
+    """Detecta protocolos em múltiplos setores dentro do escopo do usuário.
 
-    A detecção precisa enxergar todos os setores do dia; caso contrário, um usuário
-    filtrado por DIAPE nunca verá que um protocolo da DIAPE também aparece em DICAF.
-    Depois da detecção global, restringimos a lista aos protocolos que envolvem o
-    setor selecionado ou algum setor permitido ao usuário.
+    Remove apenas o filtro de setor selecionado (a detecção precisa comparar
+    setores entre si), mas PRESERVA setores_permitidos: usuário restrito só
+    detecta duplicidades entre os setores que pode ver, e a resposta nunca
+    revela nomes de setores fora do seu escopo. Admin mantém visão global.
     """
-    search_filters = AnalyticsFilters(
-        data_referencia=filters.data_referencia,
-        data_inicial=filters.data_inicial,
-        data_final=filters.data_final,
-        setor=None,
-        tipo=filters.tipo,
-        atribuicao=filters.atribuicao,
-    )
+    search_filters = replace(filters, setor=None)
     frame, reference_date, _ = _load_dataframe(db, search_filters, fields=FLOW_FIELDS)
     current = _snapshot(frame, reference_date)
     if current.empty:
