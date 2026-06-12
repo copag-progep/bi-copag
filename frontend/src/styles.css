@@ -1412,6 +1412,221 @@ button, input, select { font: inherit; }
 
 
 /* ══════════════════════════════════════════
+   PAUTA PRIORITÁRIA — cronograma e progresso
+══════════════════════════════════════════ */
+.pauta-cronograma {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.pauta-cronograma-marcos {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr) auto;
+  gap: 14px;
+  align-items: start;
+}
+
+.pauta-marco {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.pauta-marco-titulo {
+  font-size: 0.68rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .07em;
+  color: var(--muted);
+}
+
+.pauta-marco-data {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: var(--ink);
+  line-height: 1.1;
+}
+
+.pauta-marco-sub {
+  align-self: flex-start;
+  padding: 2px 9px;
+  border-radius: 8px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.pauta-marco-edit {
+  align-self: center;
+  padding: 7px 9px;
+  display: inline-flex;
+}
+
+.pauta-tempo-track {
+  position: relative;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--primary-light);
+  overflow: visible;
+}
+
+.pauta-tempo-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--primary), var(--accent));
+  min-width: 2px;
+  transition: width .4s ease;
+}
+
+.pauta-tempo-label {
+  position: absolute;
+  right: 0;
+  top: -18px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+/* Editor inline da sessão */
+.pauta-edit-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.pauta-edit-datas {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+
+.pauta-edit-aviso {
+  padding: 8px 14px;
+  border-radius: 8px;
+  background: rgba(254, 187, 18, .14);
+  border: 1px solid rgba(254, 187, 18, .3);
+  color: #8a5b00;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+/* Progresso de resolução (segmentado) */
+.pauta-progresso {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+
+.pauta-progresso-track {
+  display: flex;
+  height: 12px;
+  border-radius: 999px;
+  background: var(--primary-light);
+  overflow: hidden;
+}
+
+.pauta-progresso-seg { height: 100%; }
+.seg-resolvido { background: #1a7a50; }
+.seg-acomp     { background: var(--primary); }
+.seg-pendente  { background: var(--yellow); }
+
+.pauta-progresso-legenda {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  margin-top: 7px;
+  flex-wrap: wrap;
+}
+
+.pauta-progresso-legenda strong {
+  font-size: 0.85rem;
+  font-weight: 800;
+  color: var(--ink);
+}
+
+.pauta-progresso-legenda span {
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+.pauta-progresso-legenda .dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  margin-right: 3px;
+}
+.dot-resolvido { background: #1a7a50; }
+.dot-acomp     { background: var(--primary); }
+.dot-pendente  { background: var(--yellow); }
+
+/* Menu administrativo (⋯) */
+.pauta-admin-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  min-width: 190px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
+  z-index: 60;
+  overflow: hidden;
+  padding: 5px;
+}
+
+.pauta-admin-menu button {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 9px 12px;
+  border: none;
+  border-radius: calc(var(--radius) - 4px);
+  background: none;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.83rem;
+  font-weight: 600;
+  color: var(--ink);
+  text-align: left;
+}
+
+.pauta-admin-menu button:hover,
+.pauta-admin-menu button:focus-visible {
+  background: var(--primary-light);
+  outline: none;
+}
+
+.pauta-admin-menu button.danger { color: #bf3535; }
+.pauta-admin-menu button.danger:hover { background: rgba(191, 53, 53, .08); }
+
+/* Entrada discreta das linhas (apenas no carregamento) */
+@keyframes pauta-row-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: none; }
+}
+
+.pauta-row-in {
+  animation: pauta-row-in .25s ease both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pauta-row-in { animation: none; }
+}
+
+@media (max-width: 720px) {
+  .pauta-cronograma-marcos {
+    grid-template-columns: 1fr 1fr;
+  }
+  .pauta-marco-edit { grid-column: 2; justify-self: end; }
+  .pauta-edit-datas { grid-template-columns: 1fr; }
+}
+
+
+/* ══════════════════════════════════════════
    RISK SCORE — Score de Risco (Fase 5)
 ══════════════════════════════════════════ */
 .risk-hero { align-items: flex-start; }

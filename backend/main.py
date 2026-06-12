@@ -1296,9 +1296,46 @@ def update_pauta_sessao(
         raise HTTPException(status_code=404, detail="Sessão não encontrada.")
 
     was_active = s.ativa
-    for field, value in payload.model_dump(exclude_none=True).items():
+    # exclude_unset (não exclude_none): permite ao admin LIMPAR uma data
+    # opcional enviando null explicitamente; campos não enviados ficam intactos
+    data = payload.model_dump(exclude_unset=True)
+
+    if "titulo" in data and data["titulo"] is None:
+        raise HTTPException(status_code=400, detail="Título é obrigatório.")
+    if "data_inicio" in data and data["data_inicio"] is None:
+        raise HTTPException(status_code=400, detail="Data de início é obrigatória.")
+
+    # Valida coerência com os valores FINAIS (mesclando atuais + enviados)
+    final_inicio = data.get("data_inicio", s.data_inicio)
+    final_fim = data.get("data_fim", s.data_fim)
+    if final_inicio and final_fim and final_inicio > final_fim:
+        raise HTTPException(
+            status_code=400,
+            detail="O prazo da pauta não pode ser anterior à data de início.",
+        )
+
+    # Auditoria de edição: registra apenas os campos que mudaram, com antes/depois
+    tracked = ("titulo", "data_inicio", "data_fim", "data_reuniao", "observacoes")
+    changes = {
+        field: {"de": str(getattr(s, field)) if getattr(s, field) is not None else None,
+                "para": str(data[field]) if data[field] is not None else None}
+        for field in tracked
+        if field in data and data[field] != getattr(s, field)
+    }
+
+    for field, value in data.items():
         setattr(s, field, value)
     s.updated_at = datetime.now(timezone.utc)
+
+    if changes:
+        _log_audit(
+            db,
+            action="pauta.sessao_editada",
+            entity_type="pauta_sessao",
+            entity_id=str(sessao_id),
+            details={"titulo": s.titulo, "alteracoes": changes},
+            user=current_admin,
+        )
 
     # Auditoria de encerramento — registra contagens finais da sessão
     if was_active and s.ativa is False:

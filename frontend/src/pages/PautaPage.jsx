@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 
 import api from "../api/client";
@@ -72,6 +72,286 @@ function KpiPill({ label, value, color }) {
   );
 }
 
+// ── Datas em America/Fortaleza (evita virada de dia por UTC) ──────────────
+function hojeFortaleza() {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Fortaleza" }).format(new Date());
+}
+
+function diffDias(dateStr) {
+  if (!dateStr) return null;
+  const MS_DIA = 86400000;
+  return Math.round((Date.parse(`${dateStr}T00:00:00Z`) - Date.parse(`${hojeFortaleza()}T00:00:00Z`)) / MS_DIA);
+}
+
+function fmtData(dateStr) {
+  if (!dateStr) return "—";
+  return new Intl.DateTimeFormat("pt-BR", { timeZone: "UTC" }).format(new Date(`${dateStr}T00:00:00Z`));
+}
+
+const MARCO_TONES = {
+  ok:     { color: "var(--primary)", bg: "rgba(39,49,104,.07)" },
+  warn:   { color: "#8a5b00",        bg: "rgba(254,187,18,.16)" },
+  danger: { color: "#bf3535",        bg: "rgba(191,53,53,.1)"  },
+  muted:  { color: "var(--muted)",   bg: "rgba(0,0,0,.04)"     },
+  done:   { color: "#1a7a50",        bg: "rgba(26,122,80,.1)"  },
+};
+
+function inicioInfo(dataInicio) {
+  const d = diffDias(dataInicio);
+  if (d === null) return { label: "—", tone: "muted" };
+  if (d > 0) return { label: d === 1 ? "Inicia amanhã" : `Inicia em ${d} dias`, tone: "muted" };
+  if (d === 0) return { label: "Inicia hoje", tone: "ok" };
+  return { label: d === -1 ? "Iniciada há 1 dia" : `Iniciada há ${-d} dias`, tone: "ok" };
+}
+
+function reuniaoInfo(dataReuniao) {
+  const d = diffDias(dataReuniao);
+  if (d === null) return { label: "Sem data definida", tone: "muted" };
+  if (d > 0) return { label: d === 1 ? "Amanhã" : `Em ${d} dias`, tone: d <= 2 ? "warn" : "ok" };
+  if (d === 0) return { label: "Hoje", tone: "warn" };
+  return { label: d === -1 ? "Realizada há 1 dia" : `Realizada há ${-d} dias`, tone: "done" };
+}
+
+function prazoInfo(dataFim, totalAtivos) {
+  const d = diffDias(dataFim);
+  if (d === null) return { label: "Sem prazo definido", tone: "muted" };
+  if (d > 0) return { label: d === 1 ? "Falta 1 dia" : `Faltam ${d} dias`, tone: d <= 3 ? "warn" : "ok" };
+  if (d === 0) return { label: "Prazo termina hoje", tone: "warn" };
+  if (totalAtivos > 0) return { label: d === -1 ? "Vencido há 1 dia" : `Vencido há ${-d} dias`, tone: "danger" };
+  return { label: "Concluída no período", tone: "done" };
+}
+
+// ── Ícones (paths Lucide, inline — sem dependência nova) ─────────────────
+function LucideIcon({ paths, size = 15 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      {paths.map((p, i) => <path key={i} d={p} />)}
+    </svg>
+  );
+}
+const ICO = {
+  plus:     ["M5 12h14", "M12 5v14"],
+  fileDown: ["M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z", "M14 2v5h5", "M12 18v-6", "m9 15 3 3 3-3"],
+  copy:     ["M8 8h12v12H8z", "M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"],
+  more:     ["M11 12h2", "M4 12h2", "M18 12h2"],
+  pencil:   ["M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"],
+  archive:  ["M2 3h20v5H2z", "M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8", "M10 12h4"],
+};
+
+// ── Cronograma da sessão (visível para todos) ─────────────────────────────
+function CronogramaSessao({ sessao, totalAtivos, isAdmin, onEditar }) {
+  const marcos = [
+    { titulo: "Início",         data: sessao.data_inicio,  info: inicioInfo(sessao.data_inicio) },
+    { titulo: "Reunião",        data: sessao.data_reuniao, info: reuniaoInfo(sessao.data_reuniao) },
+    { titulo: "Prazo da pauta", data: sessao.data_fim,     info: prazoInfo(sessao.data_fim, totalAtivos) },
+  ];
+
+  // Progresso temporal do período (só quando início e prazo existem)
+  let pctTempo = null;
+  const dIni = diffDias(sessao.data_inicio);
+  const dFim = diffDias(sessao.data_fim);
+  if (dIni !== null && dFim !== null && dFim > dIni) {
+    pctTempo = Math.min(100, Math.max(0, Math.round((-dIni / (dFim - dIni)) * 100)));
+  }
+
+  return (
+    <div className="pauta-cronograma">
+      <div className="pauta-cronograma-marcos">
+        {marcos.map((m) => {
+          const tone = MARCO_TONES[m.info.tone];
+          return (
+            <div key={m.titulo} className="pauta-marco">
+              <span className="pauta-marco-titulo">{m.titulo}</span>
+              <strong className="pauta-marco-data">{fmtData(m.data)}</strong>
+              <span className="pauta-marco-sub" style={{ color: tone.color, background: tone.bg }}>
+                {m.info.label}
+              </span>
+            </div>
+          );
+        })}
+        {isAdmin && (
+          <button type="button" className="ghost-button pauta-marco-edit" onClick={onEditar}
+            title="Editar título, datas e observações da sessão" aria-label="Editar sessão">
+            <LucideIcon paths={ICO.pencil} size={14} />
+          </button>
+        )}
+      </div>
+      {pctTempo !== null && (
+        <div className="pauta-tempo-track" title={`${pctTempo}% do período decorrido`}>
+          <div className="pauta-tempo-fill" style={{ width: `${pctTempo}%` }} />
+          <span className="pauta-tempo-label">{pctTempo}%</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Editor inline da sessão (admin) ───────────────────────────────────────
+function SessaoEditForm({ sessao, onSaved, onCancel }) {
+  const [form, setForm] = useState({
+    titulo: sessao.titulo || "",
+    data_inicio: sessao.data_inicio || "",
+    data_reuniao: sessao.data_reuniao || "",
+    data_fim: sessao.data_fim || "",
+    observacoes: sessao.observacoes || "",
+  });
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState("");
+
+  // Aviso (não bloqueio): reunião fora do período pode ser cobrança legítima
+  const reuniaoForaDoPeriodo =
+    form.data_reuniao && form.data_inicio &&
+    (form.data_reuniao < form.data_inicio || (form.data_fim && form.data_reuniao > form.data_fim));
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    if (!form.data_inicio) { setErr("Data de início é obrigatória."); return; }
+    if (form.data_fim && form.data_inicio > form.data_fim) {
+      setErr("O prazo da pauta não pode ser anterior à data de início.");
+      return;
+    }
+    setSaving(true);
+    setErr("");
+    try {
+      // Envia null explicitamente para limpar datas opcionais (backend usa exclude_unset)
+      await api.patch(`/pauta/sessoes/${sessao.id}`, {
+        titulo: form.titulo,
+        data_inicio: form.data_inicio,
+        data_reuniao: form.data_reuniao || null,
+        data_fim: form.data_fim || null,
+        observacoes: form.observacoes || null,
+      });
+      onSaved();
+    } catch (ex) {
+      setErr(ex.response?.data?.detail || "Falha ao salvar a sessão.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="pauta-edit-form">
+      <label className="field">
+        <span>Título da sessão</span>
+        <input type="text" required minLength={3} value={form.titulo}
+          onChange={(e) => setForm((p) => ({ ...p, titulo: e.target.value }))} />
+      </label>
+      <div className="pauta-edit-datas">
+        <label className="field">
+          <span>Início</span>
+          <input type="date" required value={form.data_inicio}
+            onChange={(e) => setForm((p) => ({ ...p, data_inicio: e.target.value }))} />
+        </label>
+        <label className="field">
+          <span>Reunião</span>
+          <input type="date" value={form.data_reuniao}
+            onChange={(e) => setForm((p) => ({ ...p, data_reuniao: e.target.value }))} />
+        </label>
+        <label className="field">
+          <span>Prazo da pauta</span>
+          <input type="date" value={form.data_fim}
+            onChange={(e) => setForm((p) => ({ ...p, data_fim: e.target.value }))} />
+        </label>
+      </div>
+      <label className="field">
+        <span>Observações</span>
+        <input type="text" value={form.observacoes}
+          onChange={(e) => setForm((p) => ({ ...p, observacoes: e.target.value }))}
+          placeholder="Contexto ou foco da sessão (opcional)" />
+      </label>
+      {reuniaoForaDoPeriodo && (
+        <div className="pauta-edit-aviso">
+          ⚠ A data da reunião está fora do período da pauta — permitido, mas confira se é intencional.
+        </div>
+      )}
+      {err && <div style={{ color: "#bf3535", fontSize: "0.85rem", fontWeight: 600 }}>{err}</div>}
+      <div style={{ display: "flex", gap: 8 }}>
+        <button type="submit" className="primary-button" disabled={saving}
+          style={{ fontSize: "0.85rem", padding: "8px 18px" }}>
+          {saving ? "Salvando..." : "Salvar alterações"}
+        </button>
+        <button type="button" className="ghost-button" onClick={onCancel} style={{ fontSize: "0.85rem" }}>
+          Cancelar
+        </button>
+      </div>
+    </form>
+  );
+}
+
+// ── Progresso de resolução (segmentado por status) ───────────────────────
+function ProgressoResolucao({ contagens }) {
+  const resolvidos = (contagens.saiu_do_setor || 0) + (contagens.resolvido_manual || 0);
+  const acomp = contagens.em_acompanhamento || 0;
+  const pendentes = contagens.pendente || 0;
+  const total = resolvidos + acomp + pendentes; // arquivados fora do denominador
+  if (total === 0) return null;
+
+  const pct = (n) => `${(n / total) * 100}%`;
+  return (
+    <div className="pauta-progresso">
+      <div className="pauta-progresso-track">
+        {resolvidos > 0 && <div className="pauta-progresso-seg seg-resolvido" style={{ width: pct(resolvidos) }} />}
+        {acomp > 0 && <div className="pauta-progresso-seg seg-acomp" style={{ width: pct(acomp) }} />}
+        {pendentes > 0 && <div className="pauta-progresso-seg seg-pendente" style={{ width: pct(pendentes) }} />}
+      </div>
+      <div className="pauta-progresso-legenda">
+        <strong>{resolvidos} de {total} processos resolvidos</strong>
+        <span>
+          <i className="dot dot-resolvido" /> {resolvidos} resolvidos ·{" "}
+          <i className="dot dot-acomp" /> {acomp} em acompanhamento ·{" "}
+          <i className="dot dot-pendente" /> {pendentes} pendentes
+        </span>
+      </div>
+    </div>
+  );
+}
+
+// ── Menu administrativo (⋯) ───────────────────────────────────────────────
+function AdminMenu({ onEditar, onEncerrar, sessaoAtiva }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function onClick(e) {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    }
+    function onKey(e) {
+      if (e.key === "Escape") setOpen(false);
+    }
+    document.addEventListener("mousedown", onClick);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onClick);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  return (
+    <div ref={ref} style={{ position: "relative" }}>
+      <button type="button" className="ghost-button" onClick={() => setOpen((v) => !v)}
+        aria-haspopup="menu" aria-expanded={open} aria-label="Mais ações da sessão"
+        style={{ padding: "8px 10px", display: "inline-flex" }}>
+        <LucideIcon paths={ICO.more} size={16} />
+      </button>
+      {open && (
+        <div className="pauta-admin-menu" role="menu">
+          <button type="button" role="menuitem" onClick={() => { setOpen(false); onEditar(); }}>
+            <LucideIcon paths={ICO.pencil} size={14} /> Editar sessão
+          </button>
+          {sessaoAtiva && (
+            <button type="button" role="menuitem" className="danger"
+              onClick={() => { setOpen(false); onEncerrar(); }}>
+              <LucideIcon paths={ICO.archive} size={14} /> Encerrar sessão
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Formulário: copiar pendências para nova sessão ────────────────────────
 function CopiarPendenciasForm({ sessaoId, onCreated, onCancel }) {
   const today = new Date().toISOString().slice(0, 10);
@@ -113,7 +393,7 @@ function CopiarPendenciasForm({ sessaoId, onCreated, onCancel }) {
             onChange={(e) => setForm((p) => ({ ...p, data_inicio: e.target.value }))} />
         </label>
         <label className="field">
-          <span>Fim do período</span>
+          <span>Prazo da pauta</span>
           <input type="date" value={form.data_fim}
             onChange={(e) => setForm((p) => ({ ...p, data_fim: e.target.value }))} />
         </label>
@@ -183,7 +463,7 @@ function NovaSessaoForm({ onCreated, onCancel }) {
             onChange={(e) => setForm((p) => ({ ...p, data_inicio: e.target.value }))} />
         </label>
         <label className="field">
-          <span>Fim do período</span>
+          <span>Prazo da pauta</span>
           <input type="date" value={form.data_fim}
             onChange={(e) => setForm((p) => ({ ...p, data_fim: e.target.value }))} />
         </label>
@@ -403,7 +683,7 @@ function AdicionarProcessosModal({ sessaoId, users, onClose, onAdded }) {
 }
 
 // ── Linha de item com edição inline ──────────────────────────────────────
-function PautaItemRow({ item, isAdmin, onUpdated, onDelete }) {
+function PautaItemRow({ item, idx, isAdmin, onUpdated, onDelete }) {
   const [editing, setEditing] = useState(false);
   const [nota, setNota] = useState(item.nota_responsavel || "");
   const [saving, setSaving] = useState(false);
@@ -432,10 +712,20 @@ function PautaItemRow({ item, isAdmin, onUpdated, onDelete }) {
   }
 
   const isActive = ["pendente", "em_acompanhamento"].includes(item.status);
+  const statusColor = (STATUS_CFG[item.status] || STATUS_CFG.pendente).color;
 
   return (
-    <tr style={{ background: !isActive ? "rgba(0,0,0,.02)" : undefined, opacity: item.status === "arquivado" ? .5 : 1 }}>
-      <td style={{ fontWeight: 600, fontSize: "0.78rem", color: "var(--primary)" }}>{item.protocolo}</td>
+    <tr
+      className="pauta-row-in"
+      style={{
+        opacity: item.status === "arquivado" ? .5 : 1,
+        animationDelay: `${Math.min(idx ?? 0, 10) * 30}ms`,
+      }}
+    >
+      <td style={{
+        fontWeight: 600, fontSize: "0.78rem", color: "var(--primary)",
+        borderLeft: `4px solid ${statusColor}`,
+      }}>{item.protocolo}</td>
       <td>
         <span style={{ padding: "1px 7px", borderRadius: 8, fontSize: "0.72rem", fontWeight: 700, background: "var(--primary-light)", color: "var(--primary)" }}>
           {item.setor}
@@ -523,6 +813,7 @@ export default function PautaPage() {
   const [showCopiarForm, setShowCopiarForm] = useState(false);
   const [closeAfterCopy, setCloseAfterCopy] = useState(false);
   const [showEncerrarModal, setShowEncerrarModal] = useState(false);
+  const [showEditarSessao, setShowEditarSessao] = useState(false);
   const [showMetricas, setShowMetricas] = useState(false);
   const [metricas, setMetricas] = useState(null);
   const [pdfLoading, setPdfLoading] = useState(false);
@@ -629,12 +920,16 @@ export default function PautaPage() {
 
   return (
     <div className="page-grid">
-      {/* Hero */}
+      {/* Hero contextual: nome da sessão ativa + estado do prazo */}
       <section className="hero-panel">
         <div>
-          <p className="eyebrow">Gestão executiva</p>
-          <h1>Pauta Prioritária</h1>
-          <p>Processos críticos selecionados para acompanhamento semanal.</p>
+          <p className="eyebrow">Pauta Prioritária</p>
+          <h1>{sessaoData?.titulo || "Pauta Prioritária"}</h1>
+          <p>
+            {sessaoData
+              ? `${prazoInfo(sessaoData.data_fim, totalAtivos).label}${sessaoData.data_fim ? ` · prazo ${fmtData(sessaoData.data_fim)}` : ""}`
+              : "Processos críticos selecionados para acompanhamento semanal."}
+          </p>
         </div>
         {sessaoData && (
           <div style={{ display: "flex", gap: 10, flexShrink: 0, flexWrap: "wrap" }}>
@@ -660,40 +955,48 @@ export default function PautaPage() {
           </label>
           {user?.is_admin && (
             <>
-              <button type="button" className="primary-button" onClick={() => setShowNovaSessao(true)}
-                style={{ fontSize: "0.82rem", padding: "8px 16px", whiteSpace: "nowrap" }}>
-                + Nova sessão
+              <button type="button" className="ghost-button" onClick={() => setShowNovaSessao(true)}
+                style={{ fontSize: "0.82rem", padding: "8px 14px", whiteSpace: "nowrap", display: "inline-flex", alignItems: "center", gap: 6 }}>
+                <LucideIcon paths={ICO.plus} size={14} /> Nova sessão
               </button>
               {sessaoAtual && sessaoData && (
                 <>
-                  <button type="button" className="table-button" onClick={() => setShowAdicionarModal(true)}
-                    style={{ fontSize: "0.82rem", padding: "8px 16px", whiteSpace: "nowrap" }}>
-                    + Adicionar processos
+                  {/* Ação primária */}
+                  <button type="button" className="primary-button" onClick={() => setShowAdicionarModal(true)}
+                    style={{ fontSize: "0.82rem", padding: "8px 16px", whiteSpace: "nowrap", display: "inline-flex", alignItems: "center", gap: 6 }}>
+                    <LucideIcon paths={ICO.plus} size={14} /> Adicionar processos
+                  </button>
+                  {/* Secundárias */}
+                  <button type="button" className="table-button"
+                    onClick={handleGerarPdf} disabled={pdfLoading}
+                    style={{ fontSize: "0.82rem", padding: "8px 14px", whiteSpace: "nowrap", display: "inline-flex", alignItems: "center", gap: 6 }}
+                    title="Exportar PDF da pauta desta sessão">
+                    <LucideIcon paths={ICO.fileDown} size={14} /> {pdfLoading ? "Gerando..." : "PDF"}
                   </button>
                   {(sessaoData?.contagens?.pendente > 0 || sessaoData?.contagens?.em_acompanhamento > 0) && (
-                    <button type="button" className="ghost-button" onClick={() => setShowCopiarForm(true)}
-                      style={{ fontSize: "0.82rem", padding: "8px 16px", whiteSpace: "nowrap" }}
+                    <button type="button" className="table-button" onClick={() => setShowCopiarForm(true)}
+                      style={{ fontSize: "0.82rem", padding: "8px 14px", whiteSpace: "nowrap", display: "inline-flex", alignItems: "center", gap: 6 }}
                       title="Copia itens pendentes desta sessão para uma nova sessão">
-                      ↗ Copiar pendências
+                      <LucideIcon paths={ICO.copy} size={14} /> Copiar pendências
                     </button>
                   )}
-                  <button type="button" className="ghost-button"
-                    onClick={handleGerarPdf} disabled={pdfLoading}
-                    style={{ fontSize: "0.82rem", padding: "8px 16px", whiteSpace: "nowrap" }}
-                    title="Exportar PDF da pauta desta sessão">
-                    {pdfLoading ? "Gerando..." : "⬇ PDF"}
-                  </button>
-                  {sessaoData?.ativa && (
-                    <button type="button" className="ghost-button"
-                      onClick={() => setShowEncerrarModal(true)}
-                      style={{ fontSize: "0.82rem", padding: "8px 16px", whiteSpace: "nowrap", color: "#bf3535" }}
-                      title="Encerrar e arquivar esta sessão">
-                      Encerrar sessão
-                    </button>
-                  )}
+                  {/* Administrativas: menu ⋯ */}
+                  <AdminMenu
+                    sessaoAtiva={Boolean(sessaoData?.ativa)}
+                    onEditar={() => setShowEditarSessao(true)}
+                    onEncerrar={() => setShowEncerrarModal(true)}
+                  />
                 </>
               )}
             </>
+          )}
+          {!user?.is_admin && sessaoData && (
+            <button type="button" className="table-button"
+              onClick={handleGerarPdf} disabled={pdfLoading}
+              style={{ fontSize: "0.82rem", padding: "8px 14px", whiteSpace: "nowrap", display: "inline-flex", alignItems: "center", gap: 6 }}
+              title="Exportar PDF da minha pauta">
+              <LucideIcon paths={ICO.fileDown} size={14} /> {pdfLoading ? "Gerando..." : "PDF"}
+            </button>
           )}
         </div>
 
@@ -708,6 +1011,33 @@ export default function PautaPage() {
           </div>
         )}
       </section>
+
+      {/* Cronograma da sessão — visível para todos os perfis */}
+      {sessaoData && (
+        <section className="panel" style={{ padding: "16px 20px" }}>
+          <CronogramaSessao
+            sessao={sessaoData}
+            totalAtivos={totalAtivos}
+            isAdmin={Boolean(user?.is_admin)}
+            onEditar={() => setShowEditarSessao(true)}
+          />
+          {showEditarSessao && user?.is_admin && (
+            <div style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid var(--border)" }}>
+              <SessaoEditForm
+                sessao={sessaoData}
+                onSaved={() => {
+                  setShowEditarSessao(false);
+                  setMsg("✓ Sessão atualizada.");
+                  loadSessaoData(sessaoAtual);
+                  loadSessoes();
+                }}
+                onCancel={() => setShowEditarSessao(false)}
+              />
+            </div>
+          )}
+          <ProgressoResolucao contagens={contagens} />
+        </section>
+      )}
 
       {/* Modal: encerrar sessão */}
       {showEncerrarModal && sessaoData && (
@@ -763,58 +1093,6 @@ export default function PautaPage() {
             </div>
           </div>
         </div>
-      )}
-
-      {/* Painel de métricas (admin, colapsável) */}
-      {user?.is_admin && metricas && (
-        <section className="panel">
-          <button type="button" onClick={() => setShowMetricas((v) => !v)}
-            style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", background: "none", border: "none", cursor: "pointer", fontFamily: "inherit", padding: 0 }}>
-            <h3 style={{ margin: 0, color: "var(--ink)", fontSize: "1rem" }}>Métricas de eficiência</h3>
-            <span style={{ fontSize: "0.75rem", color: "var(--muted)", marginLeft: "auto" }}>{showMetricas ? "▲ Recolher" : "▼ Expandir"}</span>
-          </button>
-
-          {showMetricas && (
-            <div style={{ marginTop: 16 }}>
-              {/* KPIs globais */}
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginBottom: 20 }}>
-                {[
-                  { label: "Tempo médio até resolução automática", value: metricas.tempo_medio_auto_dias != null ? `${metricas.tempo_medio_auto_dias}d` : "—", hint: "Apenas saiu_do_setor" },
-                  { label: "Overrides manuais (histórico)", value: metricas.overrides_manuais_total, hint: "resolvido_manual, admin only" },
-                  { label: "Pendências arrastadas", value: metricas.pendencias_arrastadas, hint: "Itens ativos em sessões encerradas" },
-                ].map((kpi) => (
-                  <div key={kpi.label} style={{ padding: 14, borderRadius: 10, background: "var(--bg)", border: "1px solid var(--border)" }}>
-                    <div style={{ fontSize: "1.5rem", fontWeight: 800, color: "var(--primary)", lineHeight: 1 }}>{kpi.value}</div>
-                    <div style={{ fontSize: "0.78rem", fontWeight: 700, color: "var(--ink)", marginTop: 4 }}>{kpi.label}</div>
-                    <div style={{ fontSize: "0.7rem", color: "var(--muted)", marginTop: 2 }}>{kpi.hint}</div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Eficiência por sessão */}
-              <p style={{ fontSize: "0.8rem", fontWeight: 700, color: "var(--muted)", marginBottom: 8, textTransform: "uppercase", letterSpacing: ".05em" }}>
-                Eficiência por sessão (últimas {metricas.sessoes?.length})
-              </p>
-              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                {(metricas.sessoes || []).map((s) => (
-                  <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    <span style={{ fontSize: "0.75rem", color: "var(--muted)", minWidth: 180, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}
-                      title={s.titulo}>{s.titulo}</span>
-                    <div style={{ flex: 1, height: 12, borderRadius: 999, background: "var(--primary-light)", overflow: "hidden", position: "relative" }}>
-                      <div style={{ height: "100%", width: `${s.taxa_auto_pct}%`, background: "#1a7a50", borderRadius: 999 }} />
-                      {s.resolvidos_manual > 0 && (
-                        <div style={{ position: "absolute", top: 0, left: `${s.taxa_auto_pct}%`, height: "100%", width: `${Math.round(s.resolvidos_manual / s.total * 100)}%`, background: "#4ade80", opacity: .6 }} />
-                      )}
-                    </div>
-                    <span style={{ fontSize: "0.72rem", fontWeight: 700, color: "#1a7a50", minWidth: 36, textAlign: "right" }}>{s.taxa_auto_pct}%</span>
-                    <span style={{ fontSize: "0.7rem", color: "var(--muted)", minWidth: 60 }}>{s.resolvidos_auto}/{s.total} auto</span>
-                    {!s.ativa && <span style={{ fontSize: "0.65rem", color: "var(--muted)", background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 4, padding: "1px 5px" }}>encerrada</span>}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </section>
       )}
 
       {/* Formulário: copiar pendências para nova sessão */}
@@ -874,11 +1152,6 @@ export default function PautaPage() {
             <div>
               <h3>
                 {sessaoData?.titulo || "Carregando..."}
-                {sessaoData?.data_reuniao && (
-                  <span style={{ marginLeft: 10, fontSize: "0.78rem", fontWeight: 600, color: "var(--muted)" }}>
-                    Reunião: {new Intl.DateTimeFormat("pt-BR", { timeZone: "UTC" }).format(new Date(`${sessaoData.data_reuniao}T00:00:00Z`))}
-                  </span>
-                )}
               </h3>
               <p>
                 {itens.length} processo{itens.length !== 1 ? "s" : ""} · {totalAtivos} ativo{totalAtivos !== 1 ? "s" : ""} · {totalResolvidos} resolvido{totalResolvidos !== 1 ? "s" : ""}
@@ -928,10 +1201,11 @@ export default function PautaPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {itens.map((item) => (
+                  {itens.map((item, idx) => (
                     <PautaItemRow
                       key={item.id}
                       item={item}
+                      idx={idx}
                       isAdmin={user?.is_admin}
                       onUpdated={() => loadSessaoData(sessaoAtual)}
                       onDelete={handleDeleteItem}
@@ -943,6 +1217,59 @@ export default function PautaPage() {
           )}
         </section>
       )}
+
+      {/* Painel de métricas (admin, colapsável) */}
+      {user?.is_admin && metricas && (
+        <section className="panel">
+          <button type="button" onClick={() => setShowMetricas((v) => !v)}
+            style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", background: "none", border: "none", cursor: "pointer", fontFamily: "inherit", padding: 0 }}>
+            <h3 style={{ margin: 0, color: "var(--ink)", fontSize: "1rem" }}>Métricas de eficiência</h3>
+            <span style={{ fontSize: "0.75rem", color: "var(--muted)", marginLeft: "auto" }}>{showMetricas ? "▲ Recolher" : "▼ Expandir"}</span>
+          </button>
+
+          {showMetricas && (
+            <div style={{ marginTop: 16 }}>
+              {/* KPIs globais */}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginBottom: 20 }}>
+                {[
+                  { label: "Tempo médio até resolução automática", value: metricas.tempo_medio_auto_dias != null ? `${metricas.tempo_medio_auto_dias}d` : "—", hint: "Apenas saiu_do_setor" },
+                  { label: "Overrides manuais (histórico)", value: metricas.overrides_manuais_total, hint: "resolvido_manual, admin only" },
+                  { label: "Pendências arrastadas", value: metricas.pendencias_arrastadas, hint: "Itens ativos em sessões encerradas" },
+                ].map((kpi) => (
+                  <div key={kpi.label} style={{ padding: 14, borderRadius: 10, background: "var(--bg)", border: "1px solid var(--border)" }}>
+                    <div style={{ fontSize: "1.5rem", fontWeight: 800, color: "var(--primary)", lineHeight: 1 }}>{kpi.value}</div>
+                    <div style={{ fontSize: "0.78rem", fontWeight: 700, color: "var(--ink)", marginTop: 4 }}>{kpi.label}</div>
+                    <div style={{ fontSize: "0.7rem", color: "var(--muted)", marginTop: 2 }}>{kpi.hint}</div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Eficiência por sessão */}
+              <p style={{ fontSize: "0.8rem", fontWeight: 700, color: "var(--muted)", marginBottom: 8, textTransform: "uppercase", letterSpacing: ".05em" }}>
+                Eficiência por sessão (últimas {metricas.sessoes?.length})
+              </p>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {(metricas.sessoes || []).map((s) => (
+                  <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <span style={{ fontSize: "0.75rem", color: "var(--muted)", minWidth: 180, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}
+                      title={s.titulo}>{s.titulo}</span>
+                    <div style={{ flex: 1, height: 12, borderRadius: 999, background: "var(--primary-light)", overflow: "hidden", position: "relative" }}>
+                      <div style={{ height: "100%", width: `${s.taxa_auto_pct}%`, background: "#1a7a50", borderRadius: 999 }} />
+                      {s.resolvidos_manual > 0 && (
+                        <div style={{ position: "absolute", top: 0, left: `${s.taxa_auto_pct}%`, height: "100%", width: `${Math.round(s.resolvidos_manual / s.total * 100)}%`, background: "#4ade80", opacity: .6 }} />
+                      )}
+                    </div>
+                    <span style={{ fontSize: "0.72rem", fontWeight: 700, color: "#1a7a50", minWidth: 36, textAlign: "right" }}>{s.taxa_auto_pct}%</span>
+                    <span style={{ fontSize: "0.7rem", color: "var(--muted)", minWidth: 60 }}>{s.resolvidos_auto}/{s.total} auto</span>
+                    {!s.ativa && <span style={{ fontSize: "0.65rem", color: "var(--muted)", background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 4, padding: "1px 5px" }}>encerrada</span>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </section>
+      )}
+
 
       {!sessaoAtual && !showNovaSessao && (
         <div className="empty-state panel" style={{ padding: 40, textAlign: "center" }}>

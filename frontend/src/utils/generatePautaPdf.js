@@ -85,8 +85,8 @@ export function generatePautaPdf(sessao) {
   doc.setTextColor(...MUTED);
 
   const periodo = sessao.data_fim
-    ? `Período: ${fmtDate(sessao.data_inicio)} a ${fmtDate(sessao.data_fim)}`
-    : `Início: ${fmtDate(sessao.data_inicio)}`;
+    ? `Início: ${fmtDate(sessao.data_inicio)}  ·  Prazo da pauta: ${fmtDate(sessao.data_fim)}`
+    : `Início: ${fmtDate(sessao.data_inicio)}  ·  Sem prazo definido`;
   const reuniao = sessao.data_reuniao ? `  ·  Reunião: ${fmtDate(sessao.data_reuniao)}` : "";
   doc.text(periodo + reuniao, margin, y);
   y += 5;

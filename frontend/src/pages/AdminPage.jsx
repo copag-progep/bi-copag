@@ -43,6 +43,7 @@ const ACTION_LABELS = {
   "sei_usuario.setores_inferidos":     { label: "Setores SEI inferidos",         color: "var(--primary)" },
   "pauta.sessao_criada":               { label: "Pauta: sessão criada",           color: "var(--primary)" },
   "pauta.sessao_encerrada":            { label: "Pauta: sessão encerrada",        color: "var(--muted)"   },
+  "pauta.sessao_editada":              { label: "Pauta: sessão editada",          color: "var(--primary)" },
   "pauta.pendencias_copiadas":         { label: "Pauta: pendências copiadas",     color: "var(--primary)" },
 };
 
