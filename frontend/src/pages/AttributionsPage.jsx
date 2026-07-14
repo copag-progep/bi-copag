@@ -65,11 +65,162 @@ function SortIcon({ col, sortBy, sortDir }) {
 }
 
 
+function pautaKey(protocolo, setor, entrada) {
+  return `${protocolo}|${setor}|${entrada || ""}`;
+}
+
+// ── Modal de inclusão em lote (Atribuições) ───────────────────────────────
+function PautaLoteModal({ processos, onClose, onAdded }) {
+  const [sessoes, setSessoes] = useState([]);
+  const [users, setUsers] = useState([]);
+  const [sessaoId, setSessaoId] = useState("");
+  const [assignTo, setAssignTo] = useState("");
+  const [nota, setNota] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState("");
+
+  const setoresSelecionados = [...new Set(processos.map((p) => p.setor))];
+
+  useEffect(() => {
+    Promise.all([
+      api.get("/pauta/sessoes", { params: { ativa: true } }),
+      api.get("/admin/users"),
+    ]).then(([s, u]) => {
+      const elegiveis = s.data.filter((x) => x.situacao === "a_iniciar" || x.situacao === "em_andamento");
+      setSessoes(elegiveis);
+      if (elegiveis.length > 0) setSessaoId(elegiveis[0].id);
+      // Responsável precisa ter acesso a TODOS os setores selecionados
+      setUsers(
+        u.data.filter((usr) =>
+          !usr.is_admin &&
+          Array.isArray(usr.setores) &&
+          setoresSelecionados.every((st) => usr.setores.includes(st))
+        )
+      );
+    }).catch(() => {});
+  }, []);
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    if (!sessaoId) { setErr("Selecione uma sessão."); return; }
+    setSaving(true);
+    setErr("");
+    try {
+      const { data } = await api.post(`/pauta/sessoes/${sessaoId}/itens/bulk`, {
+        sessao_id: Number(sessaoId),
+        assigned_to: assignTo ? Number(assignTo) : null,
+        nota_admin: nota || null,
+        itens: processos.map((p) => ({
+          protocolo: p.protocolo,
+          setor: p.setor,
+          entrada_setor: p.entrada_setor || null,
+          atribuicao: p.atribuicao || null,
+          tipo: p.tipo || null,
+          dias_no_setor: p.dias_no_setor ?? null,
+          score_risco: p.score ?? null,
+          nivel_risco: p.nivel ?? null,
+        })),
+      });
+      onAdded(data.added ?? 0, data.skipped ?? 0);
+    } catch (ex) {
+      setErr(ex.response?.data?.detail || "Falha ao incluir processos.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div style={{
+      position: "fixed", inset: 0, background: "rgba(0,0,0,.45)", zIndex: 1000,
+      display: "flex", alignItems: "center", justifyContent: "center", padding: 16,
+    }} onClick={onClose}>
+      <form onSubmit={handleSubmit}
+        style={{
+          background: "var(--panel)", borderRadius: "var(--radius-lg)",
+          border: "1px solid var(--border)", boxShadow: "0 16px 48px rgba(0,0,0,.25)",
+          width: "100%", maxWidth: 520, padding: 24, display: "flex", flexDirection: "column", gap: 14,
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+          <div>
+            <h3 style={{ margin: 0, fontSize: "1rem", color: "var(--ink)" }}>Adicionar {processos.length} processo(s) à pauta</h3>
+            <p style={{ margin: "4px 0 0", fontSize: "0.78rem", color: "var(--muted)" }}>
+              Setores: {setoresSelecionados.join(", ")}
+            </p>
+          </div>
+          <button type="button" className="ghost-button" onClick={onClose} style={{ fontSize: "1.1rem", padding: "2px 8px" }}>✕</button>
+        </div>
+
+        <label className="field" style={{ margin: 0 }}>
+          <span>Sessão</span>
+          <select value={sessaoId} onChange={(e) => setSessaoId(e.target.value)} required>
+            {sessoes.length === 0
+              ? <option value="">Nenhuma sessão ativa</option>
+              : sessoes.map((s) => <option key={s.id} value={s.id}>{s.titulo}</option>)
+            }
+          </select>
+        </label>
+
+        <label className="field" style={{ margin: 0 }}>
+          <span>Atribuir ao responsável (opcional)</span>
+          <select value={assignTo} onChange={(e) => setAssignTo(e.target.value)}>
+            <option value="">Sem atribuição por agora</option>
+            {users.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
+          </select>
+          {users.length === 0 && setoresSelecionados.length > 1 && (
+            <small style={{ color: "#8a5b00", fontSize: "0.75rem", marginTop: 4 }}>
+              Nenhum responsável tem acesso a todos os setores selecionados. Selecione processos de um único setor ou deixe sem atribuição.
+            </small>
+          )}
+        </label>
+
+        <label className="field" style={{ margin: 0 }}>
+          <span>Nota para o responsável (opcional)</span>
+          <input type="text" value={nota} onChange={(e) => setNota(e.target.value)}
+            placeholder="Orientação ou urgência" />
+        </label>
+
+        {err && <div style={{ color: "#bf3535", fontSize: "0.82rem", fontWeight: 600 }}>{err}</div>}
+
+        <div style={{ display: "flex", gap: 8 }}>
+          <button type="submit" className="primary-button" disabled={saving || sessoes.length === 0}
+            style={{ fontSize: "0.85rem", padding: "9px 18px" }}>
+            {saving ? "Adicionando..." : `Adicionar ${processos.length} à pauta`}
+          </button>
+          <button type="button" className="ghost-button" onClick={onClose} style={{ fontSize: "0.85rem" }}>
+            Cancelar
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
 export default function AttributionsPage() {
   const { user } = useAuth();
   const { filters, options, optionsLoading, setFilter, toQueryParams } = useFilters();
   const [addingProcess, setAddingProcess] = useState(null);
   const [pautaMsg, setPautaMsg] = useState("");
+
+  // Pauta em lote: chaves já em pauta ativa + seleção atual + modal de lote
+  const [naPautaMap, setNaPautaMap] = useState({}); // key → { sessao_titulo }
+  const [selecionados, setSelecionados] = useState({}); // key → item leve
+  const [showLoteModal, setShowLoteModal] = useState(false);
+
+  async function loadNaPauta() {
+    if (!user?.is_admin) return;
+    try {
+      const { data } = await api.get("/pauta/itens-ativos");
+      const map = {};
+      for (const it of data.items) map[it.key] = { sessao_titulo: it.sessao_titulo };
+      setNaPautaMap(map);
+    } catch {
+      // silencioso
+    }
+  }
+
+  useEffect(() => { loadNaPauta(); }, [user?.is_admin]);
 
   const [data, setData]             = useState(null);
   const [page, setPage]             = useState(1);
@@ -495,13 +646,14 @@ export default function AttributionsPage() {
                     </span>
                   )}
                 </th>
-                {user?.is_admin && <th style={{ width: 70 }}>Pauta</th>}
+                {user?.is_admin && <th style={{ width: 40, textAlign: "center" }} title="Selecionar para incluir em lote">☑</th>}
+                {user?.is_admin && <th style={{ width: 90 }}>Pauta</th>}
               </tr>
             </thead>
             <tbody>
               {items.length === 0 ? (
                 <tr>
-                  <td colSpan={user?.is_admin ? 8 : 7} style={{ textAlign: "center", color: "var(--muted)", padding: "28px" }}>
+                  <td colSpan={user?.is_admin ? 9 : 7} style={{ textAlign: "center", color: "var(--muted)", padding: "28px" }}>
                     Nenhum processo encontrado com os filtros atuais.
                   </td>
                 </tr>
@@ -544,28 +696,60 @@ export default function AttributionsPage() {
                     <td>
                       <RiskBadgeInline nivel={riskMap[`${item.protocolo}|${item.setor}`]?.nivel} />
                     </td>
-                    {user?.is_admin && (
-                      <td>
-                        <button
-                          type="button"
-                          className="table-button"
-                          onClick={() => {
-                            const risk = riskMap[`${item.protocolo}|${item.setor}`];
-                            setAddingProcess({
-                              ...item,
-                              dias_no_setor: item.dias_com_atribuicao,
-                              entrada_setor: risk?.entrada_setor || null,
-                              score: risk?.score ?? null,
-                              nivel: risk?.nivel ?? null,
-                            });
-                            setPautaMsg("");
-                          }}
-                          style={{ fontSize: "0.7rem", padding: "3px 8px", whiteSpace: "nowrap" }}
-                        >
-                          + Pauta
-                        </button>
-                      </td>
-                    )}
+                    {user?.is_admin && (() => {
+                      const prefixo = `${item.protocolo}|${item.setor}|`;
+                      const naPautaEntry = Object.entries(naPautaMap).find(([k]) => k.startsWith(prefixo));
+                      const naPauta = Boolean(naPautaEntry);
+                      const selKey = pautaKey(item.protocolo, item.setor, item.entrada_atribuicao);
+                      const isSel = Boolean(selecionados[selKey]);
+                      const risk = riskMap[`${item.protocolo}|${item.setor}`];
+                      const leve = {
+                        ...item,
+                        dias_no_setor: item.dias_com_atribuicao,
+                        entrada_setor: risk?.entrada_setor || item.entrada_atribuicao || null,
+                        score: risk?.score ?? null,
+                        nivel: risk?.nivel ?? null,
+                      };
+                      return (
+                        <>
+                          <td style={{ textAlign: "center" }}>
+                            <input
+                              type="checkbox"
+                              checked={isSel}
+                              disabled={naPauta}
+                              title={naPauta ? "Já está em uma pauta ativa" : "Selecionar para inclusão em lote"}
+                              onChange={(e) => {
+                                setSelecionados((prev) => {
+                                  const next = { ...prev };
+                                  if (e.target.checked) next[selKey] = leve;
+                                  else delete next[selKey];
+                                  return next;
+                                });
+                              }}
+                            />
+                          </td>
+                          <td>
+                            {naPauta ? (
+                              <span
+                                className="pauta-na-badge"
+                                title={`Já está na pauta "${naPautaEntry[1].sessao_titulo}"`}
+                              >
+                                ✓ Na pauta
+                              </span>
+                            ) : (
+                              <button
+                                type="button"
+                                className="table-button"
+                                onClick={() => { setAddingProcess(leve); setPautaMsg(""); }}
+                                style={{ fontSize: "0.7rem", padding: "3px 8px", whiteSpace: "nowrap" }}
+                              >
+                                + Pauta
+                              </button>
+                            )}
+                          </td>
+                        </>
+                      );
+                    })()}
                   </tr>
                 ))
               )}
@@ -609,8 +793,45 @@ export default function AttributionsPage() {
           processo={addingProcess}
           onClose={() => setAddingProcess(null)}
           onAdded={() => {
-            setAddingProcess(null);
             setPautaMsg(`✓ "${addingProcess.protocolo}" adicionado à pauta.`);
+            setAddingProcess(null);
+            loadNaPauta(); // botão fica verde imediatamente
+          }}
+        />
+      )}
+
+      {/* Barra flutuante de seleção em lote */}
+      {user?.is_admin && Object.keys(selecionados).length > 0 && (
+        <div className="pauta-lote-bar">
+          <span>{Object.keys(selecionados).length} processo(s) selecionado(s)</span>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button type="button" className="primary-button"
+              onClick={() => setShowLoteModal(true)}
+              style={{ fontSize: "0.82rem", padding: "8px 16px" }}>
+              Adicionar à pauta
+            </button>
+            <button type="button" className="ghost-button"
+              onClick={() => setSelecionados({})}
+              style={{ fontSize: "0.82rem" }}>
+              Limpar seleção
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de inclusão em lote */}
+      {showLoteModal && (
+        <PautaLoteModal
+          processos={Object.values(selecionados)}
+          onClose={() => setShowLoteModal(false)}
+          onAdded={(added, skipped) => {
+            setShowLoteModal(false);
+            setSelecionados({});
+            setPautaMsg(
+              `✓ ${added} adicionado(s) à pauta` +
+              (skipped ? ` · ${skipped} já estavam em pauta ativa` : "") + "."
+            );
+            loadNaPauta();
           }}
         />
       )}

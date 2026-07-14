@@ -72,6 +72,25 @@ function KpiPill({ label, value, color }) {
   );
 }
 
+const SITUACAO_CFG = {
+  a_iniciar:    { label: "A iniciar",    color: "var(--primary)", bg: "rgba(39,49,104,.1)"  },
+  em_andamento: { label: "Em andamento", color: "#1a7a50",        bg: "rgba(26,122,80,.12)" },
+  encerrada:    { label: "Encerrada",    color: "var(--muted)",   bg: "rgba(0,0,0,.06)"     },
+};
+
+function SituacaoBadge({ situacao, label }) {
+  const cfg = SITUACAO_CFG[situacao] || SITUACAO_CFG.em_andamento;
+  return (
+    <span style={{
+      padding: "2px 10px", borderRadius: 999, fontSize: "0.72rem", fontWeight: 800,
+      textTransform: "uppercase", letterSpacing: ".04em",
+      color: cfg.color, background: cfg.bg, whiteSpace: "nowrap",
+    }}>
+      {label || cfg.label}
+    </span>
+  );
+}
+
 // ── Datas em America/Fortaleza (evita virada de dia por UTC) ──────────────
 function hojeFortaleza() {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Fortaleza" }).format(new Date());
@@ -687,6 +706,9 @@ function PautaItemRow({ item, idx, isAdmin, onUpdated, onDelete }) {
   const [editing, setEditing] = useState(false);
   const [nota, setNota] = useState(item.nota_responsavel || "");
   const [saving, setSaving] = useState(false);
+  // Edição da nota da gestão (admin)
+  const [editingGestao, setEditingGestao] = useState(false);
+  const [notaGestao, setNotaGestao] = useState(item.nota_admin || "");
 
   async function handleStatusChange(newStatus) {
     setSaving(true);
@@ -711,8 +733,21 @@ function PautaItemRow({ item, idx, isAdmin, onUpdated, onDelete }) {
     }
   }
 
+  async function saveNotaGestao() {
+    setSaving(true);
+    try {
+      // string vazia limpa a nota; backend audita a mudança
+      await api.patch(`/pauta/itens/${item.id}`, { nota_admin: notaGestao });
+      setEditingGestao(false);
+      onUpdated();
+    } finally {
+      setSaving(false);
+    }
+  }
+
   const isActive = ["pendente", "em_acompanhamento"].includes(item.status);
   const statusColor = (STATUS_CFG[item.status] || STATUS_CFG.pendente).color;
+  const atribuicaoDisplay = item.atribuicao_display ?? item.atribuicao;
 
   return (
     <tr
@@ -731,13 +766,47 @@ function PautaItemRow({ item, idx, isAdmin, onUpdated, onDelete }) {
           {item.setor}
         </span>
       </td>
+      {/* Atribuição atual no SEI (fallback histórico com marcador) */}
+      <td style={{ fontSize: "0.78rem" }}>
+        {atribuicaoDisplay ? (
+          <span
+            style={{ color: item.atribuicao_historica ? "var(--muted)" : "var(--ink)", fontStyle: item.atribuicao_historica ? "italic" : "normal" }}
+            title={item.atribuicao_historica ? "Valor da inclusão na pauta — o processo já não consta no snapshot atual do setor" : undefined}
+          >
+            {atribuicaoDisplay}{item.atribuicao_historica && " *"}
+          </span>
+        ) : (
+          <span style={{ color: "var(--muted)", fontStyle: "italic" }}>—</span>
+        )}
+      </td>
       <td style={{ fontSize: "0.78rem", color: "var(--muted)" }}>{item.tipo || "—"}</td>
       <td><strong>{item.dias_no_setor ?? "—"}</strong></td>
       <td><NivelBadge nivel={item.nivel_risco} /></td>
       <td style={{ fontSize: "0.78rem" }}>{item.assigned_to_nome || <span style={{ color: "var(--muted)", fontStyle: "italic" }}>Sem atribuição</span>}</td>
       <td><StatusBadge status={item.status} dataStatus={item.data_status} /></td>
-      <td style={{ fontSize: "0.78rem", color: "var(--muted)", maxWidth: 200 }}>
-        {item.nota_admin || "—"}
+      {/* Nota da gestão — editável apenas por admin */}
+      <td style={{ fontSize: "0.78rem", maxWidth: 220 }}>
+        {editingGestao ? (
+          <div style={{ display: "flex", gap: 4 }}>
+            <input type="text" value={notaGestao} onChange={(e) => setNotaGestao(e.target.value)}
+              placeholder="Orientação da gestão"
+              style={{ width: 170, padding: "3px 8px", borderRadius: 6, border: "1.5px solid var(--primary)", fontSize: "0.78rem" }} />
+            <button type="button" className="table-button" disabled={saving} onClick={saveNotaGestao}
+              style={{ fontSize: "0.72rem", padding: "3px 8px" }}>✓</button>
+            <button type="button" className="ghost-button" onClick={() => { setEditingGestao(false); setNotaGestao(item.nota_admin || ""); }}
+              style={{ fontSize: "0.72rem" }}>✕</button>
+          </div>
+        ) : (
+          <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+            <span style={{ color: item.nota_admin ? "var(--ink)" : "var(--muted)", fontStyle: item.nota_admin ? "normal" : "italic" }}>
+              {item.nota_admin || "—"}
+            </span>
+            {isAdmin && (
+              <button type="button" className="ghost-button" onClick={() => setEditingGestao(true)}
+                style={{ fontSize: "0.7rem", padding: "1px 6px" }} title="Editar nota da gestão">✎</button>
+            )}
+          </div>
+        )}
       </td>
       <td>
         {/* Nota do responsável — editável por qualquer um atribuído */}
@@ -924,7 +993,12 @@ export default function PautaPage() {
       <section className="hero-panel">
         <div>
           <p className="eyebrow">Pauta Prioritária</p>
-          <h1>{sessaoData?.titulo || "Pauta Prioritária"}</h1>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+            <h1 style={{ margin: 0 }}>{sessaoData?.titulo || "Pauta Prioritária"}</h1>
+            {sessaoData?.situacao && (
+              <SituacaoBadge situacao={sessaoData.situacao} label={sessaoData.situacao_label} />
+            )}
+          </div>
           <p>
             {sessaoData
               ? `${prazoInfo(sessaoData.data_fim, totalAtivos).label}${sessaoData.data_fim ? ` · prazo ${fmtData(sessaoData.data_fim)}` : ""}`
@@ -948,7 +1022,9 @@ export default function PautaPage() {
             <select value={sessaoAtual || ""} onChange={(e) => setSessaoAtual(Number(e.target.value))}
               style={{ flex: 1, border: "1.5px solid var(--border-strong)", borderRadius: 8, padding: "7px 12px", fontSize: "0.85rem", fontFamily: "inherit", color: "var(--ink)", background: "var(--bg)" }}>
               {sessoes.map((s) => (
-                <option key={s.id} value={s.id}>{s.titulo} · {s.data_inicio}</option>
+                <option key={s.id} value={s.id}>
+                  {s.titulo} · {(SITUACAO_CFG[s.situacao]?.label || "").toUpperCase()}
+                </option>
               ))}
               {sessoes.length === 0 && <option value="">Nenhuma sessão ativa</option>}
             </select>
@@ -1190,6 +1266,7 @@ export default function PautaPage() {
                   <tr>
                     <th>Protocolo</th>
                     <th>Setor</th>
+                    <th>Atribuição</th>
                     <th>Tipo</th>
                     <th>Dias</th>
                     <th>Risco</th>

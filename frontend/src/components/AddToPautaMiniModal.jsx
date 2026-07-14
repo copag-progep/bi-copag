@@ -24,8 +24,10 @@ export default function AddToPautaMiniModal({ processo, onClose, onAdded }) {
       api.get("/pauta/sessoes", { params: { ativa: true } }),
       api.get("/admin/users"),
     ]).then(([s, u]) => {
-      setSessoes(s.data);
-      if (s.data.length > 0) setSessaoId(s.data[0].id);
+      // Apenas sessões elegíveis (a iniciar / em andamento) recebem processos
+      const elegiveis = s.data.filter((x) => x.situacao === "a_iniciar" || x.situacao === "em_andamento");
+      setSessoes(elegiveis);
+      if (elegiveis.length > 0) setSessaoId(elegiveis[0].id);
       setUsers(
         u.data.filter((usr) =>
           !usr.is_admin &&

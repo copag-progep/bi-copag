@@ -1137,6 +1137,104 @@ def _pauta_item_exists(
     return query.first() is not None
 
 
+_SITUACAO_LABELS = {
+    "a_iniciar":    "A iniciar",
+    "em_andamento": "Em andamento",
+    "encerrada":    "Encerrada",
+}
+
+
+def _atribuicao_atual_por_processo(db: Session, itens: list[PautaItem]) -> dict[tuple[str, str], str | None]:
+    """Atribuição atual no SEI (último snapshot) para cada (protocolo, setor) da pauta.
+
+    Retorna {(protocolo, setor): atribuicao_normalizada} apenas para processos que
+    ainda constam no último snapshot daquele setor. Processos que já saíram não
+    entram no mapa — o chamador usa o valor histórico (item.atribuicao) como fallback.
+    Consulta única em lote (sem N+1).
+    """
+    if not itens:
+        return {}
+
+    pares = {(i.protocolo, i.setor) for i in itens}
+    protocolos = {p for p, _ in pares}
+    setores = {s for _, s in pares}
+
+    # Data de referência (último snapshot) por setor envolvido
+    ref_por_setor = dict(
+        db.query(Processo.setor, func.max(Processo.data_relatorio))
+        .filter(Processo.setor.in_(setores))
+        .group_by(Processo.setor)
+        .all()
+    )
+    if not ref_por_setor:
+        return {}
+
+    rows = (
+        db.query(Processo.protocolo, Processo.setor, Processo.atribuicao_normalizada, Processo.data_relatorio)
+        .filter(Processo.protocolo.in_(protocolos), Processo.setor.in_(setores))
+        .all()
+    )
+    resultado: dict[tuple[str, str], str | None] = {}
+    for protocolo, setor, atrib, data_rel in rows:
+        if (protocolo, setor) in pares and data_rel == ref_por_setor.get(setor):
+            resultado[(protocolo, setor)] = atrib
+    return resultado
+
+
+def _situacao_pauta_sessao(s: PautaSessao) -> str:
+    """Situação DERIVADA da sessão (nunca gravada no banco).
+
+    a_iniciar    → ativa=True e data_inicio > hoje
+    em_andamento → ativa=True e data_inicio <= hoje e (sem prazo OU data_fim >= hoje)
+    encerrada    → ativa=False OU data_fim < hoje
+
+    Regra de borda: data_fim == hoje ainda é EM ANDAMENTO (encerra só no dia seguinte).
+    Cálculo em America/Fortaleza para não virar o dia por UTC.
+    """
+    hoje = datetime.now(LOCAL_TIMEZONE).date()
+    if not s.ativa:
+        return "encerrada"
+    if s.data_fim is not None and s.data_fim < hoje:
+        return "encerrada"
+    if s.data_inicio is not None and s.data_inicio > hoje:
+        return "a_iniciar"
+    return "em_andamento"
+
+
+def _pauta_item_em_sessao_ativa(
+    db: Session,
+    protocolo: str,
+    setor: str,
+    entrada_setor: date | None,
+) -> PautaItem | None:
+    """Retorna o item existente (se houver) do mesmo processo em QUALQUER sessão
+    a_iniciar ou em_andamento — usado para impedir duplicidade global.
+
+    Ignora itens arquivados e sessões encerradas. A situação é derivada em Python
+    (depende de datas + ativa), então filtramos ativa=True no SQL e reavaliamos
+    a situação de cada candidato.
+    """
+    query = (
+        db.query(PautaItem)
+        .join(PautaSessao, PautaItem.sessao_id == PautaSessao.id)
+        .filter(
+            PautaItem.protocolo == protocolo,
+            PautaItem.setor == setor,
+            PautaItem.status != "arquivado",
+            PautaSessao.ativa == True,
+        )
+    )
+    if entrada_setor is None:
+        query = query.filter(PautaItem.entrada_setor.is_(None))
+    else:
+        query = query.filter(PautaItem.entrada_setor == entrada_setor)
+
+    for item in query.all():
+        if _situacao_pauta_sessao(item.sessao) in ("a_iniciar", "em_andamento"):
+            return item
+    return None
+
+
 def _ensure_assignee_can_access_setor(db: Session, assigned_to: int | None, setor: str) -> None:
     if assigned_to is None:
         return
@@ -1206,6 +1304,7 @@ def list_pauta_sessoes(
         if not current_user.is_admin and sum(contagens.values()) == 0:
             continue
 
+        situacao = _situacao_pauta_sessao(s)
         result.append({
             "id": s.id,
             "titulo": s.titulo,
@@ -1214,6 +1313,8 @@ def list_pauta_sessoes(
             "data_reuniao": str(s.data_reuniao) if s.data_reuniao else None,
             "observacoes": s.observacoes,
             "ativa": s.ativa,
+            "situacao": situacao,
+            "situacao_label": _SITUACAO_LABELS[situacao],
             "criado_por": s.criado_por,
             "criado_por_nome": users_map.get(s.criado_por, {}).get("name") if s.criado_por else None,
             "created_at": s.created_at.isoformat() if s.created_at else None,
@@ -1259,11 +1360,21 @@ def get_pauta_sessao(
     setores_atuais = get_user_setores(current_user, db)
     users_map = {u.id: {"name": u.name, "email": u.email} for u in db.query(User).all()}
 
+    # Atribuição ATUAL no SEI (último snapshot de cada protocolo+setor da sessão).
+    # Consulta em lote para evitar N+1; fallback para item.atribuicao (snapshot da
+    # inclusão) quando o processo já não consta mais no setor.
+    atribuicao_atual = _atribuicao_atual_por_processo(db, s.itens)
+
     itens = []
     for item in sorted(s.itens, key=lambda x: (-(x.score_risco or 0), -(x.dias_no_setor or 0))):
         if not _pauta_item_visible_to(item, current_user, setores_atuais):
             continue
-        itens.append(_pauta_item_to_dict(item, users_map))
+        d = _pauta_item_to_dict(item, users_map)
+        atual = atribuicao_atual.get((item.protocolo, item.setor))
+        d["atribuicao_atual"] = atual
+        d["atribuicao_display"] = atual or item.atribuicao
+        d["atribuicao_historica"] = atual is None  # True → mostrar tooltip de valor histórico
+        itens.append(d)
 
     # Não-admin sem itens visíveis: 404 — não confirma sequer que a sessão
     # existe, e não vaza título/observações de pautas alheias
@@ -1274,11 +1385,13 @@ def get_pauta_sessao(
     for item in itens:
         contagens[item["status"]] = contagens.get(item["status"], 0) + 1
 
+    situacao = _situacao_pauta_sessao(s)
     return {
         "id": s.id, "titulo": s.titulo, "data_inicio": str(s.data_inicio),
         "data_fim": str(s.data_fim) if s.data_fim else None,
         "data_reuniao": str(s.data_reuniao) if s.data_reuniao else None,
         "observacoes": s.observacoes, "ativa": s.ativa,
+        "situacao": situacao, "situacao_label": _SITUACAO_LABELS[situacao],
         "criado_por_nome": users_map.get(s.criado_por, {}).get("name") if s.criado_por else None,
         "contagens": contagens, "itens": itens,
     }
@@ -1362,6 +1475,38 @@ def update_pauta_sessao(
 
 # ── Endpoints de Itens ────────────────────────────────────────────────────
 
+@app.get("/api/pauta/itens-ativos")
+def list_pauta_itens_ativos(
+    current_admin: User = Depends(get_current_admin_user),
+    db: Session = Depends(get_db),
+):
+    """Processos que já estão em alguma pauta a_iniciar ou em_andamento.
+
+    Alimenta o botão verde "Na pauta" nas páginas Atribuições e Risco,
+    persistindo o estado através de reload. Retorna dados estruturados
+    para permitir tooltip com o nome da sessão.
+    """
+    rows = (
+        db.query(PautaItem, PautaSessao)
+        .join(PautaSessao, PautaItem.sessao_id == PautaSessao.id)
+        .filter(PautaItem.status != "arquivado", PautaSessao.ativa == True)
+        .all()
+    )
+    items = []
+    for item, sessao in rows:
+        if _situacao_pauta_sessao(sessao) in ("a_iniciar", "em_andamento"):
+            ent = str(item.entrada_setor) if item.entrada_setor else ""
+            items.append({
+                "key": f"{item.protocolo}|{item.setor}|{ent}",
+                "protocolo": item.protocolo,
+                "setor": item.setor,
+                "entrada_setor": str(item.entrada_setor) if item.entrada_setor else None,
+                "sessao_id": sessao.id,
+                "sessao_titulo": sessao.titulo,
+            })
+    return {"items": items}
+
+
 @app.post("/api/pauta/sessoes/{sessao_id}/itens", status_code=201)
 def add_pauta_item(
     sessao_id: int,
@@ -1373,9 +1518,18 @@ def add_pauta_item(
     if not s:
         raise HTTPException(status_code=404, detail="Sessão não encontrada.")
 
+    if _situacao_pauta_sessao(s) == "encerrada":
+        raise HTTPException(status_code=409, detail="Não é possível adicionar processos a uma pauta encerrada.")
+
     _ensure_assignee_can_access_setor(db, payload.assigned_to, payload.setor)
-    if _pauta_item_exists(db, sessao_id, payload.protocolo, payload.setor, payload.entrada_setor):
-        raise HTTPException(status_code=409, detail="Processo já incluído nesta sessão com esta entrada.")
+
+    # Duplicidade global: o mesmo processo não pode estar em duas pautas ativas
+    existente = _pauta_item_em_sessao_ativa(db, payload.protocolo, payload.setor, payload.entrada_setor)
+    if existente is not None:
+        raise HTTPException(
+            status_code=409,
+            detail=f'Processo já está na pauta "{existente.sessao.titulo}".',
+        )
 
     item = PautaItem(
         sessao_id=sessao_id,
@@ -1394,15 +1548,29 @@ def add_pauta_items_bulk(
     current_admin: User = Depends(get_current_admin_user),
     db: Session = Depends(get_db),
 ):
-    """Adiciona múltiplos processos de uma vez. Ignora duplicatas silenciosamente."""
+    """Adiciona múltiplos processos de uma vez.
+
+    Bloqueia sessão encerrada (409). Valida acesso do responsável a TODOS os
+    setores selecionados. Ignora silenciosamente processos que já estejam em
+    qualquer pauta ativa (duplicidade global), reportando quantos foram pulados.
+    """
     s = db.query(PautaSessao).filter(PautaSessao.id == sessao_id).first()
     if not s:
         raise HTTPException(status_code=404, detail="Sessão não encontrada.")
 
+    if _situacao_pauta_sessao(s) == "encerrada":
+        raise HTTPException(status_code=409, detail="Não é possível adicionar processos a uma pauta encerrada.")
+
+    # Valida acesso do responsável a todos os setores distintos do lote de uma vez
+    if payload.assigned_to is not None:
+        for setor in {i.setor for i in payload.itens}:
+            _ensure_assignee_can_access_setor(db, payload.assigned_to, setor)
+
     added = 0
+    skipped = 0
     for item_data in payload.itens:
-        _ensure_assignee_can_access_setor(db, payload.assigned_to, item_data.setor)
-        if _pauta_item_exists(db, sessao_id, item_data.protocolo, item_data.setor, item_data.entrada_setor):
+        if _pauta_item_em_sessao_ativa(db, item_data.protocolo, item_data.setor, item_data.entrada_setor):
+            skipped += 1
             continue
         data = item_data.model_dump(exclude_none=True, exclude={"assigned_to", "nota_admin"})
         item = PautaItem(
@@ -1415,7 +1583,7 @@ def add_pauta_items_bulk(
         db.add(item)
         added += 1
     db.commit()
-    return {"added": added, "total_requested": len(payload.itens)}
+    return {"added": added, "skipped": skipped, "total_requested": len(payload.itens)}
 
 
 @app.patch("/api/pauta/itens/{item_id}")
@@ -1466,6 +1634,23 @@ def update_pauta_item(
     data = payload.model_dump(exclude_none=True)
     if "assigned_to" in data:
         _ensure_assignee_can_access_setor(db, data["assigned_to"], item.setor)
+
+    # Auditoria da nota da gestão (orientação formal): registra antes/depois
+    if "nota_admin" in data and data["nota_admin"] != item.nota_admin:
+        _log_audit(
+            db,
+            action="pauta.item_nota_gestao_editada",
+            entity_type="pauta_item",
+            entity_id=str(item.id),
+            details={
+                "protocolo": item.protocolo,
+                "sessao_id": item.sessao_id,
+                "de": item.nota_admin,
+                "para": data["nota_admin"],
+            },
+            user=current_user,
+        )
+
     if "status" in data:
         item.data_status = datetime.now(LOCAL_TIMEZONE).date()
         item.resolucao_automatica = False
@@ -1508,9 +1693,14 @@ def get_minha_pauta(
         .all()
     )
 
-    # Escopo cumulativo: além de atribuído, o setor precisa estar no escopo atual
+    # Escopo cumulativo: além de atribuído, o setor precisa estar no escopo atual.
+    # Ignora sessões encerradas por prazo (ativa=True mas data_fim vencida).
     setores_atuais = get_user_setores(current_user, db)
-    items = [i for i in items if _pauta_item_visible_to(i, current_user, setores_atuais)]
+    items = [
+        i for i in items
+        if _pauta_item_visible_to(i, current_user, setores_atuais)
+        and _situacao_pauta_sessao(i.sessao) != "encerrada"
+    ]
 
     return {
         "user": {"id": current_user.id, "name": current_user.name},
@@ -2341,15 +2531,20 @@ def alerts_summary(
             else:
                 pauta_query = pauta_query.filter(PautaItem.setor.in_(setores_atuais))
 
-    pauta_pendentes = pauta_query.count()
-    pauta_itens_raw = pauta_query.order_by(PautaItem.score_risco.desc().nullslast()).limit(5).all()
+    # Materializa e descarta sessões encerradas por prazo (situação derivada não
+    # é filtrável no SQL); mantém contador e lista consistentes.
+    pauta_rows = [
+        i for i in pauta_query.order_by(PautaItem.score_risco.desc().nullslast()).all()
+        if _situacao_pauta_sessao(i.sessao) != "encerrada"
+    ]
+    pauta_pendentes = len(pauta_rows)
     pauta_itens = [
         {
             "id": i.id, "protocolo": i.protocolo, "setor": i.setor,
             "nivel_risco": i.nivel_risco, "dias_no_setor": i.dias_no_setor,
             "status": i.status,
         }
-        for i in pauta_itens_raw
+        for i in pauta_rows[:5]
     ]
 
     return JSONResponse({

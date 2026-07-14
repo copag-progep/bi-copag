@@ -44,6 +44,7 @@ const ACTION_LABELS = {
   "pauta.sessao_criada":               { label: "Pauta: sessão criada",           color: "var(--primary)" },
   "pauta.sessao_encerrada":            { label: "Pauta: sessão encerrada",        color: "var(--muted)"   },
   "pauta.sessao_editada":              { label: "Pauta: sessão editada",          color: "var(--primary)" },
+  "pauta.item_nota_gestao_editada":    { label: "Pauta: nota da gestão editada",  color: "var(--primary)" },
   "pauta.pendencias_copiadas":         { label: "Pauta: pendências copiadas",     color: "var(--primary)" },
 };
 
