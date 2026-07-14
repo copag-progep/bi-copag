@@ -16,14 +16,17 @@ os.environ["DATABASE_URL"] = "sqlite:///:memory:"
 
 from sqlalchemy import create_engine  # noqa: E402
 from sqlalchemy.orm import sessionmaker  # noqa: E402
+from fastapi import HTTPException  # noqa: E402
 
 from backend.database import Base  # noqa: E402
 from backend import models  # noqa: E402  (registra as tabelas)
-from backend.models import PautaSessao, PautaItem, Processo, Upload  # noqa: E402
+from backend.models import AuditLog, PautaSessao, PautaItem, Processo, Upload, User  # noqa: E402
 from backend.main import (  # noqa: E402
     _situacao_pauta_sessao,
     _pauta_item_em_sessao_ativa,
     _atribuicao_atual_por_processo,
+    CopyPendingPayload,
+    copy_pending_to_new_session,
 )
 
 _engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False})
@@ -65,6 +68,18 @@ def _processo(db, protocolo, setor, atribuicao, atribuicao_normalizada, data_rel
         data_relatorio=data_rel, upload_id=up.id,
     ))
     db.flush()
+
+
+def _admin(db):
+    user = User(
+        name="Admin Teste",
+        email=f"admin-{id(db)}@teste.local",
+        password_hash="x",
+        is_admin=True,
+    )
+    db.add(user)
+    db.flush()
+    return user
 
 
 # ── Situação derivada ─────────────────────────────────────────────────────
@@ -200,14 +215,84 @@ def test_atribuicao_reingresso_nao_contamina_item_historico():
         s = _sessao(db, ativa=True, inicio=HOJE, fim=HOJE + timedelta(days=5))
         entrada_antiga = HOJE - timedelta(days=40)
         item_hist = _item(db, s, protocolo="R1", setor="DIAPE", entrada=entrada_antiga)
-        # Snapshot atual tem R1 de volta, mas com atribuição nova; não há snapshot
-        # de R1 na entrada_antiga (passagem diferente)
+        # R1 esteve no setor na entrada antiga, sumiu no snapshot intermediário,
+        # e voltou no snapshot atual. A passagem corrente começou hoje, não na
+        # entrada antiga do item histórico.
+        _processo(db, "R1", "DIAPE", "Passagem Antiga", "Passagem Antiga", entrada_antiga)
+        _processo(db, "OUTRO", "DIAPE", "Beltrano", "Beltrano", HOJE - timedelta(days=20))
         _processo(db, "R1", "DIAPE", "Nova Passagem", "Nova Passagem", HOJE)
         mapa = _atribuicao_atual_por_processo(db, [item_hist])
         # A chave do item histórico não deve estar presente → cai no fallback
         assert ("R1", "DIAPE", entrada_antiga) not in mapa
     finally:
         db.rollback(); db.close()
+
+
+def test_atribuicao_passagem_continua_usa_atual():
+    """Presença contínua até o snapshot atual → usa a atribuição mais recente."""
+    db = _Session()
+    try:
+        s = _sessao(db, ativa=True, inicio=HOJE, fim=HOJE + timedelta(days=5))
+        entrada = HOJE - timedelta(days=2)
+        item = _item(db, s, protocolo="C1", setor="DIAPE", entrada=entrada)
+        _processo(db, "C1", "DIAPE", "Antiga", "Antiga", entrada)
+        _processo(db, "C1", "DIAPE", "Meio", "Meio", HOJE - timedelta(days=1))
+        _processo(db, "C1", "DIAPE", "Atual", "Atual", HOJE)
+        mapa = _atribuicao_atual_por_processo(db, [item])
+        assert mapa[("C1", "DIAPE", entrada)] == "Atual"
+    finally:
+        db.rollback(); db.close()
+
+
+# ── Copy pending ─────────────────────────────────────────────────────────────
+
+def test_copy_pending_rejeita_prazo_anterior_ao_inicio():
+    db = _Session()
+    try:
+        s = _sessao(db, ativa=True, inicio=HOJE, fim=HOJE + timedelta(days=5))
+        _item(db, s, protocolo="CP1", setor="DIAPE", entrada=HOJE)
+        admin = _admin(db)
+        payload = CopyPendingPayload(
+            titulo="Nova sessão",
+            data_inicio=HOJE,
+            data_fim=HOJE - timedelta(days=1),
+        )
+        try:
+            copy_pending_to_new_session(s.id, payload, current_admin=admin, db=db)
+            assert False, "copy_pending deveria rejeitar prazo anterior ao início"
+        except HTTPException as exc:
+            assert exc.status_code == 400
+            assert "prazo" in exc.detail.lower()
+    finally:
+        db.rollback(); db.close()
+
+
+def test_copy_pending_encerra_origem_e_cria_nova_sessao():
+    db = _Session()
+    try:
+        source = _sessao(db, ativa=True, inicio=HOJE - timedelta(days=7), fim=HOJE)
+        _item(db, source, protocolo="CP2", setor="DIAPE", entrada=HOJE - timedelta(days=7))
+        admin = _admin(db)
+        payload = CopyPendingPayload(
+            titulo="Nova sessão com pendências",
+            data_inicio=HOJE + timedelta(days=1),
+            data_fim=HOJE + timedelta(days=7),
+        )
+        result = copy_pending_to_new_session(source.id, payload, current_admin=admin, db=db)
+
+        db.refresh(source)
+        nova = db.query(PautaSessao).filter(PautaSessao.id == result["nova_sessao_id"]).first()
+        assert source.ativa is False
+        assert nova is not None
+        assert result["itens_copiados"] == 1
+        assert db.query(PautaItem).filter(PautaItem.sessao_id == nova.id, PautaItem.protocolo == "CP2").count() == 1
+    finally:
+        db.query(AuditLog).delete()
+        db.query(PautaItem).delete()
+        db.query(PautaSessao).delete()
+        db.query(User).delete()
+        db.commit()
+        db.close()
 
 
 if __name__ == "__main__":

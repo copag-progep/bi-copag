@@ -1148,15 +1148,17 @@ def _atribuicao_atual_por_processo(db: Session, itens: list[PautaItem]) -> dict[
     """Atribuição atual no SEI para cada item, chaveada por (protocolo, setor, entrada_setor).
 
     Um item só recebe a atribuição atual quando é a PASSAGEM CORRENTE do processo:
-      - o processo consta no último snapshot do setor (presente agora), E
-      - o processo constava também na data entrada_setor do item (a passagem
-        registrada na pauta é a mesma que segue até hoje).
-    Isso evita que um item histórico (processo que saiu e voltou depois com nova
-    entrada_setor) exiba a atribuição da nova passagem.
+    reconstrói o início da presença CONTÍNUA que chega ao último snapshot (usando
+    o índice de datas do setor para detectar gaps, como _build_presence_spans) e
+    só marca "atual" se esse início bater com item.entrada_setor.
 
-    A chave existir no dict = "atual, presente no setor" (valor pode ser None sem
-    normalização). Chave ausente → o chamador usa item.atribuicao (fallback).
-    Prefere atribuicao_normalizada; se nula, usa o texto bruto. Consulta em lote.
+    Assim, um item histórico (processo que esteve no setor, saiu, e voltou depois
+    numa NOVA passagem) nunca exibe a atribuição da passagem nova — mesmo que o
+    processo tenha estado presente na data entrada_setor do item no passado.
+
+    A chave existir no dict = "atual, presente na passagem corrente" (valor pode
+    ser None sem normalização). Chave ausente → o chamador usa item.atribuicao
+    (fallback histórico). Prefere atribuicao_normalizada; se nula, usa texto bruto.
     """
     if not itens:
         return {}
@@ -1174,7 +1176,23 @@ def _atribuicao_atual_por_processo(db: Session, itens: list[PautaItem]) -> dict[
     if not ref_por_setor:
         return {}
 
-    # Todos os pares (protocolo, setor, data) presentes + atribuição da data de referência
+    # Índice de datas de snapshot por setor (ordenado). Um "gap" no índice
+    # (posições não consecutivas) encerra uma passagem — mesma lógica de
+    # _build_presence_spans. Necessário porque snapshots não são diários
+    # (fins de semana, feriados, falhas de upload).
+    datas_por_setor: dict[str, list] = {}
+    for setor in setores:
+        datas = sorted(
+            row[0]
+            for row in db.query(Processo.data_relatorio)
+            .filter(Processo.setor == setor)
+            .distinct()
+            .all()
+        )
+        datas_por_setor[setor] = datas
+    idx_por_setor = {s: {d: i for i, d in enumerate(ds)} for s, ds in datas_por_setor.items()}
+
+    # Presença + atribuição na data de referência
     rows = (
         db.query(
             Processo.protocolo, Processo.setor,
@@ -1190,14 +1208,36 @@ def _atribuicao_atual_por_processo(db: Session, itens: list[PautaItem]) -> dict[
         if data_rel == ref_por_setor.get(setor):
             atrib_ref[(protocolo, setor)] = atrib_norm or atrib_raw
 
+    def _inicio_passagem_corrente(protocolo: str, setor: str) -> object | None:
+        """Data em que começou a passagem contínua que chega ao último snapshot.
+
+        Caminha do último snapshot para trás enquanto o processo aparece em
+        posições consecutivas do índice de datas do setor. Retorna None se o
+        processo não está no último snapshot (não há passagem corrente).
+        """
+        datas = datas_por_setor.get(setor) or []
+        idx = idx_por_setor.get(setor) or {}
+        ref = ref_por_setor.get(setor)
+        if ref is None or (protocolo, setor, ref) not in presenca:
+            return None
+        inicio = ref
+        pos = idx[ref]
+        while pos - 1 >= 0:
+            data_ant = datas[pos - 1]
+            if (protocolo, setor, data_ant) not in presenca:
+                break  # gap → passagem começou em `inicio`
+            inicio = data_ant
+            pos -= 1
+        return inicio
+
     resultado: dict[tuple[str, str, object], str | None] = {}
     for it in itens:
-        ref = ref_por_setor.get(it.setor)
-        presente_agora = (it.protocolo, it.setor, ref) in presenca
-        # Passagem corrente: presente agora E presente na entrada_setor do item.
-        # Sem entrada_setor registrada, basta estar presente agora.
-        mesma_passagem = it.entrada_setor is None or (it.protocolo, it.setor, it.entrada_setor) in presenca
-        if presente_agora and mesma_passagem:
+        inicio_atual = _inicio_passagem_corrente(it.protocolo, it.setor)
+        if inicio_atual is None:
+            continue  # processo saiu do setor → item fica com fallback histórico
+        # Só é a MESMA passagem se o item entrou no mesmo início contínuo.
+        # Sem entrada_setor registrada, aceita a passagem corrente.
+        if it.entrada_setor is None or it.entrada_setor == inicio_atual:
             resultado[(it.protocolo, it.setor, it.entrada_setor)] = atrib_ref.get((it.protocolo, it.setor))
     return resultado
 

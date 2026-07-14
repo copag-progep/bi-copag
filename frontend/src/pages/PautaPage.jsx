@@ -356,28 +356,30 @@ function AdminMenu({ onEditar, onEncerrar, onCopiar, sessaoOperavel, temPendenci
       </button>
       {open && (
         <div className="pauta-admin-menu" role="menu">
-          {sessaoOperavel && (
-            <button type="button" role="menuitem" onClick={() => { setOpen(false); onEditar(); }}>
-              <LucideIcon paths={ICO.pencil} size={14} /> Editar sessão
-            </button>
-          )}
-          {sessaoOperavel && temPendencias && (
-            <button type="button" role="menuitem" className="danger"
+          {/* Editar sempre disponível: admin pode corrigir prazo de sessão
+              encerrada por engano; o backend recalcula a situação ao salvar */}
+          <button type="button" role="menuitem" onClick={() => { setOpen(false); onEditar(); }}>
+            <LucideIcon paths={ICO.pencil} size={14} /> Editar sessão
+          </button>
+          {/* Copiar pendências: útil justamente ao fim do ciclo — liberado
+              sempre que houver pendências, inclusive em sessão encerrada.
+              Se a origem já está encerrada, o backend só copia (não re-encerra) */}
+          {temPendencias && (
+            <button type="button" role="menuitem"
               onClick={() => { setOpen(false); onCopiar(); }}
-              title="Encerra esta sessão e copia os pendentes para uma nova">
-              <LucideIcon paths={ICO.copy} size={14} /> Encerrar e copiar pendências
+              title={sessaoOperavel
+                ? "Encerra esta sessão e copia os pendentes para uma nova"
+                : "Copia os pendentes desta sessão encerrada para uma nova"}>
+              <LucideIcon paths={ICO.copy} size={14} />
+              {sessaoOperavel ? " Encerrar e copiar pendências" : " Copiar pendências"}
             </button>
           )}
+          {/* Encerrar: só faz sentido em sessão operável */}
           {sessaoOperavel && (
             <button type="button" role="menuitem" className="danger"
               onClick={() => { setOpen(false); onEncerrar(); }}>
               <LucideIcon paths={ICO.archive} size={14} /> Encerrar sessão
             </button>
-          )}
-          {!sessaoOperavel && (
-            <div style={{ padding: "9px 12px", fontSize: "0.78rem", color: "var(--muted)" }}>
-              Sessão encerrada — somente leitura.
-            </div>
           )}
         </div>
       )}
@@ -386,7 +388,7 @@ function AdminMenu({ onEditar, onEncerrar, onCopiar, sessaoOperavel, temPendenci
 }
 
 // ── Formulário: copiar pendências para nova sessão ────────────────────────
-function CopiarPendenciasForm({ sessaoId, onCreated, onCancel }) {
+function CopiarPendenciasForm({ sessaoId, encerrarOrigem = true, onCreated, onCancel }) {
   const today = new Date().toISOString().slice(0, 10);
   const [form, setForm] = useState({ titulo: "", data_inicio: today, data_fim: "", data_reuniao: "" });
   const [saving, setSaving] = useState(false);
@@ -439,7 +441,11 @@ function CopiarPendenciasForm({ sessaoId, onCreated, onCancel }) {
       {err && <div style={{ color: "#bf3535", fontSize: "0.85rem", fontWeight: 600 }}>{err}</div>}
       <div style={{ display: "flex", gap: 8 }}>
         <button type="submit" className="primary-button" disabled={saving} style={{ fontSize: "0.85rem", padding: "8px 18px" }}>
-          {saving ? "Copiando..." : "Criar nova sessão com pendências"}
+          {saving
+            ? "Copiando..."
+            : encerrarOrigem
+              ? "Encerrar e criar nova sessão"
+              : "Criar nova sessão com pendências"}
         </button>
         <button type="button" className="ghost-button" onClick={onCancel} style={{ fontSize: "0.85rem" }}>Cancelar</button>
       </div>
@@ -1189,20 +1195,24 @@ export default function PautaPage() {
         <section className="panel">
           <div className="panel-header">
             <div>
-              <h3>Encerrar sessão e copiar pendências</h3>
+              <h3>{sessaoOperavel ? "Encerrar sessão e copiar pendências" : "Copiar pendências"}</h3>
               <p>
-                Encerra a sessão atual e copia seus processos <strong>Pendente</strong> e <strong>Em acompanhamento</strong>
-                para uma nova sessão. O histórico da sessão encerrada é preservado.
+                {sessaoOperavel ? "Encerra a sessão atual e copia" : "Copia"} seus processos{" "}
+                <strong>Pendente</strong> e <strong>Em acompanhamento</strong> para uma nova sessão.
+                O histórico da sessão original é preservado.
               </p>
             </div>
           </div>
           <CopiarPendenciasForm
             sessaoId={sessaoAtual}
+            encerrarOrigem={sessaoOperavel}
             onCreated={async (nova) => {
-              // O backend encerra a sessão de origem atomicamente ao copiar
               setShowCopiarForm(false);
               const ignor = nova.ignorados ? ` · ${nova.ignorados} já em outra pauta` : "";
-              setMsg(`✓ Sessão anterior encerrada e ${nova.itens_copiados} item(s) copiado(s) para "${nova.titulo}"${ignor}.`);
+              const prefixo = sessaoOperavel
+                ? "Sessão anterior encerrada e"
+                : "Pendências";
+              setMsg(`✓ ${prefixo} ${nova.itens_copiados} item(s) copiado(s) para "${nova.titulo}"${ignor}.`);
               await loadSessoes(nova.nova_sessao_id);
               setSessaoAtual(nova.nova_sessao_id);
               await loadMetricas();
