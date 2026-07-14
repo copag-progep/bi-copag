@@ -1176,31 +1176,24 @@ export default function PautaPage() {
         <section className="panel">
           <div className="panel-header">
             <div>
-              <h3>Copiar pendências para nova sessão</h3>
+              <h3>Encerrar sessão e copiar pendências</h3>
               <p>
-                Copia processos com status <strong>Pendente</strong> e <strong>Em acompanhamento</strong> desta sessão para uma nova.
-                Os itens originais permanecem intactos.
+                Encerra a sessão atual e copia seus processos <strong>Pendente</strong> e <strong>Em acompanhamento</strong>
+                para uma nova sessão. O histórico da sessão encerrada é preservado.
               </p>
             </div>
           </div>
           <CopiarPendenciasForm
             sessaoId={sessaoAtual}
             onCreated={async (nova) => {
+              // O backend encerra a sessão de origem atomicamente ao copiar
               setShowCopiarForm(false);
-              try {
-                if (closeAfterCopy) {
-                  await api.patch(`/pauta/sessoes/${sessaoAtual}`, { ativa: false });
-                  setCloseAfterCopy(false);
-                  setMsg(`✓ Sessão encerrada e ${nova.itens_copiados} item(s) copiado(s) para "${nova.titulo}".`);
-                } else {
-                  setMsg(`✓ ${nova.itens_copiados} item(s) copiado(s) para "${nova.titulo}".`);
-                }
-                await loadSessoes(nova.nova_sessao_id);
-                setSessaoAtual(nova.nova_sessao_id);
-                await loadMetricas();
-              } catch (err) {
-                setMsg(`✗ ${err.response?.data?.detail || "pendências copiadas, mas falha ao encerrar sessão"}`);
-              }
+              setCloseAfterCopy(false);
+              const ignor = nova.ignorados ? ` · ${nova.ignorados} já em outra pauta` : "";
+              setMsg(`✓ Sessão anterior encerrada e ${nova.itens_copiados} item(s) copiado(s) para "${nova.titulo}"${ignor}.`);
+              await loadSessoes(nova.nova_sessao_id);
+              setSessaoAtual(nova.nova_sessao_id);
+              await loadMetricas();
             }}
             onCancel={() => {
               setCloseAfterCopy(false);

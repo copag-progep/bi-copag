@@ -697,16 +697,18 @@ export default function AttributionsPage() {
                       <RiskBadgeInline nivel={riskMap[`${item.protocolo}|${item.setor}`]?.nivel} />
                     </td>
                     {user?.is_admin && (() => {
-                      const prefixo = `${item.protocolo}|${item.setor}|`;
-                      const naPautaEntry = Object.entries(naPautaMap).find(([k]) => k.startsWith(prefixo));
-                      const naPauta = Boolean(naPautaEntry);
-                      const selKey = pautaKey(item.protocolo, item.setor, item.entrada_atribuicao);
-                      const isSel = Boolean(selecionados[selKey]);
+                      // entrada_setor canônico do próprio endpoint (fallback: risk / entrada_atribuicao)
                       const risk = riskMap[`${item.protocolo}|${item.setor}`];
+                      const entrada = item.entrada_setor || risk?.entrada_setor || item.entrada_atribuicao || null;
+                      const canon = pautaKey(item.protocolo, item.setor, entrada);
+                      // Match pela chave canônica completa — não bloqueia re-ingresso legítimo
+                      const naPautaEntry = naPautaMap[canon];
+                      const naPauta = Boolean(naPautaEntry);
+                      const isSel = Boolean(selecionados[canon]);
                       const leve = {
                         ...item,
                         dias_no_setor: item.dias_com_atribuicao,
-                        entrada_setor: risk?.entrada_setor || item.entrada_atribuicao || null,
+                        entrada_setor: entrada,
                         score: risk?.score ?? null,
                         nivel: risk?.nivel ?? null,
                       };
@@ -721,8 +723,8 @@ export default function AttributionsPage() {
                               onChange={(e) => {
                                 setSelecionados((prev) => {
                                   const next = { ...prev };
-                                  if (e.target.checked) next[selKey] = leve;
-                                  else delete next[selKey];
+                                  if (e.target.checked) next[canon] = leve;
+                                  else delete next[canon];
                                   return next;
                                 });
                               }}
@@ -732,7 +734,7 @@ export default function AttributionsPage() {
                             {naPauta ? (
                               <span
                                 className="pauta-na-badge"
-                                title={`Já está na pauta "${naPautaEntry[1].sessao_titulo}"`}
+                                title={`Já está na pauta "${naPautaEntry.sessao_titulo}"`}
                               >
                                 ✓ Na pauta
                               </span>

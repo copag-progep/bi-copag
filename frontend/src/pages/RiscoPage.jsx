@@ -1,12 +1,17 @@
-import { Fragment, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
+import api from "../api/client";
 import AddToPautaMiniModal from "../components/AddToPautaMiniModal";
 import ErrorBlock from "../components/ErrorBlock";
 import LoadingBlock from "../components/LoadingBlock";
 import { useAuth } from "../context/AuthContext";
 import { useFilters } from "../context/FiltersContext";
 import { useAnalyticsData } from "../hooks/useAnalyticsData";
+
+function pautaKey(protocolo, setor, entrada) {
+  return `${protocolo}|${setor}|${entrada || ""}`;
+}
 
 
 const NIVEL_LABEL = {
@@ -131,6 +136,20 @@ export default function RiscoPage() {
   const [page, setPage] = useState(1);
   const [addingProcess, setAddingProcess] = useState(null);
   const [pautaMsg, setPautaMsg] = useState("");
+  const [naPautaMap, setNaPautaMap] = useState({});
+
+  async function loadNaPauta() {
+    if (!user?.is_admin) return;
+    try {
+      const { data: d } = await api.get("/pauta/itens-ativos");
+      const map = {};
+      for (const it of d.items) map[it.key] = { sessao_titulo: it.sessao_titulo };
+      setNaPautaMap(map);
+    } catch {
+      // silencioso
+    }
+  }
+  useEffect(() => { loadNaPauta(); }, [user?.is_admin]);
 
   if (loading) return <LoadingBlock label="Calculando scores de risco..." />;
   if (error)   return <ErrorBlock message={error} onRetry={retry} />;
@@ -233,18 +252,28 @@ export default function RiscoPage() {
                         <td><strong>{fmt(proc.dias_no_setor)}</strong></td>
                         <td><ScoreBar score={proc.score} nivel={proc.nivel} /></td>
                         <td><RiskBadge nivel={proc.nivel} /></td>
-                        {user?.is_admin && (
-                          <td>
-                            <button
-                              type="button"
-                              className="table-button"
-                              onClick={(e) => { e.stopPropagation(); setAddingProcess(proc); setPautaMsg(""); }}
-                              style={{ fontSize: "0.7rem", padding: "3px 8px", whiteSpace: "nowrap" }}
-                            >
-                              + Pauta
-                            </button>
-                          </td>
-                        )}
+                        {user?.is_admin && (() => {
+                          const canon = pautaKey(proc.protocolo, proc.setor, proc.entrada_setor);
+                          const naPautaEntry = naPautaMap[canon];
+                          return (
+                            <td>
+                              {naPautaEntry ? (
+                                <span className="pauta-na-badge" title={`Já está na pauta "${naPautaEntry.sessao_titulo}"`}>
+                                  ✓ Na pauta
+                                </span>
+                              ) : (
+                                <button
+                                  type="button"
+                                  className="table-button"
+                                  onClick={(e) => { e.stopPropagation(); setAddingProcess(proc); setPautaMsg(""); }}
+                                  style={{ fontSize: "0.7rem", padding: "3px 8px", whiteSpace: "nowrap" }}
+                                >
+                                  + Pauta
+                                </button>
+                              )}
+                            </td>
+                          );
+                        })()}
                       </tr>
                       {expanded === id && (
                         <tr className="risk-breakdown-row">
@@ -303,8 +332,9 @@ export default function RiscoPage() {
           processo={addingProcess}
           onClose={() => setAddingProcess(null)}
           onAdded={() => {
-            setAddingProcess(null);
             setPautaMsg(`✓ "${addingProcess.protocolo}" adicionado à pauta.`);
+            setAddingProcess(null);
+            loadNaPauta(); // botão fica verde imediatamente
           }}
         />
       )}

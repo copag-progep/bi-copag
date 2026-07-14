@@ -1014,6 +1014,10 @@ def get_attributions_data(db: Session, filters: AnalyticsFilters) -> dict:
                 "atribuicao": atribuicao_display,
                 "tipo": last.get("tipo") or "Não informado",
                 "entrada_atribuicao": str(start_day),
+                # entrada_setor: chave canônica alinhada à regra de duplicidade da
+                # pauta (protocolo+setor+entrada_setor). Aqui é o início da presença
+                # do processo neste setor com esta atribuição — melhor proxy disponível.
+                "entrada_setor": str(start_day),
                 "dias_com_atribuicao": dias,
                 "multiplos_setores": str(protocolo) in multi_sector_protocols,
             })

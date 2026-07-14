@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
-from sqlalchemy import func, text
+from sqlalchemy import func, or_, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
@@ -1147,9 +1147,13 @@ _SITUACAO_LABELS = {
 def _atribuicao_atual_por_processo(db: Session, itens: list[PautaItem]) -> dict[tuple[str, str], str | None]:
     """Atribuição atual no SEI (último snapshot) para cada (protocolo, setor) da pauta.
 
-    Retorna {(protocolo, setor): atribuicao_normalizada} apenas para processos que
-    ainda constam no último snapshot daquele setor. Processos que já saíram não
-    entram no mapa — o chamador usa o valor histórico (item.atribuicao) como fallback.
+    Retorna {(protocolo, setor): atribuicao} para processos que AINDA constam no
+    último snapshot daquele setor — a chave existir no dict significa "processo
+    presente no setor" (mesmo que o valor seja None por não ter normalização).
+    Processos ausentes do snapshot não entram no dict; o chamador usa
+    item.atribuicao (valor da inclusão) como fallback histórico.
+
+    Prefere atribuicao_normalizada; se nula, usa o texto bruto atribuicao.
     Consulta única em lote (sem N+1).
     """
     if not itens:
@@ -1170,14 +1174,18 @@ def _atribuicao_atual_por_processo(db: Session, itens: list[PautaItem]) -> dict[
         return {}
 
     rows = (
-        db.query(Processo.protocolo, Processo.setor, Processo.atribuicao_normalizada, Processo.data_relatorio)
+        db.query(
+            Processo.protocolo, Processo.setor,
+            Processo.atribuicao_normalizada, Processo.atribuicao, Processo.data_relatorio,
+        )
         .filter(Processo.protocolo.in_(protocolos), Processo.setor.in_(setores))
         .all()
     )
     resultado: dict[tuple[str, str], str | None] = {}
-    for protocolo, setor, atrib, data_rel in rows:
+    for protocolo, setor, atrib_norm, atrib_raw, data_rel in rows:
         if (protocolo, setor) in pares and data_rel == ref_por_setor.get(setor):
-            resultado[(protocolo, setor)] = atrib
+            # Chave presente = processo ainda no setor; valor pode ser None
+            resultado[(protocolo, setor)] = atrib_norm or atrib_raw
     return resultado
 
 
@@ -1370,10 +1378,12 @@ def get_pauta_sessao(
         if not _pauta_item_visible_to(item, current_user, setores_atuais):
             continue
         d = _pauta_item_to_dict(item, users_map)
-        atual = atribuicao_atual.get((item.protocolo, item.setor))
+        # Presença no dict = processo ainda no setor (valor pode ser None sem normalização)
+        presente = (item.protocolo, item.setor) in atribuicao_atual
+        atual = atribuicao_atual.get((item.protocolo, item.setor)) if presente else None
         d["atribuicao_atual"] = atual
-        d["atribuicao_display"] = atual or item.atribuicao
-        d["atribuicao_historica"] = atual is None  # True → mostrar tooltip de valor histórico
+        d["atribuicao_display"] = atual if presente else item.atribuicao
+        d["atribuicao_historica"] = not presente  # True → tooltip de valor histórico
         itens.append(d)
 
     # Não-admin sem itens visíveis: 404 — não confirma sequer que a sessão
@@ -1725,10 +1735,12 @@ def copy_pending_to_new_session(
     current_admin: User = Depends(get_current_admin_user),
     db: Session = Depends(get_db),
 ):
-    """Copia itens pendentes/em_acompanhamento de uma sessão para uma nova sessão.
+    """Encerra a sessão de origem E copia seus itens pendentes para uma nova sessão,
+    tudo na mesma transação (atômico).
 
-    Útil para sessões semanais: pendências não resolvidas migram automaticamente
-    para a pauta da semana seguinte, mantendo o histórico original intacto.
+    A regra de não-duplicidade impede o mesmo processo em duas pautas ativas — por
+    isso a origem é obrigatoriamente encerrada aqui. Encerrar a origem ANTES de
+    copiar faz seus itens deixarem de contar como "pauta ativa", permitindo a cópia.
     """
     source = db.query(PautaSessao).filter(PautaSessao.id == sessao_id).first()
     if not source:
@@ -1737,6 +1749,12 @@ def copy_pending_to_new_session(
     pending = [i for i in source.itens if i.status in ("pendente", "em_acompanhamento")]
     if not pending:
         raise HTTPException(status_code=400, detail="Nenhum item pendente nesta sessão.")
+
+    # 1) Encerra a origem primeiro (na mesma transação) — seus itens deixam de
+    #    contar como ativos, liberando a duplicidade global para a cópia
+    source.ativa = False
+    source.updated_at = datetime.now(timezone.utc)
+    db.flush()
 
     new_session = PautaSessao(
         titulo=payload.titulo,
@@ -1749,8 +1767,13 @@ def copy_pending_to_new_session(
     db.flush()
 
     copiados = 0
+    ignorados = 0
     for item in pending:
-        new_item = PautaItem(
+        # Salvaguarda: pula se o processo já estiver em outra pauta ativa
+        if _pauta_item_em_sessao_ativa(db, item.protocolo, item.setor, item.entrada_setor):
+            ignorados += 1
+            continue
+        db.add(PautaItem(
             sessao_id=new_session.id,
             protocolo=item.protocolo,
             setor=item.setor,
@@ -1766,8 +1789,7 @@ def copy_pending_to_new_session(
             assigned_by=current_admin.id,
             nota_admin=item.nota_admin,
             status="pendente",
-        )
-        db.add(new_item)
+        ))
         copiados += 1
 
     _log_audit(
@@ -1775,11 +1797,17 @@ def copy_pending_to_new_session(
         action="pauta.pendencias_copiadas",
         entity_type="pauta_sessao",
         entity_id=str(sessao_id),
-        details={"origem": source.titulo, "nova_sessao": payload.titulo, "itens_copiados": copiados},
+        details={
+            "origem": source.titulo, "origem_encerrada": True,
+            "nova_sessao": payload.titulo, "itens_copiados": copiados, "ignorados": ignorados,
+        },
         user=current_admin,
     )
     db.commit()
-    return {"nova_sessao_id": new_session.id, "titulo": payload.titulo, "itens_copiados": copiados}
+    return {
+        "nova_sessao_id": new_session.id, "titulo": payload.titulo,
+        "itens_copiados": copiados, "ignorados": ignorados, "origem_encerrada": True,
+    }
 
 
 @app.get("/api/pauta/metricas")
@@ -2514,12 +2542,16 @@ def alerts_summary(
     )[:8]
 
     # ── Pauta: itens pendentes do usuário (ou de todos para admin) ──────
-    # Escopo cumulativo: atribuído ao usuário E setor no escopo atual
+    # Escopo cumulativo: atribuído ao usuário E setor no escopo atual.
+    # "Não encerrada" é filtrável direto no SQL: ativa=True E (sem prazo OU
+    # prazo >= hoje) — cobre encerramento manual e por prazo sem pós-filtro Python.
+    hoje = datetime.now(LOCAL_TIMEZONE).date()
     pauta_query = (
         db.query(PautaItem)
         .join(PautaSessao, PautaItem.sessao_id == PautaSessao.id)
         .filter(
             PautaSessao.ativa == True,
+            or_(PautaSessao.data_fim.is_(None), PautaSessao.data_fim >= hoje),
             PautaItem.status.in_(["pendente", "em_acompanhamento"]),
         )
     )
@@ -2531,12 +2563,7 @@ def alerts_summary(
             else:
                 pauta_query = pauta_query.filter(PautaItem.setor.in_(setores_atuais))
 
-    # Materializa e descarta sessões encerradas por prazo (situação derivada não
-    # é filtrável no SQL); mantém contador e lista consistentes.
-    pauta_rows = [
-        i for i in pauta_query.order_by(PautaItem.score_risco.desc().nullslast()).all()
-        if _situacao_pauta_sessao(i.sessao) != "encerrada"
-    ]
+    pauta_rows = pauta_query.order_by(PautaItem.score_risco.desc().nullslast()).limit(50).all()
     pauta_pendentes = len(pauta_rows)
     pauta_itens = [
         {
