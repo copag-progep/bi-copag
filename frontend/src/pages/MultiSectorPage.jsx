@@ -5,6 +5,8 @@ import LoadingBlock from "../components/LoadingBlock";
 import StatCard from "../components/StatCard";
 import { useFilters } from "../context/FiltersContext";
 import { useAnalyticsData } from "../hooks/useAnalyticsData";
+import { generateMultiSectorExcel } from "../utils/multiSectorExcel";
+import { generateMultiSectorPdf } from "../utils/multiSectorPdf";
 
 
 const SECTOR_STYLES = {
@@ -37,12 +39,14 @@ function CountBadge({ count }) {
 
 
 export default function MultiSectorPage() {
-  const { toQueryParams } = useFilters();
+  const { filters, toQueryParams } = useFilters();
   const { data, loading, stale, error, retry } = useAnalyticsData(
     "/analytics/multi-sector",
     toQueryParams()
   );
   const [search, setSearch] = useState("");
+  const [excelLoading, setExcelLoading] = useState(false);
+  const [pdfLoading, setPdfLoading] = useState(false);
 
   const processos = data?.processos || [];
 
@@ -58,6 +62,55 @@ export default function MultiSectorPage() {
     if (!q) return processos;
     return processos.filter(p => p.protocolo?.toLowerCase().includes(q));
   }, [processos, search]);
+
+  const exportStats = useMemo(() => {
+    const em2 = filtered.filter(p => (p.setores?.length ?? 0) === 2).length;
+    const em3mais = filtered.filter(p => (p.setores?.length ?? 0) >= 3).length;
+    const setoresUnicos = new Set(filtered.flatMap(p => p.setores || [])).size;
+    return { total: filtered.length, em2, em3mais, setoresUnicos };
+  }, [filtered]);
+
+  function buildFiltersText() {
+    const parts = [];
+    if (filters.setor) parts.push(`Setor: ${filters.setor}`);
+    if (filters.tipo) parts.push(`Tipo: ${filters.tipo}`);
+    if (filters.atribuicao === "__sem_atribuicao__") parts.push("Sem atribuição");
+    else if (filters.atribuicao) parts.push(`Atribuição: ${filters.atribuicao}`);
+    if (search.trim()) parts.push(`Protocolo: "${search.trim()}"`);
+    return parts.length ? parts.join("  ·  ") : null;
+  }
+
+  function handleGenerateExcel() {
+    setExcelLoading(true);
+    try {
+      generateMultiSectorExcel({
+        items: filtered,
+        stats: exportStats,
+        dataReferencia: data?.data_referencia,
+        filtersText: buildFiltersText(),
+      });
+    } catch (err) {
+      console.error("Erro ao exportar Excel:", err);
+    } finally {
+      setExcelLoading(false);
+    }
+  }
+
+  function handleGeneratePdf() {
+    setPdfLoading(true);
+    try {
+      generateMultiSectorPdf({
+        items: filtered,
+        stats: exportStats,
+        dataReferencia: data?.data_referencia,
+        filtersText: buildFiltersText(),
+      });
+    } catch (err) {
+      console.error("Erro ao gerar PDF:", err);
+    } finally {
+      setPdfLoading(false);
+    }
+  }
 
   if (loading) return <LoadingBlock label="Investigando múltiplos setores..." />;
   if (error)   return <ErrorBlock message={error} onRetry={retry} />;
@@ -108,19 +161,84 @@ export default function MultiSectorPage() {
             <h3>Ocorrências para {data?.data_referencia || "a data selecionada"}</h3>
             <p>Use o filtro de data no topo para analisar snapshots específicos.</p>
           </div>
-          <div className="ms-search-wrap">
-            <svg className="ms-search-icon" width="14" height="14" viewBox="0 0 24 24"
-              fill="none" stroke="currentColor" strokeWidth="2.2"
-              strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
-            </svg>
-            <input
-              type="text"
-              className="ms-search"
-              placeholder="Buscar protocolo..."
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-            />
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
+            <button
+              type="button"
+              onClick={handleGenerateExcel}
+              disabled={excelLoading || filtered.length === 0}
+              style={{
+                appearance: "none", borderRadius: "var(--radius)",
+                padding: "10px 16px", cursor: excelLoading || filtered.length === 0 ? "not-allowed" : "pointer",
+                fontFamily: "inherit", fontSize: "0.875rem", fontWeight: 700,
+                display: "inline-flex", alignItems: "center", gap: 7,
+                background: excelLoading || filtered.length === 0 ? "rgba(26,122,80,0.07)" : "rgba(26,122,80,0.12)",
+                color: excelLoading || filtered.length === 0 ? "var(--muted)" : "var(--success)",
+                border: "1.5px solid rgba(26,122,80,0.2)",
+                transition: "all 0.15s ease", opacity: excelLoading || filtered.length === 0 ? 0.6 : 1,
+                whiteSpace: "nowrap",
+              }}
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+                <polyline points="14 2 14 8 20 8"/>
+                <polyline points="8 17 10 15 8 13"/>
+                <line x1="16" y1="13" x2="12" y2="13"/>
+                <line x1="16" y1="17" x2="12" y2="17"/>
+              </svg>
+              {excelLoading ? "Exportando..." : "Exportar Excel"}
+            </button>
+
+            <button
+              type="button"
+              onClick={handleGeneratePdf}
+              disabled={pdfLoading || filtered.length === 0}
+              style={{
+                appearance: "none",
+                border: "none",
+                borderRadius: "var(--radius)",
+                padding: "10px 18px",
+                cursor: pdfLoading || filtered.length === 0 ? "not-allowed" : "pointer",
+                fontFamily: "inherit",
+                fontSize: "0.875rem",
+                fontWeight: 700,
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 7,
+                background: pdfLoading || filtered.length === 0
+                  ? "rgba(39,49,104,0.08)"
+                  : "linear-gradient(135deg, #273168, #1c2350)",
+                color: pdfLoading || filtered.length === 0 ? "var(--muted)" : "#fff",
+                boxShadow: pdfLoading || filtered.length === 0 ? "none" : "0 3px 10px rgba(39,49,104,0.25)",
+                transition: "all 0.15s ease",
+                opacity: pdfLoading || filtered.length === 0 ? 0.6 : 1,
+                whiteSpace: "nowrap",
+              }}
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+                <polyline points="14 2 14 8 20 8"/>
+                <line x1="12" y1="18" x2="12" y2="12"/>
+                <line x1="9" y1="15" x2="15" y2="15"/>
+              </svg>
+              {pdfLoading ? "Gerando PDF..." : "Gerar PDF"}
+            </button>
+
+            <div className="ms-search-wrap">
+              <svg className="ms-search-icon" width="14" height="14" viewBox="0 0 24 24"
+                fill="none" stroke="currentColor" strokeWidth="2.2"
+                strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+              </svg>
+              <input
+                type="text"
+                className="ms-search"
+                placeholder="Buscar protocolo..."
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+              />
+            </div>
           </div>
         </div>
 
