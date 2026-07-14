@@ -1144,24 +1144,25 @@ _SITUACAO_LABELS = {
 }
 
 
-def _atribuicao_atual_por_processo(db: Session, itens: list[PautaItem]) -> dict[tuple[str, str], str | None]:
-    """Atribuição atual no SEI (último snapshot) para cada (protocolo, setor) da pauta.
+def _atribuicao_atual_por_processo(db: Session, itens: list[PautaItem]) -> dict[tuple[str, str, object], str | None]:
+    """Atribuição atual no SEI para cada item, chaveada por (protocolo, setor, entrada_setor).
 
-    Retorna {(protocolo, setor): atribuicao} para processos que AINDA constam no
-    último snapshot daquele setor — a chave existir no dict significa "processo
-    presente no setor" (mesmo que o valor seja None por não ter normalização).
-    Processos ausentes do snapshot não entram no dict; o chamador usa
-    item.atribuicao (valor da inclusão) como fallback histórico.
+    Um item só recebe a atribuição atual quando é a PASSAGEM CORRENTE do processo:
+      - o processo consta no último snapshot do setor (presente agora), E
+      - o processo constava também na data entrada_setor do item (a passagem
+        registrada na pauta é a mesma que segue até hoje).
+    Isso evita que um item histórico (processo que saiu e voltou depois com nova
+    entrada_setor) exiba a atribuição da nova passagem.
 
-    Prefere atribuicao_normalizada; se nula, usa o texto bruto atribuicao.
-    Consulta única em lote (sem N+1).
+    A chave existir no dict = "atual, presente no setor" (valor pode ser None sem
+    normalização). Chave ausente → o chamador usa item.atribuicao (fallback).
+    Prefere atribuicao_normalizada; se nula, usa o texto bruto. Consulta em lote.
     """
     if not itens:
         return {}
 
-    pares = {(i.protocolo, i.setor) for i in itens}
-    protocolos = {p for p, _ in pares}
-    setores = {s for _, s in pares}
+    protocolos = {i.protocolo for i in itens}
+    setores = {i.setor for i in itens}
 
     # Data de referência (último snapshot) por setor envolvido
     ref_por_setor = dict(
@@ -1173,6 +1174,7 @@ def _atribuicao_atual_por_processo(db: Session, itens: list[PautaItem]) -> dict[
     if not ref_por_setor:
         return {}
 
+    # Todos os pares (protocolo, setor, data) presentes + atribuição da data de referência
     rows = (
         db.query(
             Processo.protocolo, Processo.setor,
@@ -1181,11 +1183,22 @@ def _atribuicao_atual_por_processo(db: Session, itens: list[PautaItem]) -> dict[
         .filter(Processo.protocolo.in_(protocolos), Processo.setor.in_(setores))
         .all()
     )
-    resultado: dict[tuple[str, str], str | None] = {}
+    presenca: set[tuple[str, str, object]] = set()          # (proto, setor, data)
+    atrib_ref: dict[tuple[str, str], str | None] = {}        # atribuição na data de referência
     for protocolo, setor, atrib_norm, atrib_raw, data_rel in rows:
-        if (protocolo, setor) in pares and data_rel == ref_por_setor.get(setor):
-            # Chave presente = processo ainda no setor; valor pode ser None
-            resultado[(protocolo, setor)] = atrib_norm or atrib_raw
+        presenca.add((protocolo, setor, data_rel))
+        if data_rel == ref_por_setor.get(setor):
+            atrib_ref[(protocolo, setor)] = atrib_norm or atrib_raw
+
+    resultado: dict[tuple[str, str, object], str | None] = {}
+    for it in itens:
+        ref = ref_por_setor.get(it.setor)
+        presente_agora = (it.protocolo, it.setor, ref) in presenca
+        # Passagem corrente: presente agora E presente na entrada_setor do item.
+        # Sem entrada_setor registrada, basta estar presente agora.
+        mesma_passagem = it.entrada_setor is None or (it.protocolo, it.setor, it.entrada_setor) in presenca
+        if presente_agora and mesma_passagem:
+            resultado[(it.protocolo, it.setor, it.entrada_setor)] = atrib_ref.get((it.protocolo, it.setor))
     return resultado
 
 
@@ -1378,9 +1391,10 @@ def get_pauta_sessao(
         if not _pauta_item_visible_to(item, current_user, setores_atuais):
             continue
         d = _pauta_item_to_dict(item, users_map)
-        # Presença no dict = processo ainda no setor (valor pode ser None sem normalização)
-        presente = (item.protocolo, item.setor) in atribuicao_atual
-        atual = atribuicao_atual.get((item.protocolo, item.setor)) if presente else None
+        # Chave de 3 elementos: só é "atual" na passagem corrente do processo
+        chave = (item.protocolo, item.setor, item.entrada_setor)
+        presente = chave in atribuicao_atual
+        atual = atribuicao_atual.get(chave) if presente else None
         d["atribuicao_atual"] = atual
         d["atribuicao_display"] = atual if presente else item.atribuicao
         d["atribuicao_historica"] = not presente  # True → tooltip de valor histórico
@@ -1745,6 +1759,10 @@ def copy_pending_to_new_session(
     source = db.query(PautaSessao).filter(PautaSessao.id == sessao_id).first()
     if not source:
         raise HTTPException(status_code=404, detail="Sessão de origem não encontrada.")
+
+    # Mesma regra do PATCH: prazo não pode ser anterior ao início
+    if payload.data_fim is not None and payload.data_inicio > payload.data_fim:
+        raise HTTPException(status_code=400, detail="O prazo da pauta não pode ser anterior à data de início.")
 
     pending = [i for i in source.itens if i.status in ("pendente", "em_acompanhamento")]
     if not pending:
@@ -2563,15 +2581,16 @@ def alerts_summary(
             else:
                 pauta_query = pauta_query.filter(PautaItem.setor.in_(setores_atuais))
 
-    pauta_rows = pauta_query.order_by(PautaItem.score_risco.desc().nullslast()).limit(50).all()
-    pauta_pendentes = len(pauta_rows)
+    # Contador total (sem limite) separado da lista exibida (top 5)
+    pauta_pendentes = pauta_query.count()
+    pauta_rows = pauta_query.order_by(PautaItem.score_risco.desc().nullslast()).limit(5).all()
     pauta_itens = [
         {
             "id": i.id, "protocolo": i.protocolo, "setor": i.setor,
             "nivel_risco": i.nivel_risco, "dias_no_setor": i.dias_no_setor,
             "status": i.status,
         }
-        for i in pauta_rows[:5]
+        for i in pauta_rows
     ]
 
     return JSONResponse({

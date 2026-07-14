@@ -171,8 +171,9 @@ def test_atribuicao_atual_presente_sem_normalizacao():
         item = _item(db, s, protocolo="A1", setor="DIAPE", entrada=HOJE)
         _processo(db, "A1", "DIAPE", "Fulano Bruto", None, HOJE)
         mapa = _atribuicao_atual_por_processo(db, [item])
-        assert ("A1", "DIAPE") in mapa            # presente
-        assert mapa[("A1", "DIAPE")] == "Fulano Bruto"
+        chave = ("A1", "DIAPE", HOJE)
+        assert chave in mapa                       # presente na passagem corrente
+        assert mapa[chave] == "Fulano Bruto"
     finally:
         db.rollback(); db.close()
 
@@ -186,7 +187,25 @@ def test_atribuicao_ausente_do_snapshot_nao_entra_no_mapa():
         # snapshot mais recente do setor NÃO contém A2
         _processo(db, "OUTRO", "DIAPE", "Beltrano", "Beltrano", HOJE)
         mapa = _atribuicao_atual_por_processo(db, [item])
-        assert ("A2", "DIAPE") not in mapa
+        assert ("A2", "DIAPE", HOJE) not in mapa
+    finally:
+        db.rollback(); db.close()
+
+
+def test_atribuicao_reingresso_nao_contamina_item_historico():
+    """Processo saiu e voltou ao mesmo setor com nova entrada_setor: o item
+    histórico (entrada antiga) NÃO recebe a atribuição da nova passagem."""
+    db = _Session()
+    try:
+        s = _sessao(db, ativa=True, inicio=HOJE, fim=HOJE + timedelta(days=5))
+        entrada_antiga = HOJE - timedelta(days=40)
+        item_hist = _item(db, s, protocolo="R1", setor="DIAPE", entrada=entrada_antiga)
+        # Snapshot atual tem R1 de volta, mas com atribuição nova; não há snapshot
+        # de R1 na entrada_antiga (passagem diferente)
+        _processo(db, "R1", "DIAPE", "Nova Passagem", "Nova Passagem", HOJE)
+        mapa = _atribuicao_atual_por_processo(db, [item_hist])
+        # A chave do item histórico não deve estar presente → cai no fallback
+        assert ("R1", "DIAPE", entrada_antiga) not in mapa
     finally:
         db.rollback(); db.close()
 

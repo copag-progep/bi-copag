@@ -327,7 +327,7 @@ function ProgressoResolucao({ contagens }) {
 }
 
 // ── Menu administrativo (⋯) ───────────────────────────────────────────────
-function AdminMenu({ onEditar, onEncerrar, sessaoAtiva }) {
+function AdminMenu({ onEditar, onEncerrar, onCopiar, sessaoOperavel, temPendencias }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
 
@@ -356,14 +356,28 @@ function AdminMenu({ onEditar, onEncerrar, sessaoAtiva }) {
       </button>
       {open && (
         <div className="pauta-admin-menu" role="menu">
-          <button type="button" role="menuitem" onClick={() => { setOpen(false); onEditar(); }}>
-            <LucideIcon paths={ICO.pencil} size={14} /> Editar sessão
-          </button>
-          {sessaoAtiva && (
+          {sessaoOperavel && (
+            <button type="button" role="menuitem" onClick={() => { setOpen(false); onEditar(); }}>
+              <LucideIcon paths={ICO.pencil} size={14} /> Editar sessão
+            </button>
+          )}
+          {sessaoOperavel && temPendencias && (
+            <button type="button" role="menuitem" className="danger"
+              onClick={() => { setOpen(false); onCopiar(); }}
+              title="Encerra esta sessão e copia os pendentes para uma nova">
+              <LucideIcon paths={ICO.copy} size={14} /> Encerrar e copiar pendências
+            </button>
+          )}
+          {sessaoOperavel && (
             <button type="button" role="menuitem" className="danger"
               onClick={() => { setOpen(false); onEncerrar(); }}>
               <LucideIcon paths={ICO.archive} size={14} /> Encerrar sessão
             </button>
+          )}
+          {!sessaoOperavel && (
+            <div style={{ padding: "9px 12px", fontSize: "0.78rem", color: "var(--muted)" }}>
+              Sessão encerrada — somente leitura.
+            </div>
           )}
         </div>
       )}
@@ -880,7 +894,6 @@ export default function PautaPage() {
   const [showNovaSessao, setShowNovaSessao] = useState(false);
   const [showAdicionarModal, setShowAdicionarModal] = useState(false);
   const [showCopiarForm, setShowCopiarForm] = useState(false);
-  const [closeAfterCopy, setCloseAfterCopy] = useState(false);
   const [showEncerrarModal, setShowEncerrarModal] = useState(false);
   const [showEditarSessao, setShowEditarSessao] = useState(false);
   const [showMetricas, setShowMetricas] = useState(false);
@@ -900,8 +913,8 @@ export default function PautaPage() {
 
   async function handleEncerrarSessao(copiarPendencias) {
     if (copiarPendencias) {
+      // "Encerrar e copiar" → o copy-pending encerra a origem atomicamente
       setShowEncerrarModal(false);
-      setCloseAfterCopy(true);
       setShowCopiarForm(true);
       return;
     }
@@ -986,6 +999,9 @@ export default function PautaPage() {
   const itens = sessaoData?.itens || [];
   const totalAtivos = (contagens.pendente || 0) + (contagens.em_acompanhamento || 0);
   const totalResolvidos = (contagens.saiu_do_setor || 0) + (contagens.resolvido_manual || 0);
+  // Sessão operável (adicionar/encerrar/copiar): apenas a_iniciar ou em_andamento
+  const sessaoOperavel = ["a_iniciar", "em_andamento"].includes(sessaoData?.situacao);
+  const temPendencias = (contagens.pendente || 0) + (contagens.em_acompanhamento || 0) > 0;
 
   return (
     <div className="page-grid">
@@ -1037,11 +1053,13 @@ export default function PautaPage() {
               </button>
               {sessaoAtual && sessaoData && (
                 <>
-                  {/* Ação primária */}
-                  <button type="button" className="primary-button" onClick={() => setShowAdicionarModal(true)}
-                    style={{ fontSize: "0.82rem", padding: "8px 16px", whiteSpace: "nowrap", display: "inline-flex", alignItems: "center", gap: 6 }}>
-                    <LucideIcon paths={ICO.plus} size={14} /> Adicionar processos
-                  </button>
+                  {/* Ação primária — só em sessão operável */}
+                  {sessaoOperavel && (
+                    <button type="button" className="primary-button" onClick={() => setShowAdicionarModal(true)}
+                      style={{ fontSize: "0.82rem", padding: "8px 16px", whiteSpace: "nowrap", display: "inline-flex", alignItems: "center", gap: 6 }}>
+                      <LucideIcon paths={ICO.plus} size={14} /> Adicionar processos
+                    </button>
+                  )}
                   {/* Secundárias */}
                   <button type="button" className="table-button"
                     onClick={handleGerarPdf} disabled={pdfLoading}
@@ -1049,18 +1067,13 @@ export default function PautaPage() {
                     title="Exportar PDF da pauta desta sessão">
                     <LucideIcon paths={ICO.fileDown} size={14} /> {pdfLoading ? "Gerando..." : "PDF"}
                   </button>
-                  {(sessaoData?.contagens?.pendente > 0 || sessaoData?.contagens?.em_acompanhamento > 0) && (
-                    <button type="button" className="table-button" onClick={() => setShowCopiarForm(true)}
-                      style={{ fontSize: "0.82rem", padding: "8px 14px", whiteSpace: "nowrap", display: "inline-flex", alignItems: "center", gap: 6 }}
-                      title="Copia itens pendentes desta sessão para uma nova sessão">
-                      <LucideIcon paths={ICO.copy} size={14} /> Copiar pendências
-                    </button>
-                  )}
-                  {/* Administrativas: menu ⋯ */}
+                  {/* Administrativas: menu ⋯ — Editar/Encerrar apenas se operável */}
                   <AdminMenu
-                    sessaoAtiva={Boolean(sessaoData?.ativa)}
+                    sessaoOperavel={sessaoOperavel}
+                    temPendencias={temPendencias}
                     onEditar={() => setShowEditarSessao(true)}
                     onEncerrar={() => setShowEncerrarModal(true)}
+                    onCopiar={() => setShowCopiarForm(true)}
                   />
                 </>
               )}
@@ -1188,17 +1201,13 @@ export default function PautaPage() {
             onCreated={async (nova) => {
               // O backend encerra a sessão de origem atomicamente ao copiar
               setShowCopiarForm(false);
-              setCloseAfterCopy(false);
               const ignor = nova.ignorados ? ` · ${nova.ignorados} já em outra pauta` : "";
               setMsg(`✓ Sessão anterior encerrada e ${nova.itens_copiados} item(s) copiado(s) para "${nova.titulo}"${ignor}.`);
               await loadSessoes(nova.nova_sessao_id);
               setSessaoAtual(nova.nova_sessao_id);
               await loadMetricas();
             }}
-            onCancel={() => {
-              setCloseAfterCopy(false);
-              setShowCopiarForm(false);
-            }}
+            onCancel={() => setShowCopiarForm(false)}
           />
         </section>
       )}
