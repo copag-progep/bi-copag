@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import api from "../api/client";
 import DataTable from "../components/DataTable";
@@ -165,6 +165,7 @@ export default function AdminPage() {
   const [twLoading, setTwLoading] = useState(false);
   const [twSearch, setTwSearch] = useState("");
   const [twFilter, setTwFilter] = useState("todos"); // todos | configurados | modificados
+  const [twSort, setTwSort] = useState({ key: "tipo", dir: "asc" });
   const [twEditing, setTwEditing] = useState(null); // { tipo, peso, categoria, justificativa, id }
   const [twSaving, setTwSaving] = useState(false);
   const [twMsg, setTwMsg] = useState("");
@@ -212,6 +213,75 @@ export default function AdminPage() {
       setTwMsg(`✗ ${err.response?.data?.detail || "falha ao remover"}`);
     }
   }
+
+  function toggleTypeWeightSort(key) {
+    setTwSort((current) => {
+      if (current.key === key) {
+        return { key, dir: current.dir === "asc" ? "desc" : "asc" };
+      }
+      return { key, dir: key === "tipo" ? "asc" : "desc" };
+    });
+  }
+
+  function renderTwSortHeader(key, label, extraStyle = {}) {
+    const active = twSort.key === key;
+    const indicator = active ? (twSort.dir === "asc" ? "↑" : "↓") : "↕";
+    return (
+      <th style={extraStyle}>
+        <button
+          type="button"
+          className={`sortable-th ${active ? "active" : ""}`}
+          onClick={() => toggleTypeWeightSort(key)}
+          title={`Ordenar por ${label.toLowerCase()}`}
+          style={{
+            border: 0,
+            background: "transparent",
+            padding: 0,
+            color: active ? "var(--primary)" : "inherit",
+            font: "inherit",
+            fontWeight: 800,
+            letterSpacing: "inherit",
+            textTransform: "inherit",
+            cursor: "pointer",
+          }}
+        >
+          {label} <span style={{ marginLeft: 4, opacity: active ? 1 : 0.35 }}>{indicator}</span>
+        </button>
+      </th>
+    );
+  }
+
+  const visibleTypeWeights = useMemo(() => {
+    const searched = twSearch.trim().toLowerCase();
+    const filtered = typeWeights.filter((t) => {
+      const matchSearch = !searched || t.tipo.toLowerCase().includes(searched);
+      const matchFilter =
+        twFilter === "todos" ||
+        (twFilter === "configurados" && t.configurado) ||
+        (twFilter === "modificados" && t.configurado && t.peso !== 1.0);
+      return matchSearch && matchFilter;
+    });
+
+    const direction = twSort.dir === "asc" ? 1 : -1;
+    const byTipo = (left, right) => left.tipo.localeCompare(right.tipo, "pt-BR", { sensitivity: "base" });
+
+    return [...filtered].sort((left, right) => {
+      let comparison = 0;
+      if (twSort.key === "processos") {
+        comparison = (Number(left.total_processos) || 0) - (Number(right.total_processos) || 0);
+      } else if (twSort.key === "peso") {
+        comparison = (Number(left.peso) || 0) - (Number(right.peso) || 0);
+      } else {
+        comparison = byTipo(left, right);
+      }
+
+      if (comparison === 0 && twSort.key !== "tipo") {
+        return byTipo(left, right);
+      }
+      return comparison * direction;
+    });
+  }, [typeWeights, twSearch, twFilter, twSort]);
+
   const [form, setForm] = useState({
     name: "",
     email: "",
@@ -823,23 +893,15 @@ export default function AdminPage() {
               <table className="data-table" style={{ fontSize: "0.82rem" }}>
                 <thead>
                   <tr>
-                    <th>Tipo de processo</th>
-                    <th style={{ width: 80 }}>Processos</th>
-                    <th style={{ width: 80 }}>Peso</th>
+                    {renderTwSortHeader("tipo", "Tipo de processo")}
+                    {renderTwSortHeader("processos", "Processos", { width: 80, textAlign: "right" })}
+                    {renderTwSortHeader("peso", "Peso", { width: 80 })}
                     <th>Categoria</th>
                     <th style={{ width: 110 }}>Ações</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {typeWeights
-                    .filter((t) => {
-                      const matchSearch = !twSearch || t.tipo.toLowerCase().includes(twSearch.toLowerCase());
-                      const matchFilter =
-                        twFilter === "todos" ||
-                        (twFilter === "configurados" && t.configurado) ||
-                        (twFilter === "modificados" && t.configurado && t.peso !== 1.0);
-                      return matchSearch && matchFilter;
-                    })
+                  {visibleTypeWeights
                     .map((t) => {
                       const isEditing = twEditing?.tipo === t.tipo;
                       const pesoColor =
