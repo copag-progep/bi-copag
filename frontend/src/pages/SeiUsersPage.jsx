@@ -133,6 +133,7 @@ export default function SeiUsersPage() {
   const [sectorMsg, setSectorMsg] = useState("");
   const [sectorSaving, setSectorSaving] = useState(false);
   const [inferring, setInferring] = useState(false);
+  const [discovering, setDiscovering] = useState(false);
   // localSetores: { [seiUserId]: string[] } — edits em andamento
   const [localSetores, setLocalSetores] = useState({});
 
@@ -174,6 +175,25 @@ export default function SeiUsersPage() {
       setSectorMsg(`✗ ${err.response?.data?.detail || "falha na inferência"}`);
     } finally {
       setInferring(false);
+    }
+  }
+
+  async function handleDiscoverUsers() {
+    if (!window.confirm("Isso vai criar automaticamente usuários SEI encontrados nos snapshots atuais e ainda ausentes da base. Continuar?")) return;
+    setDiscovering(true);
+    setSectorMsg("");
+    try {
+      const { data } = await api.post("/admin/sei-users/discover-from-processes");
+      const nomes = (data.users || []).map((item) => item.nome).slice(0, 4).join(", ");
+      const suffix = nomes ? ` Novos: ${nomes}${data.users.length > 4 ? "..." : ""}.` : "";
+      setSectorMsg(
+        `✓ ${data.created} usuários criados e ${data.links_added} vínculos de setor adicionados.${suffix}`
+      );
+      await loadSeiUsers();
+    } catch (err) {
+      setSectorMsg(`✗ ${err.response?.data?.detail || "falha na descoberta de usuários"}`);
+    } finally {
+      setDiscovering(false);
     }
   }
 
@@ -524,15 +544,26 @@ export default function SeiUsersPage() {
               aparecem no filtro para usuários restritos.
             </p>
           </div>
-          <button
-            type="button"
-            className="table-button"
-            onClick={handleInferSectors}
-            disabled={inferring}
-            title="Vincula automaticamente cada usuário SEI aos setores onde aparece nos processos importados"
-          >
-            {inferring ? "Inferindo..." : "⟳ Inferir setores"}
-          </button>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            <button
+              type="button"
+              className="table-button"
+              onClick={handleDiscoverUsers}
+              disabled={discovering}
+              title="Cria automaticamente usuários SEI encontrados nos snapshots atuais e ainda ausentes da base"
+            >
+              {discovering ? "Descobrindo..." : "⟳ Descobrir novos usuários"}
+            </button>
+            <button
+              type="button"
+              className="table-button"
+              onClick={handleInferSectors}
+              disabled={inferring}
+              title="Vincula automaticamente cada usuário SEI aos setores onde aparece nos processos importados"
+            >
+              {inferring ? "Inferindo..." : "⟳ Inferir setores"}
+            </button>
+          </div>
         </div>
 
         {sectorMsg && (

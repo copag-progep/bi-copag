@@ -10,7 +10,7 @@ from fastapi import HTTPException, status
 from sqlalchemy import func, or_, update
 from sqlalchemy.orm import Session, selectinload
 
-from .models import Processo, SeiUser, SeiUserAlias
+from .models import Processo, SeiUser, SeiUserAlias, SeiUserSetor
 
 
 HEADER_ALIASES = {
@@ -21,6 +21,18 @@ HEADER_ALIASES = {
     "usuario sei": "usuario_sei",
     "usuário_sei": "usuario_sei",
     "usuário sei": "usuario_sei",
+}
+
+IGNORED_ATTRIBUTION_KEYS = {
+    "sem atribuicao",
+    "sem atribuicao definida",
+    "nao atribuido",
+    "nao atribuida",
+    "nao informado",
+    "nao informada",
+    "sem responsavel",
+    "sem servidor",
+    "sem usuario",
 }
 
 
@@ -181,6 +193,74 @@ def _find_user_by_identity_key(db: Session, key: str) -> SeiUser | None:
         )
         .first()
     )
+
+
+def _find_user_by_identity_or_alias_key(db: Session, key: str) -> SeiUser | None:
+    user = _find_user_by_identity_key(db, key)
+    if user:
+        return user
+
+    alias = (
+        db.query(SeiUserAlias)
+        .options(selectinload(SeiUserAlias.user))
+        .filter(SeiUserAlias.alias_key == key)
+        .first()
+    )
+    return alias.user if alias else None
+
+
+def _add_sei_user_setor_link(db: Session, sei_user: SeiUser, setor: str) -> bool:
+    normalized_setor = (setor or "").upper().strip()
+    if not normalized_setor:
+        return False
+
+    exists = (
+        db.query(SeiUserSetor.id)
+        .filter(SeiUserSetor.sei_user_id == sei_user.id, SeiUserSetor.setor == normalized_setor)
+        .first()
+    )
+    if exists:
+        return False
+
+    db.add(SeiUserSetor(sei_user_id=sei_user.id, setor=normalized_setor))
+    return True
+
+
+def _processo_atribuicao_scope(
+    db: Session,
+    *,
+    setores: list[str] | None = None,
+    data_relatorio=None,
+    latest_only: bool = True,
+) -> list[tuple[str, object]]:
+    scoped_setores = sorted({setor.upper().strip() for setor in setores or [] if setor and setor.strip()})
+
+    if data_relatorio is not None and scoped_setores:
+        return [(setor, data_relatorio) for setor in scoped_setores]
+
+    if data_relatorio is not None:
+        query = (
+            db.query(Processo.setor)
+            .filter(Processo.data_relatorio == data_relatorio, Processo.atribuicao.is_not(None))
+            .distinct()
+        )
+        if scoped_setores:
+            query = query.filter(Processo.setor.in_(scoped_setores))
+        return [(setor, data_relatorio) for (setor,) in query.all() if setor]
+
+    if latest_only:
+        query = (
+            db.query(Processo.setor, func.max(Processo.data_relatorio))
+            .filter(Processo.atribuicao.is_not(None))
+        )
+        if scoped_setores:
+            query = query.filter(Processo.setor.in_(scoped_setores))
+        return [(setor, latest_date) for setor, latest_date in query.group_by(Processo.setor).all() if setor and latest_date]
+
+    query = db.query(Processo.setor, Processo.data_relatorio).filter(Processo.atribuicao.is_not(None)).distinct()
+    if scoped_setores:
+        query = query.filter(Processo.setor.in_(scoped_setores))
+    return [(setor, report_date) for setor, report_date in query.all() if setor and report_date]
 
 
 def _attach_alias_value(db: Session, target: SeiUser, value: object) -> tuple[SeiUserAlias | None, bool]:
@@ -347,6 +427,112 @@ def upsert_sei_user(db: Session, nome: object, nome_sei: object, usuario_sei: ob
 
     db.flush()
     return action, user
+
+
+def discover_sei_users_from_processos(
+    db: Session,
+    *,
+    setores: list[str] | None = None,
+    data_relatorio=None,
+    latest_only: bool = True,
+) -> dict[str, object]:
+    """Cria usuários SEI ausentes a partir das atribuições presentes nos processos.
+
+    A descoberta usa, por padrão, o snapshot mais recente de cada setor para evitar
+    trazer ruídos históricos para a base atual. Quando setor/data são informados
+    pelo fluxo de upload, o escopo fica restrito ao snapshot recém-importado.
+    """
+    scope = _processo_atribuicao_scope(
+        db,
+        setores=setores,
+        data_relatorio=data_relatorio,
+        latest_only=latest_only,
+    )
+    if not scope:
+        return {
+            "created": 0,
+            "links_added": 0,
+            "matched_existing": 0,
+            "ignored": 0,
+            "total_candidates": 0,
+            "users": [],
+        }
+
+    candidates: dict[str, dict[str, object]] = {}
+    ignored = 0
+
+    for setor, report_date in scope:
+        rows = (
+            db.query(Processo.atribuicao, func.count(Processo.id))
+            .filter(
+                Processo.setor == setor,
+                Processo.data_relatorio == report_date,
+                Processo.atribuicao.is_not(None),
+            )
+            .group_by(Processo.atribuicao)
+            .all()
+        )
+        for raw_atribuicao, total in rows:
+            cleaned = clean_value(raw_atribuicao)
+            key = normalize_identity(cleaned)
+            if not cleaned or not key or key in IGNORED_ATTRIBUTION_KEYS:
+                ignored += 1
+                continue
+
+            entry = candidates.setdefault(
+                key,
+                {
+                    "nome": cleaned,
+                    "setores": set(),
+                    "total_processos": 0,
+                    "ultima_data": report_date,
+                },
+            )
+            entry["setores"].add(str(setor).upper().strip())
+            entry["total_processos"] = int(entry["total_processos"]) + int(total or 0)
+            if report_date and (entry["ultima_data"] is None or report_date > entry["ultima_data"]):
+                entry["ultima_data"] = report_date
+
+    created_users: list[dict[str, object]] = []
+    links_added = 0
+    matched_existing = 0
+
+    for key, entry in sorted(candidates.items(), key=lambda item: str(item[1]["nome"])):
+        existing_user = _find_user_by_identity_or_alias_key(db, key)
+        if existing_user:
+            matched_existing += 1
+            user = existing_user
+            created = False
+        else:
+            _, user = upsert_sei_user(db, entry["nome"], entry["nome"], None)
+            created = True
+
+        user_links_added = 0
+        for setor in sorted(entry["setores"]):
+            if _add_sei_user_setor_link(db, user, setor):
+                user_links_added += 1
+                links_added += 1
+
+        if created:
+            created_users.append(
+                {
+                    "id": user.id,
+                    "nome": user.nome,
+                    "setores": sorted(entry["setores"]),
+                    "total_processos": int(entry["total_processos"]),
+                    "ultima_data": entry["ultima_data"],
+                }
+            )
+
+    db.flush()
+    return {
+        "created": len(created_users),
+        "links_added": links_added,
+        "matched_existing": matched_existing,
+        "ignored": ignored,
+        "total_candidates": len(candidates),
+        "users": created_users,
+    }
 
 
 def update_sei_user(db: Session, sei_user_id: int, nome: object, nome_sei: object, usuario_sei: object) -> SeiUser:

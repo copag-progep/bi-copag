@@ -74,6 +74,7 @@ from .sei_users import (
     add_sei_user_alias,
     delete_sei_user,
     delete_sei_user_alias,
+    discover_sei_users_from_processos,
     import_sei_users_file,
     import_sei_users_rows,
     list_attribution_candidates,
@@ -966,6 +967,33 @@ def infer_sei_user_sectors(
     db.commit()
     clear_analytics_cache()
     return {"ok": True, "sei_users_atualizados": updated, "vinculos_adicionados": total_links_added}
+
+
+@app.post("/api/admin/sei-users/discover-from-processes")
+def discover_sei_users_from_processes(
+    background_tasks: BackgroundTasks,
+    current_admin: User = Depends(get_current_admin_user),
+    db: Session = Depends(get_db),
+) -> dict[str, object]:
+    """Descobre usuários SEI novos a partir das atribuições dos snapshots atuais."""
+    result = discover_sei_users_from_processos(db)
+    users = result.get("users", [])
+    _log_audit(
+        db,
+        action="sei_usuario.auto_descoberto",
+        entity_type="sei_usuario",
+        details={
+            "usuarios_criados": result.get("created", 0),
+            "vinculos_adicionados": result.get("links_added", 0),
+            "candidatos": result.get("total_candidates", 0),
+            "usuarios": users[:20] if isinstance(users, list) else [],
+        },
+        user=current_admin,
+    )
+    db.commit()
+    clear_analytics_cache()
+    background_tasks.add_task(precompute_analytics)
+    return {"ok": True, **result}
 
 
 @app.delete("/api/admin/sei-users/aliases/{alias_id}")
@@ -2104,6 +2132,26 @@ async def upload_snapshot(
             data_relatorio=data_relatorio,
             total_records=result.get("total_registros", 0),
         )
+        discovery = discover_sei_users_from_processos(
+            db,
+            setores=[normalized_setor],
+            data_relatorio=data_relatorio,
+        )
+        if discovery.get("created") or discovery.get("links_added"):
+            _log_audit(
+                db,
+                action="sei_usuario.auto_descoberto",
+                entity_type="sei_usuario",
+                entity_id=normalized_setor,
+                details={
+                    "setor": normalized_setor,
+                    "data_relatorio": str(data_relatorio),
+                    "usuarios_criados": discovery.get("created", 0),
+                    "vinculos_adicionados": discovery.get("links_added", 0),
+                    "usuarios": discovery.get("users", [])[:20],
+                },
+                user=current_user,
+            )
         db.commit()
 
     return UploadResult(**result)
@@ -2168,6 +2216,27 @@ async def upload_snapshot_api_key(
             data_relatorio=result["data_relatorio"],
             total_records=result.get("total_registros", 0),
         )
+        discovery = discover_sei_users_from_processos(
+            db,
+            setores=[result["setor"]],
+            data_relatorio=result["data_relatorio"],
+        )
+        if discovery.get("created") or discovery.get("links_added"):
+            _log_audit(
+                db,
+                action="sei_usuario.auto_descoberto",
+                entity_type="sei_usuario",
+                entity_id=result["setor"],
+                details={
+                    "setor": result["setor"],
+                    "data_relatorio": str(result["data_relatorio"]),
+                    "usuarios_criados": discovery.get("created", 0),
+                    "vinculos_adicionados": discovery.get("links_added", 0),
+                    "usuarios": discovery.get("users", [])[:20],
+                    "origem": "automacao",
+                },
+                user=bot,
+            )
         db.commit()
         clear_analytics_cache()
         background_tasks.add_task(precompute_analytics)

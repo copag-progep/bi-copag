@@ -35,6 +35,7 @@ const ACTION_LABELS = {
   "sei_usuario.alias_adicionado":{ label: "Alias SEI adicionado", color: "var(--success)" },
   "sei_usuario.alias_removido":{ label: "Alias SEI removido", color: "var(--danger)" },
   "sei_usuario.unificado":{ label: "Histórico SEI unificado", color: "var(--accent-dark)" },
+  "sei_usuario.auto_descoberto":{ label: "Usuário SEI descoberto", color: "var(--success)" },
   "process_type_weight.salvo":   { label: "Peso de tipo salvo",    color: "var(--primary)" },
   "process_type_weight.removido":{ label: "Peso de tipo removido", color: "var(--danger)" },
   "usuario.setores_atualizados":    { label: "Setores atualizados",           color: "var(--primary)" },
