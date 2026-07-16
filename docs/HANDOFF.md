@@ -775,7 +775,8 @@ Componentes principais:
 - sessoes semanais em `pauta_sessoes`
 - itens de pauta em `pauta_itens`
 - atribuicao a usuarios da plataforma com acesso ao setor do processo
-- prazo por processo (`prazo`) e dias restantes/vencidos calculados na interface
+- prazo por processo (`prazo`) e dias restantes/vencidos calculados na interface para itens ativos
+- itens resolvidos (`saiu_do_setor`/`resolvido_manual`) exibem check na coluna de dias prazo em vez de continuar contando dias
 - notas da gestao (`nota_admin`)
 - cronograma com inicio, reuniao e prazo da pauta (`data_fim`)
 - situacao derivada da sessao: `a_iniciar`, `em_andamento` ou `encerrada`

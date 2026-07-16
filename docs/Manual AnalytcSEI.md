@@ -1095,8 +1095,10 @@ Responsáveis:
 
 - veem apenas os itens atribuídos a eles e dos setores aos quais ainda possuem acesso;
 - visualizam o cronograma da sessão, com início, reunião e prazo da pauta;
-- visualizam o prazo de cada processo e a contagem de dias restantes ou vencidos;
+- visualizam o prazo de cada processo e, enquanto ele está ativo, a contagem de dias restantes ou vencidos;
 - acompanham a nota da gestão e a resolução automática quando o processo sai do setor.
+
+Na coluna **Dias prazo**, processos resolvidos aparecem com um check de conclusão, pois não precisam mais continuar contabilizando dias em relação ao prazo.
 
 ### Cronograma da sessão
 

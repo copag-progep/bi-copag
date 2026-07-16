@@ -23,12 +23,16 @@ const NIVEL_CFG = {
   normal:   { color: "#1a7a50", bg: "rgba(26,122,80,.08)" },
 };
 
+function isItemResolvido(status) {
+  return status === "saiu_do_setor" || status === "resolvido_manual";
+}
+
 function StatusBadge({ status, dataStatus }) {
   const cfg = STATUS_CFG[status] || STATUS_CFG.pendente;
   const dateStr = dataStatus
     ? new Intl.DateTimeFormat("pt-BR", { timeZone: "UTC" }).format(new Date(`${dataStatus}T00:00:00Z`))
     : null;
-  const isResolved = status === "saiu_do_setor" || status === "resolvido_manual";
+  const isResolved = isItemResolvido(status);
   return (
     <span
       style={{ padding: "2px 9px", borderRadius: 8, fontSize: "0.73rem", fontWeight: 700, color: cfg.color, background: cfg.bg, whiteSpace: "nowrap" }}
@@ -107,7 +111,18 @@ function fmtData(dateStr) {
   return new Intl.DateTimeFormat("pt-BR", { timeZone: "UTC" }).format(new Date(`${dateStr}T00:00:00Z`));
 }
 
-function diasPrazoLabel(prazo) {
+function diasPrazoLabel(prazo, status) {
+  if (isItemResolvido(status)) {
+    return (
+      <span
+        style={{ color: "#1a7a50", fontWeight: 800, fontSize: "0.95rem", lineHeight: 1 }}
+        title="Processo resolvido"
+        aria-label="Processo resolvido"
+      >
+        ✓
+      </span>
+    );
+  }
   if (!prazo) return <span style={{ color: "var(--muted)" }}>—</span>;
   const d = diffDias(prazo);
   const sinal = d < 0 ? "-" : "+";
@@ -848,7 +863,7 @@ function PautaItemRow({ item, idx, isAdmin, onUpdated, onDelete }) {
           </div>
         )}
       </td>
-      <td>{diasPrazoLabel(item.prazo)}</td>
+      <td>{diasPrazoLabel(item.prazo, item.status)}</td>
       {/* Nota da gestão — editável apenas por admin */}
       <td style={{ fontSize: "0.78rem", maxWidth: 220 }}>
         {editingGestao ? (

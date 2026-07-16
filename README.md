@@ -182,6 +182,8 @@ Cada sessão possui cronograma visível para todos os perfis com **Início**, **
 
 Responsáveis não marcam processos como resolvidos manualmente nem editam prazos. A resolução é detectada automaticamente após upload válido: se o protocolo deixar de constar no snapshot do setor acompanhado, o item muda para **Resolvido automaticamente** (`saiu_do_setor`). O administrador mantém um override excepcional, registrado como **Resolvido manualmente**.
 
+Na coluna **Dias prazo**, itens ativos mostram a contagem diária em relação ao prazo do processo (`+003` em verde ou `-005` em vermelho). Itens já resolvidos deixam de contar prazo e exibem um check de conclusão.
+
 Usuários comuns veem apenas sessões com itens atribuídos a eles e, de forma cumulativa, apenas se ainda tiverem acesso ao setor do processo. Se o administrador tentar remover de um usuário um setor que possui itens ativos na pauta, a API bloqueia a alteração até que os itens sejam reatribuídos.
 
 O módulo também permite acompanhar progresso de resolução por sessão, copiar pendências para a próxima sessão, encerrar sessões com auditoria, gerar PDF da pauta de reunião e acompanhar métricas administrativas como tempo médio até resolução automática, overrides manuais e pendências arrastadas. A ação de copiar pendências encerra a sessão de origem quando ela ainda está operável; se a sessão já estiver encerrada por prazo, apenas cria a nova sessão com os itens pendentes.

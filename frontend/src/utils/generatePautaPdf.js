@@ -27,6 +27,10 @@ const STATUS_LABELS = {
   arquivado:         "Arquivado",
 };
 
+function isItemResolvido(status) {
+  return status === "saiu_do_setor" || status === "resolvido_manual";
+}
+
 function fmtDate(value) {
   if (!value) return "—";
   try {
@@ -48,7 +52,8 @@ function diffDias(value) {
   return Math.round((Date.parse(`${value}T00:00:00Z`) - Date.parse(`${hojeFortaleza()}T00:00:00Z`)) / MS_DIA);
 }
 
-function diasPrazoLabel(value) {
+function diasPrazoLabel(value, status) {
+  if (isItemResolvido(status)) return "✓";
   const d = diffDias(value);
   if (d === null) return "—";
   return `${d < 0 ? "-" : "+"}${String(Math.abs(d)).padStart(3, "0")}`;
@@ -166,7 +171,7 @@ export function generatePautaPdf(sessao) {
   ];
 
   const rows = itens.map((item) => {
-    const diasPrazo = diasPrazoLabel(item.prazo);
+    const diasPrazo = diasPrazoLabel(item.prazo, item.status);
     return {
       protocolo:  item.protocolo,
       setor:      item.setor,
@@ -181,7 +186,8 @@ export function generatePautaPdf(sessao) {
       _nivel:     item.nivel_risco,
       _status:    item.status,
       _score:     item.score_risco,
-      _diasPrazoDelta: diffDias(item.prazo),
+      _diasPrazoDelta: isItemResolvido(item.status) ? null : diffDias(item.prazo),
+      _prazoResolvido: isItemResolvido(item.status),
     };
   });
 
@@ -243,8 +249,8 @@ export function generatePautaPdf(sessao) {
       }
 
       // Colorir coluna Dias prazo
-      if (data.column.index === 8 && row._diasPrazoDelta !== null) {
-        doc.setTextColor(...(row._diasPrazoDelta < 0 ? RED : GREEN));
+      if (data.column.index === 8 && (row._prazoResolvido || row._diasPrazoDelta !== null)) {
+        doc.setTextColor(...(row._prazoResolvido || row._diasPrazoDelta >= 0 ? GREEN : RED));
         doc.setFont("helvetica", "bold");
       }
     },

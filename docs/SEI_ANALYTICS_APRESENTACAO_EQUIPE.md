@@ -133,7 +133,7 @@ Para evitar falsa precisão, a interface trabalha principalmente com níveis: Cr
 
 A Pauta Prioritária transforma o ranking de risco em acompanhamento semanal. O administrador cria uma sessão de reunião com início, data de reunião e prazo da pauta, adiciona processos críticos a partir do Score de Risco ou da tela Atribuições, define prazo por processo, atribui responsáveis e registra uma orientação.
 
-O responsável visualiza o cronograma da sessão, o prazo de cada processo e a nota da gestão, mas não declara que resolveu o processo. A resolução é detectada automaticamente pelo sistema quando, após novo upload válido, o processo deixa de constar no snapshot do setor acompanhado. Isso indica que ele foi concluído no setor ou encaminhado para fora dele.
+O responsável visualiza o cronograma da sessão, o prazo de cada processo e a nota da gestão, mas não declara que resolveu o processo. Enquanto o item está ativo, a coluna de dias prazo mostra dias restantes ou vencidos; quando o processo é resolvido, essa coluna passa a exibir um check de conclusão. A resolução é detectada automaticamente pelo sistema quando, após novo upload válido, o processo deixa de constar no snapshot do setor acompanhado. Isso indica que ele foi concluído no setor ou encaminhado para fora dele.
 
 A pauta também mostra progresso de resolução, gera PDF para reunião, permite editar prazos pelo administrador, copiar pendências para a semana seguinte, encerrar sessões com registro de auditoria e consultar métricas administrativas de eficiência. A situação da pauta é calculada automaticamente como **A iniciar**, **Em andamento** ou **Encerrada** conforme as datas; mesmo sessões vencidas permitem copiar pendências para uma nova pauta.
 
