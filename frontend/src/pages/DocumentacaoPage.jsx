@@ -11,6 +11,11 @@ import TocSidebar from "./documentacao/TocSidebar";
 
 /* ── Dados ─────────────────────────────────────── */
 
+const DOC_VERSION = "2.4";
+const DOC_UPDATED = "Julho 2026";
+const CHAPTER_COUNT = 12;
+const DATABASE_TABLE_COUNT = 12;
+
 const FEATURES = [
   { icon: "🎯", title: "Central Executiva", desc: "Prioridades do dia, saúde dos dados, KPIs principais, sparklines e tempo de permanência" },
   { icon: "📊", title: "Dashboard principal", desc: "KPIs, distribuição por setor/tipo, rankings e evolução diária" },
@@ -141,21 +146,21 @@ export default function DocumentacaoPage() {
             Documentação Técnica<br /><span>AnalyticSEI</span>
           </h1>
           <p className="doc-hero-sub">
-            Painéis, indicadores e alertas para gestão de processos do SEI.
-            Plataforma de apoio gerencial para a Coordenadoria de Cadastro e
-            Pagamento da UFC.
+            Painéis, indicadores, Pauta Prioritária, exportações e alertas para
+            gestão de processos do SEI. Plataforma de apoio gerencial para a
+            Coordenadoria de Cadastro e Pagamento da UFC.
           </p>
           <div className="doc-hero-meta">
-            <div className="doc-hero-meta-item"><strong>Versão</strong> 2.0</div>
+            <div className="doc-hero-meta-item"><strong>Versão</strong> {DOC_VERSION}</div>
             <div className="doc-hero-meta-item"><strong>Repositório</strong> <a href="https://github.com/copag-progep/bi-copag" target="_blank" rel="noreferrer">copag-progep/bi-copag</a></div>
             <div className="doc-hero-meta-item"><strong>Produção</strong> <a href="https://bi-copag.vercel.app" target="_blank" rel="noreferrer">bi-copag.vercel.app</a></div>
-            <div className="doc-hero-meta-item"><strong>Atualizado</strong> Junho 2026</div>
+            <div className="doc-hero-meta-item"><strong>Atualizado</strong> {DOC_UPDATED}</div>
           </div>
           <div className="doc-hero-stats">
-            <div className="doc-hero-stat"><strong>12</strong><span>Capítulos</span></div>
-            <div className="doc-hero-stat"><strong>12</strong><span>Tabelas BD</span></div>
-            <div className="doc-hero-stat"><strong>5</strong><span>Workflows</span></div>
-            <div className="doc-hero-stat"><strong>23</strong><span>Funcionalidades</span></div>
+            <div className="doc-hero-stat"><strong>{CHAPTER_COUNT}</strong><span>Capítulos</span></div>
+            <div className="doc-hero-stat"><strong>{DATABASE_TABLE_COUNT}</strong><span>Tabelas BD</span></div>
+            <div className="doc-hero-stat"><strong>{WORKFLOWS.length}</strong><span>Workflows</span></div>
+            <div className="doc-hero-stat"><strong>{FEATURES.length}</strong><span>Funcionalidades</span></div>
           </div>
         </div>
       </header>
