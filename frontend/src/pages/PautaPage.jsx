@@ -735,8 +735,6 @@ function AdicionarProcessosModal({ sessaoId, users, onClose, onAdded }) {
 
 // ── Linha de item com edição inline ──────────────────────────────────────
 function PautaItemRow({ item, idx, isAdmin, currentUserId, onUpdated, onDelete }) {
-  const [editing, setEditing] = useState(false);
-  const [nota, setNota] = useState(item.nota_responsavel || "");
   const [saving, setSaving] = useState(false);
   // Edição da nota da gestão (admin)
   const [editingGestao, setEditingGestao] = useState(false);
@@ -752,17 +750,6 @@ function PautaItemRow({ item, idx, isAdmin, currentUserId, onUpdated, onDelete }
       onUpdated();
     } catch {
       // ignore
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function saveNota() {
-    setSaving(true);
-    try {
-      await api.patch(`/pauta/itens/${item.id}`, { nota_responsavel: nota });
-      setEditing(false);
-      onUpdated();
     } finally {
       setSaving(false);
     }
@@ -876,29 +863,6 @@ function PautaItemRow({ item, idx, isAdmin, currentUserId, onUpdated, onDelete }
             {isAdmin && (
               <button type="button" className="ghost-button" onClick={() => setEditingGestao(true)}
                 style={{ fontSize: "0.7rem", padding: "1px 6px" }} title="Editar nota da gestão">✎</button>
-            )}
-          </div>
-        )}
-      </td>
-      <td>
-        {/* Nota do responsável — editável por qualquer um atribuído */}
-        {editing ? (
-          <div style={{ display: "flex", gap: 4 }}>
-            <input type="text" value={nota} onChange={(e) => setNota(e.target.value)}
-              style={{ width: 160, padding: "3px 8px", borderRadius: 6, border: "1.5px solid var(--primary)", fontSize: "0.78rem" }} />
-            <button type="button" className="table-button" disabled={saving} onClick={saveNota}
-              style={{ fontSize: "0.72rem", padding: "3px 8px" }}>✓</button>
-            <button type="button" className="ghost-button" onClick={() => setEditing(false)}
-              style={{ fontSize: "0.72rem" }}>✕</button>
-          </div>
-        ) : (
-          <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
-            <span style={{ fontSize: "0.78rem", color: item.nota_responsavel ? "var(--ink)" : "var(--muted)", fontStyle: item.nota_responsavel ? "normal" : "italic" }}>
-              {item.nota_responsavel || "—"}
-            </span>
-            {isActive && (
-              <button type="button" className="ghost-button" onClick={() => setEditing(true)}
-                style={{ fontSize: "0.7rem", padding: "1px 6px" }}>✎</button>
             )}
           </div>
         )}
@@ -1330,7 +1294,6 @@ export default function PautaPage() {
                     <th>Prazo</th>
                     <th>Dias prazo</th>
                     <th>Nota gestão</th>
-                    <th>Nota responsável</th>
                     <th>Ações</th>
                   </tr>
                 </thead>
