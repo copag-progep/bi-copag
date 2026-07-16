@@ -19,10 +19,10 @@ const FEATURES = [
   { icon: "⏱️", title: "Tempo de permanência", desc: "Lead time estimado com média, mediana, P90, faixas por duração e ranking por setor" },
   { icon: "📈", title: "Tendências estimadas", desc: "Forecasting simples com projeção de estoque ativo, tendência por setor e estimativa de críticos" },
   { icon: "🛡️", title: "Score de Risco", desc: "Ranking de processos por prioridade de atenção, com breakdown dos fatores do score" },
-  { icon: "✅", title: "Pauta Prioritária", desc: "Sessões semanais de acompanhamento, responsáveis, notas, PDF, métricas e resolução automática por snapshot" },
+  { icon: "✅", title: "Pauta Prioritária", desc: "Sessões semanais com cronograma, responsáveis, notas, PDF, métricas e resolução automática por snapshot" },
   { icon: "📋", title: "Atribuições", desc: "Carteira completa com flags de criticidade (6 faixas até 90d+)" },
   { icon: "⚖️", title: "Servidores", desc: "Balanceamento de carga, sobrecarga e perfil longitudinal" },
-  { icon: "🔀", title: "Múltiplos setores", desc: "Detecção de processos em mais de um setor no mesmo dia" },
+  { icon: "🔀", title: "Múltiplos setores", desc: "Detecção de processos em mais de um setor no mesmo dia, com exportação Excel/PDF" },
   { icon: "📅", title: "Indicadores mensais", desc: "Painel histórico com importação de CSV e lançamento manual" },
   { icon: "🔐", title: "Controle por divisão", desc: "Usuários comuns visualizam apenas os setores liberados pelo administrador" },
   { icon: "📤", title: "Permissão de upload", desc: "Envio manual restrito a usuários habilitados e aos setores permitidos" },
@@ -33,7 +33,7 @@ const FEATURES = [
   { icon: "🤖", title: "Upload automático", desc: "Script Playwright que acessa o SEI e envia dados sem intervenção (19h BRT)" },
   { icon: "📨", title: "Relatório diário", desc: "E-mail automático seg–sex às 19:30 BRT com ativos, fluxo do dia por setor e alertas de processos críticos" },
   { icon: "📧", title: "Relatório semanal", desc: "E-mail automático toda sexta com resumo dos indicadores da semana" },
-  { icon: "📄", title: "Exportação PDF / Excel", desc: "Relatório de atribuições com identidade visual Progep/UFC" },
+  { icon: "📄", title: "Exportação PDF / Excel", desc: "Relatórios de Atribuições e Múltiplos Setores com identidade visual Progep/UFC" },
   { icon: "🔒", title: "Log de auditoria", desc: "Registro de todas as ações críticas: uploads, exclusões, trocas de senha" },
 ];
 
@@ -94,9 +94,10 @@ const MANUTENCAO = [
   { title: "Liberar divisões e upload", desc: "Em Administração → Acessos, configurar quais divisões cada usuário comum pode visualizar e se ele pode enviar relatórios." },
   { title: "Lançar indicadores mensais", desc: "Em Indicadores Mensais → aba Atualização mensal, selecionar setor, ano e mês, preencher os 6 indicadores." },
   { title: "Verificar processos críticos", desc: "O sino na topbar mostra a contagem de processos ≥45d. Clicar abre o resumo. Detalhes completos em /atribuicoes." },
-  { title: "Montar pauta prioritária semanal", desc: "Em Pauta Prioritária, criar sessão, adicionar processos do Score de Risco ou das páginas Risco/Atribuições, atribuir responsável e registrar nota de gestão." },
+  { title: "Montar pauta prioritária semanal", desc: "Em Pauta Prioritária, criar sessão com início, reunião e prazo, adicionar processos do Score de Risco ou das páginas Risco/Atribuições, atribuir responsável e registrar nota de gestão." },
+  { title: "Editar cronograma da pauta", desc: "Administradores podem editar título, início, reunião, prazo da pauta e observações pelo editor inline no cronograma. As alterações ficam registradas na auditoria." },
   { title: "Acompanhar resolução da pauta", desc: "Responsáveis confirmam ciência e atualizam sua nota. A resolução é automática: após upload válido, o item é marcado como resolvido quando o protocolo deixa de constar no snapshot do setor." },
-  { title: "Encerrar pauta e exportar reunião", desc: "Administradores podem gerar PDF da sessão, consultar métricas, encerrar a sessão com auditoria e copiar pendências para uma nova pauta semanal." },
+  { title: "Encerrar pauta e exportar reunião", desc: "Administradores podem gerar PDF da sessão, consultar métricas, encerrar a sessão com auditoria e copiar pendências para uma nova pauta semanal. Sessões vencidas por prazo ainda permitem copiar pendências." },
   { title: "Consultar log de auditoria", desc: "Em Administração → seção Log de auditoria. Mostra quem fez o quê e quando, com detalhes JSON." },
 ];
 
@@ -221,7 +222,7 @@ export default function DocumentacaoPage() {
               { name: "sei_user_setor", desc: "Vínculo entre usuários SEI e setores onde atuam. Controla filtros de Atribuição e Servidor para usuários restritos.", rows: [["id","Integer PK",""],["sei_user_id","FK → sei_users","Usuário SEI vinculado"],["setor","String(80)","Setor permitido para aquela atribuição"]] },
               { name: "user_sector_access", desc: "Divisões que cada usuário comum da aplicação pode visualizar.", rows: [["id","Integer PK",""],["user_id","FK → users","Usuário que faz login"],["setor","String(80)","Setor liberado"],["created_at","DateTime","Data da liberação"]] },
               { name: "process_type_weights", desc: "Pesos por tipo de processo usados no Score de Risco.", rows: [["id","Integer PK",""],["tipo","String(255) unique","Tipo do processo como vem do SEI"],["peso","Numeric","Multiplicador entre 0.80 e 1.50"],["categoria","String(100)","Categoria gerencial opcional"],["justificativa","Text","Motivo do peso"],["ativo","Boolean","Indica se o peso está ativo"]] },
-              { name: "pauta_sessoes", desc: "Sessões semanais de acompanhamento da Pauta Prioritária.", rows: [["id","Integer PK",""],["titulo","String(255)","Nome da pauta/reunião"],["data_inicio / data_fim","Date","Período acompanhado"],["data_reuniao","Date","Data prevista da reunião"],["observacoes","Text","Contexto geral da sessão"],["ativa","Boolean","Indica se a sessão aparece na tela principal"],["criado_por","FK → users","Administrador que criou a sessão"]] },
+              { name: "pauta_sessoes", desc: "Sessões semanais de acompanhamento da Pauta Prioritária.", rows: [["id","Integer PK",""],["titulo","String(255)","Nome da pauta/reunião"],["data_inicio","Date","Início do acompanhamento"],["data_fim","Date","Prazo da pauta"],["data_reuniao","Date","Data prevista da reunião"],["observacoes","Text","Contexto geral da sessão"],["ativa","Boolean","Encerramento manual; a situação também é derivada das datas"],["criado_por","FK → users","Administrador que criou a sessão"]] },
               { name: "pauta_itens", desc: "Processos selecionados para acompanhamento em uma sessão de pauta.", rows: [["id","Integer PK",""],["sessao_id","FK → pauta_sessoes","Sessão da pauta"],["protocolo / setor / entrada_setor","—","Identifica o processo e a permanência acompanhada"],["dias_no_setor / score_risco / nivel_risco","—","Snapshot do risco no momento da inclusão"],["assigned_to / assigned_by","FK → users","Responsável e administrador que atribuiu"],["status","String(30)","pendente, em_acompanhamento, saiu_do_setor, resolvido_manual ou arquivado"],["nota_admin / nota_responsavel","Text","Orientação da gestão e atualização do responsável"],["data_status / resolucao_automatica","—","Data e origem da resolução"]] },
               { name: "monthly_stats", desc: "Indicadores mensais. Unicidade: setor + indicador + ano + num_mes.", rows: [["id","Integer PK",""],["setor","String(80)",""],["indicador","String(255)",""],["valor","Integer",""],["mes / num_mes / ano / periodo","—","Campos de período"]] },
               { name: "audit_logs", desc: "Registro de todas as ações críticas realizadas no sistema.", rows: [["id","Integer PK",""],["action","String(100)","Código da ação"],["entity_type / entity_id","String","Objeto afetado"],["details","Text","JSON com detalhes"],["user_email / user_name","String","Responsável pela ação"],["created_at","DateTime",""]] },
@@ -235,7 +236,7 @@ export default function DocumentacaoPage() {
 
             <div className="doc-pills-group">
               <strong style={{ fontSize: "0.82rem", color: "#5a6390", display: "block", marginBottom: 8 }}>Ações registradas no audit_logs:</strong>
-              {["upload.imported","upload.replaced","upload.excluido","upload.data_alterada","usuario.criado","usuario.excluido","usuario.setores_atualizados","usuario.permissoes_atualizadas","sei_usuario.setores_atualizados","sei_usuario.setores_inferidos","process_type_weight.salvo","process_type_weight.removido","pauta.sessao_criada","pauta.sessao_encerrada","pauta.pendencias_copiadas","senha.alterada"].map((a) => (
+              {["upload.imported","upload.replaced","upload.excluido","upload.data_alterada","usuario.criado","usuario.excluido","usuario.setores_atualizados","usuario.permissoes_atualizadas","sei_usuario.setores_atualizados","sei_usuario.setores_inferidos","process_type_weight.salvo","process_type_weight.removido","pauta.sessao_criada","pauta.sessao_editada","pauta.sessao_encerrada","pauta.pendencias_copiadas","senha.alterada"].map((a) => (
                 <PillTag key={a} variant="default"><code>{a}</code></PillTag>
               ))}
             </div>
@@ -293,16 +294,16 @@ export default function DocumentacaoPage() {
                 ["GET", "/api/alerts/summary", "Resumo de processos críticos e itens pendentes da pauta (sino in-app)"],
               ]},
               { group: "Pauta Prioritária", endpoints: [
-                ["GET", "/api/pauta/sessoes", "Lista sessões; admin vê todas e usuário comum vê apenas sessões com itens atribuídos"],
+                ["GET", "/api/pauta/sessoes", "Lista sessões; admin vê todas e usuário comum vê apenas sessões com itens atribuídos e setores ainda permitidos"],
                 ["POST", "/api/pauta/sessoes", "Cria sessão semanal de pauta (admin)"],
-                ["GET", "/api/pauta/sessoes/{id}", "Detalha sessão, contagens e itens visíveis ao usuário"],
-                ["PATCH", "/api/pauta/sessoes/{id}", "Atualiza dados da sessão ou encerra com auditoria"],
+                ["GET", "/api/pauta/sessoes/{id}", "Detalha sessão, contagens e itens visíveis ao usuário; não-admin sem itens visíveis recebe 404"],
+                ["PATCH", "/api/pauta/sessoes/{id}", "Atualiza título/datas/observações ou encerra sessão com auditoria"],
                 ["POST", "/api/pauta/sessoes/{id}/itens", "Inclui processo individual na pauta (admin)"],
                 ["POST", "/api/pauta/sessoes/{id}/itens/bulk", "Inclui processos em lote a partir do Score de Risco (admin)"],
                 ["PATCH", "/api/pauta/itens/{id}", "Atualiza item; responsável só confirma ciência e edita sua nota"],
                 ["DELETE", "/api/pauta/itens/{id}", "Remove item da pauta (admin)"],
                 ["GET", "/api/pauta/minha", "Lista itens atribuídos ao usuário logado"],
-                ["POST", "/api/pauta/sessoes/{id}/copy-pending", "Copia pendências para uma nova sessão"],
+                ["POST", "/api/pauta/sessoes/{id}/copy-pending", "Valida datas, copia pendências para nova sessão e encerra a origem quando ainda está operável"],
                 ["GET", "/api/pauta/metricas", "Métricas administrativas de eficiência da pauta"],
               ]},
               { group: "Outros", endpoints: [
@@ -332,9 +333,10 @@ export default function DocumentacaoPage() {
 
             <Callout icon="⚡">
               <strong>Cache analítico:</strong> todos os endpoints analíticos usam cache em memória.
-              No backend, a chave considera endpoint, assinatura dos uploads e filtros. No frontend,
-              o cache em sessionStorage também inclui o usuário logado, evitando reaproveitar dados
-              de outro perfil após troca de sessão. Invalidado automaticamente após qualquer upload.
+              No backend, a chave considera endpoint, assinatura dos uploads, filtros e escopo de setores.
+              O cache é LRU com orçamento de memória. No frontend, usuários administradores podem reaproveitar
+              cache persistente por usuário; usuários restritos aguardam a resposta atual do servidor para evitar
+              exibição stale após mudança de permissão. Invalidado automaticamente após qualquer upload.
               O pré-aquecimento em background roda em modo leve por padrão:
               endpoints históricos pesados, como processos parados, atribuições, lead time, forecast e Score de Risco, só
               entram no precompute se <code>PRECOMPUTE_HEAVY_ANALYTICS=true</code>.
@@ -358,10 +360,10 @@ export default function DocumentacaoPage() {
                 { icon: "📤", title: "/enviar-relatorio", desc: "Upload de CSV + histórico paginado; visível apenas para admins ou usuários com permissão de upload" },
                 { icon: "↔️", title: "/entradas-saidas", desc: "Entradas, saídas, saldo e evolução do fluxo por setor" },
                 { icon: "⚡", title: "/produtividade", desc: "Produção estimada, ranking acumulado e evolução histórica por servidor" },
-                { icon: "🔀", title: "/multiplos-setores", desc: "Protocolos presentes em mais de um setor; detecção global e exibição limitada ao escopo visível" },
+                { icon: "🔀", title: "/multiplos-setores", desc: "Protocolos presentes em mais de um setor; detecção limitada ao escopo visível, busca local e exportação PDF/Excel" },
                 { icon: "📋", title: "/atribuicoes", desc: "Carteira com 6 faixas de criticidade, busca, filtros server-side, exportação PDF e Excel" },
                 { icon: "🛡️", title: "/risco", desc: "Ranking de Score de Risco por processo, filtros por nível e explicação dos fatores" },
-                { icon: "✅", title: "/pauta", desc: "Pauta Prioritária: sessões semanais, responsáveis, notas, PDF, métricas e resolução automática quando o processo sai do setor" },
+                { icon: "✅", title: "/pauta", desc: "Pauta Prioritária: sessões semanais com cronograma, situação derivada por prazo, editor para admin, progresso, PDF, métricas e resolução automática quando o processo sai do setor" },
                 { icon: "⚖️", title: "/servidores", desc: "Balanceamento de carga + perfil longitudinal individual; filtro de servidor respeita setores vinculados" },
                 { icon: "📅", title: "/indicadores-mensais", desc: "Dashboard histórico + importação de CSV + lançamento manual mensal, filtrado pelos setores permitidos" },
                 { icon: "🔍", title: "/busca", desc: "Histórico completo de movimentações de um protocolo específico" },
@@ -390,8 +392,9 @@ export default function DocumentacaoPage() {
 
             <Callout icon="🔐">
               <strong>Recorte por usuário:</strong> os filtros visuais não são apenas cosméticos.
-              O backend aplica o escopo de setores em cada endpoint analítico. O cache do frontend
-              também é isolado por usuário, evitando reaproveitar dados de uma sessão anterior.
+              O backend aplica o escopo de setores em cada endpoint analítico, nas datas de referência,
+              nas opções de filtro e nas pautas prioritárias. Para usuários comuns, a pauta exige atribuição
+              ao usuário e acesso atual ao setor do processo.
             </Callout>
           </DocSection>
 
@@ -426,7 +429,8 @@ export default function DocumentacaoPage() {
             <p>Toda ação crítica é registrada com: código da ação, objeto afetado, detalhes em JSON, e-mail e nome do responsável, data/hora. Visível apenas para admins em <strong>Administração → Log de auditoria</strong>.</p>
 
             <h3>Controle de acesso por divisão</h3>
-            <p>Administradores veem todos os dados. Usuários comuns veem apenas os setores liberados em <strong>Administração → Acessos</strong>. Esse recorte é aplicado no backend em dashboards, listas, indicadores mensais, histórico de uploads, badge de frescor e opções de filtro.</p>
+            <p>Administradores veem todos os dados. Usuários comuns veem apenas os setores liberados em <strong>Administração → Acessos</strong>. Esse recorte é aplicado no backend em dashboards, listas, datas de referência, indicadores mensais, histórico de uploads, badge de frescor e opções de filtro.</p>
+            <p>Na Pauta Prioritária, o acesso é cumulativo: o item precisa estar atribuído ao usuário e o setor do processo ainda precisa estar liberado para ele. Se houver itens ativos, a remoção desse setor do usuário é bloqueada até a reatribuição.</p>
 
             <h3>Permissão de upload</h3>
             <p>A tela <strong>Enviar Relatório</strong> só fica disponível para administradores ou usuários marcados com permissão de upload. Mesmo com permissão, o usuário só consegue enviar CSV de setores aos quais tem acesso.</p>
@@ -458,6 +462,11 @@ export default function DocumentacaoPage() {
                 ["DISABLE_STARTUP_PRECOMPUTE", "false em produção. true desliga o aquecimento de cache na inicialização."],
                 ["PRECOMPUTE_HEAVY_ANALYTICS", "false por padrão. true inclui endpoints pesados no precompute, como processos parados, atribuições, lead time, forecast e Score de Risco."],
                 ["PRECOMPUTE_COOLDOWN_SECS", "Intervalo mínimo entre precomputes consecutivos (padrão: 120 s)."],
+                ["DISABLE_POST_CHANGE_PRECOMPUTE", "true desliga o precompute automático após uploads/alterações; útil em instâncias com pouca RAM."],
+                ["ANALYTICS_CACHE_MAX_ENTRIES", "Limite de entradas do cache LRU analítico."],
+                ["ANALYTICS_CACHE_MAX_TOTAL_MB", "Orçamento total de memória do cache analítico em MB."],
+                ["ANALYTICS_CACHE_MAX_ITEM_MB", "Tamanho máximo de payload individual que pode entrar no cache."],
+                ["ANALYTICS_BUILD_CONCURRENCY", "Quantidade de builds analíticos simultâneos por processo. Recomendado: 1."],
                 ["APP_TIMEZONE", "Fuso usado em checagens operacionais. Padrão: America/Fortaleza."],
                 ["DATA_FRESHNESS_OK_MAX_DAYS", "Idade máxima para considerar o dado atualizado. Padrão: 3 dias."],
                 ["DATA_FRESHNESS_CRITICAL_DAYS", "Idade a partir da qual o dado fica crítico. Padrão: 7 dias."],
@@ -535,13 +544,13 @@ export default function DocumentacaoPage() {
           <DocSection id="s12" num="12" eyebrow="Evolução" title="Histórico de funcionalidades">
             {[
               { title: "Fundação do sistema", items: ["Autenticação JWT + bcrypt","Importação de CSVs (UTF-8, UTF-8-BOM, Latin-1)","Hash SHA-256 para evitar duplicatas","Substituição de snapshot por setor/data","Dashboard com KPIs, distribuição, evolução diária","Entradas e saídas, produtividade, múltiplos setores","Administração de usuários com proteção do último admin"] },
-              { title: "Infraestrutura e qualidade", items: ["Alembic para migrações formais com auto-stamp","Log de auditoria em tabela dedicada","Lifespan context manager (substituiu @app.on_event)","datetime.now(timezone.utc) (substituiu utcnow)","sync_processo_atribuicoes com SQL UPDATE em lote","Cache analítico com invalidação automática","Pré-aquecimento leve do cache em background, com endpoints históricos pesados controlados por PRECOMPUTE_HEAVY_ANALYTICS","Healthcheck com verificação do banco","Endpoint /api/health/data-freshness + badge no topo para avisar dado velho, setor ausente/defasado e queda simples de volume"] },
+              { title: "Infraestrutura e qualidade", items: ["Alembic para migrações formais com auto-stamp","Log de auditoria em tabela dedicada","Lifespan context manager (substituiu @app.on_event)","datetime.now(timezone.utc) (substituiu utcnow)","sync_processo_atribuicoes com SQL UPDATE em lote","Cache analítico LRU com orçamento de memória, invalidação automática e chave por escopo de setores","Pré-aquecimento leve do cache em background, com endpoints históricos pesados controlados por PRECOMPUTE_HEAVY_ANALYTICS e precompute pós-alteração desligável","Healthcheck com verificação do banco","Endpoint /api/health/data-freshness + badge no topo para avisar dado velho, setor ausente/defasado e queda simples de volume"] },
               { title: "Identidade visual Progep/UFC", items: ["Paleta: navy #273168 · laranja #f39320 · amarelo #febb12 · azul #81c7ee","Fonte Plus Jakarta Sans","Sidebar redesenhada com ícones SVG e chip do usuário","Topbar com título dinâmico por rota","StatCards com hover e estrutura vertical","LoginPage com dois painéis e stats decorativos"] },
-              { title: "Performance", items: ["React.lazy + Suspense para code splitting por rota","preconnect e dns-prefetch para o backend","LoadingBlock com spinner e mensagem de servidor iniciando","useAnalyticsData hook com cache stale-while-revalidate (TTL 5 min)","clearAnalyticsCache chamado após upload"] },
-              { title: "Analíticas avançadas", items: ["Central Executiva com prioridades do dia, saúde dos dados, sparklines dos KPIs principais e carregamento escalonado","Lead time estimado dos processos que saíram da carteira, com média, mediana, P90, faixas por duração e ranking por setor/tipo/atribuição","Tendências estimadas com regressão linear simples, projeção de estoque ativo em 15/30 dias, tendência por setor e estimativa de críticos","Score de Risco por processo com pesos configuráveis, P90 com piso técnico e explicação por fator","Pauta Prioritária com sessões semanais, responsáveis, resolução automática via snapshot, PDF de reunião, encerramento e métricas de eficiência","Página Atribuições com spans consecutivos por setor, 6 faixas de criticidade, filtros server-side, busca por protocolo e badge de risco por processo","Múltiplos setores com detecção global do snapshot e exibição filtrada pelo escopo visível do usuário","Exportação PDF com identidade visual (jsPDF + jspdf-autotable)","Exportação Excel (SheetJS)","Página Servidores: balanceamento por desvio-padrão + perfil longitudinal","Busca global de processo com histórico de movimentações","Filtro Sem atribuição no FilterBar global","Indicadores mensais com dashboard e lançamento manual"] },
+              { title: "Performance", items: ["React.lazy + Suspense para code splitting por rota","preconnect e dns-prefetch para o backend","LoadingBlock com spinner e mensagem de servidor iniciando","useAnalyticsData hook com cache stale-while-revalidate para admins e resposta atual obrigatória para usuários restritos","clearAnalyticsCache chamado após upload"] },
+              { title: "Analíticas avançadas", items: ["Central Executiva com prioridades do dia, saúde dos dados, sparklines dos KPIs principais e carregamento escalonado","Lead time estimado dos processos que saíram da carteira, com média, mediana, P90, faixas por duração e ranking por setor/tipo/atribuição","Tendências estimadas com regressão linear simples, projeção de estoque ativo em 15/30 dias, tendência por setor e estimativa de críticos","Score de Risco por processo com pesos configuráveis, P90 com piso técnico e explicação por fator","Pauta Prioritária com sessões semanais, cronograma visível, situação derivada por prazo, edição de prazos pelo admin, responsáveis, resolução automática via snapshot, PDF de reunião, encerramento e métricas de eficiência","Página Atribuições com spans consecutivos por setor, 6 faixas de criticidade, filtros server-side, busca por protocolo e badge de risco por processo","Múltiplos setores com detecção e exibição limitadas ao escopo visível do usuário, busca local e exportação PDF/Excel","Exportação PDF com identidade visual (jsPDF + jspdf-autotable)","Exportação Excel (SheetJS)","Página Servidores: balanceamento por desvio-padrão + perfil longitudinal","Busca global de processo com histórico de movimentações","Filtro Sem atribuição no FilterBar global","Indicadores mensais com dashboard e lançamento manual"] },
               { title: "Automação (Bloco 4)", items: ["API key para uploads sem JWT","Script SEI Scraper (Playwright headless): login, troca de setor por JS, coleta todas as páginas","Workflow daily-upload (19:00 BRT) com notificação de falha","Workflow daily-report (19:30 BRT) bloqueado por check_daily_upload_success.py quando o upload do dia não concluiu com sucesso","Workflow weekly-report (sexta 20:00 BRT)","Script de alertas com anti-spam (não envia se sem críticos)","Workflow critical-alerts (sexta 21:00 BRT)"] },
               { title: "Alertas e notificações (Bloco 1)", items: ["Endpoint /api/alerts/summary (leve, usa cache)","Sino de notificações na topbar: badge somando críticos ≥45d e itens pendentes da Pauta Prioritária","Dropdown com link para /atribuicoes e /pauta","E-mail de alertas: cards por faixa, tabela dos críticos, destaque para >90d","Não envia e-mail se nenhum processo crítico"] },
-              { title: "Segurança e acesso", items: ["Troca de senha pelo próprio usuário (valida senha atual)","Controle de acesso por divisão em todos os endpoints analíticos e operacionais sensíveis","Permissão individual para upload manual de relatórios","DE-PARA com normalização de identidade (sem acentos, lowercase, case-insensitive), aliases históricos e vínculos de usuários SEI por setor","Filtro de Atribuição e Servidor limitado aos setores do usuário logado","Cache analítico do frontend isolado por usuário para evitar vazamento entre sessões","Autenticação dual (JWT ou API key) nos endpoints analíticos","Página Minha conta com informações e formulário de troca de senha"] },
+              { title: "Segurança e acesso", items: ["Troca de senha pelo próprio usuário (valida senha atual)","Controle de acesso por divisão em todos os endpoints analíticos e operacionais sensíveis, incluindo datas de referência e opções de filtro","Permissão individual para upload manual de relatórios","Pauta Prioritária com acesso cumulativo por responsável e setor atual permitido","DE-PARA com normalização de identidade (sem acentos, lowercase, case-insensitive), aliases históricos e vínculos de usuários SEI por setor","Filtro de Atribuição e Servidor limitado aos setores do usuário logado","Cache analítico do frontend isolado por usuário e sem leitura persistente para usuários restritos antes da resposta atual","Autenticação dual (JWT ou API key) nos endpoints analíticos","Página Minha conta com informações e formulário de troca de senha"] },
             ].map(({ title, items }) => (
               <div key={title}>
                 <h3>{title}</h3>

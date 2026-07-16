@@ -63,6 +63,10 @@ Para configurar ou recriar o ambiente, defina no Render:
 - `DATABASE_URL`: Service URI do Aiven com `sslmode=require`
 - `API_UPLOAD_KEY`: mesma chave usada pelos workflows do GitHub
 - `DEFAULT_ADMIN_PASSWORD`: senha inicial para criacao do admin padrao
+- `DISABLE_STARTUP_PRECOMPUTE=true`: evita aquecer cache durante o boot em planos com pouca RAM.
+- `DISABLE_POST_CHANGE_PRECOMPUTE=true`: evita precompute automatico apos uploads/alteracoes; o cache passa a ser populado sob demanda.
+- `ANALYTICS_CACHE_MAX_ENTRIES`, `ANALYTICS_CACHE_MAX_TOTAL_MB`, `ANALYTICS_CACHE_MAX_ITEM_MB`: limites do cache LRU analitico.
+- `ANALYTICS_BUILD_CONCURRENCY=1`: serializa builds analiticos pesados por processo.
 
 O backend aceita qualquer PostgreSQL compativel via `DATABASE_URL`; localmente, se essa variavel nao existir, usa SQLite.
 
@@ -76,7 +80,7 @@ As migrations recentes criam estruturas administrativas importantes:
 - `can_upload` em `users`: permissão individual para envio manual de relatórios.
 - `sei_user_setor`: vínculo entre usuários SEI/atribuições e setores.
 - `process_type_weights`: pesos por tipo de processo no Score de Risco.
-- `pauta_sessoes` e `pauta_itens`: sessões e processos acompanhados na Pauta Prioritária.
+- `pauta_sessoes` e `pauta_itens`: sessões, cronogramas, responsáveis e processos acompanhados na Pauta Prioritária.
 
 Após um deploy que crie `sei_user_setor`, entre como administrador em **Usuários SEI** e clique em **Inferir setores**. Isso preenche automaticamente os vínculos iniciais a partir dos processos históricos. Depois, revise manualmente os casos especiais.
 

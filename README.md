@@ -18,10 +18,10 @@ Plataforma web de Business Intelligence desenvolvida para a **COPAG (Coordenador
 | **Tempo de permanência** | Lead time estimado dos processos que saíram da carteira, com média, mediana, P90, faixas por duração e ranking por setor |
 | **Tendências estimadas** | Forecasting simples na Central Executiva: projeção de estoque ativo, tendência por setor e estimativa de críticos |
 | **Score de Risco** | Ranking de processos por prioridade de atenção, com explicação dos fatores do score |
-| **Pauta Prioritária** | Sessões semanais para acompanhar processos críticos, atribuir responsáveis, registrar notas, gerar PDF, encerrar ciclos e medir eficiência |
+| **Pauta Prioritária** | Sessões semanais para acompanhar processos críticos, atribuir responsáveis, acompanhar prazos/reuniões, registrar notas, gerar PDF, encerrar ciclos e medir eficiência |
 | **Atribuições** | Carteira completa com flags de criticidade por tempo (6 faixas até 90d+) |
 | **Servidores** | Balanceamento de carga, classificação de sobrecarga, perfil longitudinal |
-| **Múltiplos setores** | Detecção de processos em mais de um setor no mesmo dia |
+| **Múltiplos setores** | Detecção de processos em mais de um setor no mesmo dia, com exportação Excel/PDF |
 | **Indicadores mensais** | Painel histórico com importação de CSV e lançamento manual |
 | **Controle por divisão** | Usuários comuns visualizam apenas os setores liberados pelo administrador |
 | **Permissão de upload** | O administrador define quais usuários podem enviar relatórios e de quais setores |
@@ -33,7 +33,7 @@ Plataforma web de Business Intelligence desenvolvida para a **COPAG (Coordenador
 | **Upload automático** | Script que acessa o SEI e envia dados sem intervenção humana (19h BRT) |
 | **Relatório diário** | E-mail automático seg–sex às 19:30 BRT com ativos, fluxo por setor e alertas |
 | **Relatório semanal** | E-mail automático toda sexta com resumo dos indicadores |
-| **Exportação PDF / Excel** | Relatório de atribuições com identidade visual Progep/UFC |
+| **Exportação PDF / Excel** | Relatórios de Atribuições e Múltiplos Setores com identidade visual Progep/UFC |
 | **Exportação de pauta em PDF** | Documento de reunião com processos priorizados, responsáveis, status e notas da gestão |
 | **Log de auditoria** | Registro de todas as ações críticas do sistema |
 
@@ -116,6 +116,11 @@ Por padrão, o frontend local usa o proxy do Vite para encaminhar `/api` para `h
 | `DISABLE_STARTUP_PRECOMPUTE` | `false` em produção. `true` desliga o aquecimento de cache na inicialização |
 | `PRECOMPUTE_HEAVY_ANALYTICS` | `false` por padrão. `true` inclui endpoints pesados no precompute, como processos parados, atribuições, lead time, forecast e Score de Risco |
 | `PRECOMPUTE_COOLDOWN_SECS` | Intervalo mínimo entre precomputes consecutivos (padrão: 120 s) |
+| `DISABLE_POST_CHANGE_PRECOMPUTE` | `true` desliga o precompute automático após uploads/alterações; útil em instâncias com pouca RAM |
+| `ANALYTICS_CACHE_MAX_ENTRIES` | Limite de entradas do cache LRU analítico |
+| `ANALYTICS_CACHE_MAX_TOTAL_MB` | Orçamento total de memória do cache analítico em MB |
+| `ANALYTICS_CACHE_MAX_ITEM_MB` | Tamanho máximo de payload individual que pode entrar no cache |
+| `ANALYTICS_BUILD_CONCURRENCY` | Quantidade de builds analíticos simultâneos por processo. Padrão recomendado: `1` |
 | `APP_TIMEZONE` | Fuso usado em checagens operacionais. Padrão: `America/Fortaleza` |
 | `DATA_FRESHNESS_OK_MAX_DAYS` | Idade máxima para considerar o dado atualizado. Padrão: `3` |
 | `DATA_FRESHNESS_CRITICAL_DAYS` | Idade a partir da qual o dado fica crítico. Padrão: `7` |
@@ -159,19 +164,27 @@ Por padrão, o frontend local usa o proxy do Vite para encaminhar `/api` para `h
 
 ## Controle de acesso por divisão
 
-Administradores têm visão completa da plataforma. Usuários comuns só visualizam dados dos setores liberados na aba **Acessos** da página Administração. Esse recorte é aplicado no backend e afeta painéis, KPIs, listas, filtros, indicadores mensais, histórico de uploads e badge de saúde dos dados.
+Administradores têm visão completa da plataforma. Usuários comuns só visualizam dados dos setores liberados na aba **Acessos** da página Administração. Esse recorte é aplicado no backend e afeta painéis, KPIs, listas, filtros, datas de referência, indicadores mensais, histórico de uploads e badge de saúde dos dados.
 
 A permissão de envio de relatório é independente: além de ter acesso ao setor, o usuário precisa estar marcado como autorizado para upload. A página **Usuários SEI** também permite vincular servidores/atribuições a um ou mais setores, para que filtros como **Atribuição** e **Servidor** respeitem o escopo do usuário logado.
 
-Na métrica de **Múltiplos setores**, o sistema detecta a duplicidade olhando o snapshot completo e depois exibe apenas as ocorrências que envolvem setores visíveis ao usuário. Assim, um usuário restrito consegue ver que um processo do seu setor também aparece em outro setor sem ganhar acesso aos dados completos das demais divisões.
+Na métrica de **Múltiplos setores**, a detecção respeita o escopo do usuário. Usuários restritos só consultam e visualizam ocorrências dentro dos setores permitidos, sem revelar metadados de divisões não autorizadas.
+
+Na tela **Múltiplos setores**, os botões **Exportar Excel** e **Gerar PDF** exportam as ocorrências visíveis no momento, respeitando filtros globais e busca por protocolo.
+
+O cache analítico também participa desse isolamento: o backend inclui o escopo de setores na chave e o frontend não reaproveita cache persistente para usuários comuns antes da resposta atual do servidor.
 
 ## Pauta Prioritária
 
 A **Pauta Prioritária** transforma o Score de Risco em rotina de acompanhamento semanal. Administradores criam sessões, adicionam processos críticos a partir das páginas **Score de Risco** ou **Atribuições**, atribuem responsáveis da plataforma e registram orientações para reunião.
 
+Cada sessão possui cronograma visível para todos os perfis com **Início**, **Reunião** e **Prazo da pauta** (`data_fim`), além de contador dinâmico e barra temporal. A situação da sessão é derivada das datas: **A iniciar**, **Em andamento** ou **Encerrada**. O administrador pode editar título, datas e observações pelo editor inline da própria página, inclusive para corrigir sessões encerradas por prazo. A edição valida `data_inicio <= data_fim`, permite limpar datas opcionais e registra auditoria `pauta.sessao_editada` com valores anteriores e novos.
+
 Responsáveis não marcam processos como resolvidos manualmente. Eles apenas confirmam ciência e registram atualizações. A resolução é detectada automaticamente após upload válido: se o protocolo deixar de constar no snapshot do setor acompanhado, o item muda para **Resolvido automaticamente** (`saiu_do_setor`). O administrador mantém um override excepcional, registrado como **Resolvido manualmente**.
 
-O módulo também permite copiar pendências para a próxima sessão, encerrar sessões com auditoria, gerar PDF da pauta de reunião e acompanhar métricas administrativas como tempo médio até resolução automática, overrides manuais e pendências arrastadas.
+Usuários comuns veem apenas sessões com itens atribuídos a eles e, de forma cumulativa, apenas se ainda tiverem acesso ao setor do processo. Se o administrador tentar remover de um usuário um setor que possui itens ativos na pauta, a API bloqueia a alteração até que os itens sejam reatribuídos.
+
+O módulo também permite acompanhar progresso de resolução por sessão, copiar pendências para a próxima sessão, encerrar sessões com auditoria, gerar PDF da pauta de reunião e acompanhar métricas administrativas como tempo médio até resolução automática, overrides manuais e pendências arrastadas. A ação de copiar pendências encerra a sessão de origem quando ela ainda está operável; se a sessão já estiver encerrada por prazo, apenas cria a nova sessão com os itens pendentes.
 
 ---
 

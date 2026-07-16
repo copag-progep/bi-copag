@@ -340,6 +340,11 @@ Campos principais:
 Regra:
 
 - sessoes ativas aparecem na tela principal da pauta
+- `data_inicio` representa o inicio do acompanhamento
+- `data_reuniao` representa a reuniao prevista
+- `data_fim` representa o prazo da pauta
+- administradores podem editar titulo, datas e observacoes via `PATCH /api/pauta/sessoes/{id}`
+- editar uma sessao registra auditoria `pauta.sessao_editada` com valores anteriores e novos
 - encerrar uma sessao altera `ativa=false` e registra auditoria `pauta.sessao_encerrada`
 
 ### 6.11 Tabela `pauta_itens`
@@ -402,6 +407,14 @@ O controle de acesso tem duas camadas diferentes:
 
 Esse recorte e aplicado no backend. Portanto, nao depende apenas de esconder filtros ou menus no frontend.
 
+Pontos de enforcement importantes:
+
+- `_base_query()` aplica `setores_permitidos` antes dos demais filtros.
+- `_effective_filters()` preserva o escopo via `dataclasses.replace()`.
+- `_available_dates()` usa a query base com escopo, evitando escolher data de referencia de setor nao autorizado.
+- `get_filter_options()` recebe o escopo do usuario e retorna datas, setores, tipos e atribuicoes apenas dos setores permitidos.
+- `multi-sector` remove apenas o filtro de setor selecionado, mas preserva `setores_permitidos`.
+
 ### Usuarios SEI
 
 `sei_user_setor` informa em quais setores cada atribuicao atua. Essa tabela e usada para montar listas de filtro:
@@ -413,7 +426,11 @@ Um usuario SEI pode estar vinculado a mais de um setor. A pagina Usuarios SEI pe
 
 ### Cache e frescor dos dados
 
-- O cache analitico do frontend inclui o usuario na chave.
+- O cache analitico do backend inclui o escopo de setores na chave.
+- O cache analitico do backend e LRU, com limite por quantidade de entradas, tamanho total e tamanho maximo por payload.
+- O frontend usa prefixo versionado de cache em `sessionStorage`.
+- Administradores podem reaproveitar cache persistente por usuario.
+- Usuarios restritos aguardam resposta atual do servidor; isso evita exibir dado antigo apos mudanca de permissao.
 - Logout, login e sessao invalida limpam o cache local.
 - O badge de frescor considera apenas os setores visiveis ao usuario logado.
 
@@ -673,6 +690,13 @@ Entrega:
 
 `get_multi_sector_data()` detecta protocolos que aparecem em mais de um setor no mesmo snapshot.
 
+No frontend, `/multiplos-setores` permite exportar a lista visivel em Excel e PDF:
+
+- `frontend/src/utils/multiSectorExcel.js`
+- `frontend/src/utils/multiSectorPdf.js`
+
+As exportacoes respeitam os filtros globais ja aplicados ao endpoint e a busca local por protocolo. O PDF usa `jsPDF + jspdf-autotable` com identidade visual AnalyticSEI/PROGEP/UFC; o Excel usa SheetJS.
+
 ### 11.9 Lead time / tempo de permanencia
 
 `get_lead_time_data()` calcula o tempo estimado de permanencia dos processos que sairam de uma carteira.
@@ -752,6 +776,10 @@ Componentes principais:
 - itens de pauta em `pauta_itens`
 - atribuicao a usuarios da plataforma com acesso ao setor do processo
 - notas da gestao (`nota_admin`) e notas do responsavel (`nota_responsavel`)
+- cronograma com inicio, reuniao e prazo da pauta (`data_fim`)
+- situacao derivada da sessao: `a_iniciar`, `em_andamento` ou `encerrada`
+- editor inline de titulo, datas e observacoes para administradores
+- barra de progresso temporal e progresso de resolucao da sessao
 - integracao com `/risco` e `/atribuicoes` pelo botao `+ Pauta`
 - sino de notificacoes mostrando tambem itens pendentes da pauta
 - exportacao PDF da pauta de reuniao
@@ -760,11 +788,12 @@ Componentes principais:
 Fluxo operacional:
 
 1. Administrador cria uma sessao semanal.
-2. Administrador adiciona processos criticos a partir do Score de Risco, da tela Atribuicoes ou do modal em lote da propria pauta.
-3. Administrador atribui responsavel e registra uma orientacao.
-4. Responsavel confirma ciencia e pode atualizar sua nota.
-5. Apos cada upload valido do setor, `_check_pauta_resolution()` verifica se o protocolo ainda aparece no snapshot.
-6. Se o protocolo nao aparece mais, o item muda para `saiu_do_setor` com `resolucao_automatica=True`.
+2. Administrador define inicio, data de reuniao e prazo da pauta.
+3. Administrador adiciona processos criticos a partir do Score de Risco, da tela Atribuicoes ou do modal em lote da propria pauta.
+4. Administrador atribui responsavel e registra uma orientacao.
+5. Responsavel confirma ciencia e pode atualizar sua nota.
+6. Apos cada upload valido do setor, `_check_pauta_resolution()` verifica se o protocolo ainda aparece no snapshot.
+7. Se o protocolo nao aparece mais, o item muda para `saiu_do_setor` com `resolucao_automatica=True`.
 
 Regras de permissao:
 
@@ -772,12 +801,25 @@ Regras de permissao:
 - responsavel comum so pode mudar `pendente -> em_acompanhamento`
 - responsavel comum nao pode marcar resolucao manual
 - administrador pode forcar `resolvido_manual` em casos excepcionais
+- usuario comum so ve uma pauta quando ha itens atribuidos a ele e o setor do item ainda esta liberado em `user_sector_access`
+- acesso direto a sessao sem itens visiveis retorna 404 para nao confirmar existencia de pauta alheia
+- remover setor de usuario com itens ativos na pauta e bloqueado com 409 ate reatribuicao
 
 Fechamento de ciclo:
 
 - o administrador pode gerar PDF da sessao para reuniao
+- PDF inclui periodo, reuniao, prazo da pauta, resumo de status e notas da gestao
 - pendencias podem ser copiadas para nova sessao
+- se a sessao ainda esta `a_iniciar` ou `em_andamento`, `copy-pending` encerra a origem e copia na mesma transacao
+- se a sessao ja esta encerrada por prazo, a UI permite copiar as pendencias para nova sessao, preservando o historico
 - encerrar sessao registra auditoria `pauta.sessao_encerrada`
+- editar titulo/datas/observacoes registra auditoria `pauta.sessao_editada`
+
+Regra de atribuicao atual na pauta:
+
+- a coluna de atribuicao da pauta mostra a atribuicao atual no SEI quando o processo ainda esta na mesma passagem continua no setor
+- a passagem e identificada por protocolo, setor e `entrada_setor`
+- se o processo saiu e voltou depois ao mesmo setor, o item antigo usa fallback historico e nao recebe a atribuicao da nova passagem
 
 
 ## 12. Indicadores mensais
@@ -858,7 +900,7 @@ As principais rotas estao em `backend/main.py`.
 
 Observacao:
 
-- para usuarios restritos, retorna apenas setores permitidos
+- para usuarios restritos, retorna apenas datas, setores, tipos e atribuicoes dos setores permitidos
 - atribuicoes e servidores sao filtrados pelos vinculos de `sei_user_setor`
 - antes de qualquer vinculo explicito, ha fallback temporario por dados historicos para evitar tela vazia durante a configuracao inicial
 
@@ -894,7 +936,9 @@ Observacao:
 Observacoes:
 
 - `PATCH /api/pauta/itens/{item_id}` limita usuario comum a confirmar ciencia e editar sua nota
+- `PATCH /api/pauta/sessoes/{sessao_id}` edita titulo, datas e observacoes com `exclude_unset`, valida `data_inicio <= data_fim` e registra auditoria `pauta.sessao_editada`
 - `PATCH /api/pauta/sessoes/{sessao_id}` registra auditoria quando encerra sessao (`ativa=false`)
+- `POST /api/pauta/sessoes/{sessao_id}/copy-pending` valida `data_inicio <= data_fim`, copia itens `pendente`/`em_acompanhamento` e encerra a origem quando ela ainda esta operavel
 - `GET /api/pauta/metricas` e admin-only
 
 
@@ -993,6 +1037,7 @@ Detalhe de performance:
 
 - se ja existir usuario em cache no `localStorage`, o `loading` inicial nao bloqueia a interface desnecessariamente
 - o cache analitico em `sessionStorage` e isolado por usuario logado, evitando reaproveitar dados de outro perfil apos logout/login
+- usuarios restritos nao leem cache persistente antes de receber a resposta atual do servidor, evitando exposicao stale apos mudanca de permissao
 - o timeout padrao das chamadas analiticas no frontend e de 90 segundos
 - endpoints historicos mais pesados podem usar timeout especifico maior, como 120 segundos
 
@@ -1276,6 +1321,9 @@ Consome:
 Entrega:
 
 - criacao de sessoes semanais
+- cronograma visivel para todos os perfis: inicio, reuniao e prazo da pauta
+- editor inline de titulo, datas e observacoes para administradores
+- auditoria `pauta.sessao_editada` ao alterar sessao
 - inclusao individual de processos pelo modal `+ Pauta`
 - inclusao em lote a partir do Score de Risco
 - atribuicao de responsaveis com acesso ao setor
@@ -1283,10 +1331,31 @@ Entrega:
 - confirmacao de ciencia pelo responsavel
 - resolucao automatica quando o processo sai do snapshot do setor
 - override manual de resolucao apenas para admin
+- progresso temporal e progresso de resolucao da sessao
 - copia de pendencias para nova sessao
 - encerramento de sessao com auditoria
 - exportacao PDF da pauta da reuniao
 - metricas administrativas de eficiencia
+
+### 19.14 Multiplos setores
+
+Arquivo:
+
+- `frontend/src/pages/MultiSectorPage.jsx`
+- `frontend/src/utils/multiSectorExcel.js`
+- `frontend/src/utils/multiSectorPdf.js`
+
+Consome:
+
+- `/analytics/multi-sector`
+
+Entrega:
+
+- cards de total, ocorrencias em 2 setores, ocorrencias em 3+ setores e setores envolvidos
+- busca local por protocolo
+- tabela com protocolo, setores, quantidade e data do relatorio
+- exportacao Excel da lista visivel
+- exportacao PDF da lista visivel com identidade visual AnalyticSEI/PROGEP/UFC
 
 
 ## 20. Graficos
@@ -1686,11 +1755,14 @@ bi-copag/
 │       │   ├── StaleProcessesPage.jsx
 │       │   ├── UploadPage.jsx
 │       │   └── documentacao/
-│       └── utils/
-│           ├── attributionsExcel.js
-│           ├── attributionsPdf.js
-│           ├── uploadsPayload.js
-│           └── userNameFormatter.js
+	│       └── utils/
+	│           ├── attributionsExcel.js
+	│           ├── attributionsPdf.js
+	│           ├── generatePautaPdf.js
+	│           ├── multiSectorExcel.js
+	│           ├── multiSectorPdf.js
+	│           ├── uploadsPayload.js
+	│           └── userNameFormatter.js
 └── scripts/
     ├── alerts_email.py
     ├── check_daily_upload_success.py

@@ -164,9 +164,13 @@ Depois de subir backend e frontend locais, valide também os cenários de acesso
 3. Libere uma ou mais divisões para esse usuário.
 4. Habilite ou desabilite a opção **Pode enviar relatórios**, conforme o teste desejado.
 5. Saia da conta admin e entre com o usuário comum.
-6. Confira se os painéis, filtros, listas, indicadores mensais, histórico de uploads e badge de saúde mostram apenas os setores liberados.
+6. Confira se os painéis, filtros, datas de referência, listas, indicadores mensais, histórico de uploads e badge de saúde mostram apenas os setores liberados.
 7. Em **Usuários SEI**, use **Inferir setores** ou configure manualmente os setores de cada usuário SEI.
 8. Valide se os filtros **Atribuição** e **Servidor** exibem apenas nomes vinculados aos setores permitidos.
+9. Em **Pauta Prioritária**, confirme que o usuário comum vê apenas sessões com itens atribuídos a ele e apenas quando o setor do item ainda está liberado.
+10. Remova temporariamente o setor de um usuário com item ativo na pauta: a API deve bloquear a alteração até que o item seja reatribuído ou resolvido.
+11. Em **Múltiplos Setores**, aplique uma busca por protocolo e valide se **Exportar Excel** e **Gerar PDF** geram apenas a lista visível.
+12. Em **Pauta Prioritária**, teste uma sessão vencida: o admin deve conseguir editar datas e copiar pendências para uma nova sessão, sem permitir adicionar novos processos à sessão encerrada.
 
 Para testar o fluxo de upload restrito, o usuário comum precisa ter a permissão de upload ativa e tentar enviar CSV apenas de setor liberado. Upload de setor não liberado deve ser bloqueado pela API.
 

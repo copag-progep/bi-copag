@@ -131,11 +131,11 @@ Para evitar falsa precisão, a interface trabalha principalmente com níveis: Cr
 
 ### Pauta Prioritária
 
-A Pauta Prioritária transforma o ranking de risco em acompanhamento semanal. O administrador cria uma sessão de reunião, adiciona processos críticos a partir do Score de Risco ou da tela Atribuições, atribui responsáveis e registra uma orientação.
+A Pauta Prioritária transforma o ranking de risco em acompanhamento semanal. O administrador cria uma sessão de reunião com início, data de reunião e prazo da pauta, adiciona processos críticos a partir do Score de Risco ou da tela Atribuições, atribui responsáveis e registra uma orientação.
 
-O responsável não declara que resolveu o processo. Ele confirma ciência e pode registrar uma atualização. A resolução é detectada automaticamente pelo sistema quando, após novo upload válido, o processo deixa de constar no snapshot do setor acompanhado. Isso indica que ele foi concluído no setor ou encaminhado para fora dele.
+O responsável visualiza o cronograma da sessão, mas não declara que resolveu o processo. Ele confirma ciência e pode registrar uma atualização. A resolução é detectada automaticamente pelo sistema quando, após novo upload válido, o processo deixa de constar no snapshot do setor acompanhado. Isso indica que ele foi concluído no setor ou encaminhado para fora dele.
 
-A pauta também gera PDF para reunião, permite copiar pendências para a semana seguinte, encerra sessões com registro de auditoria e mostra métricas administrativas de eficiência.
+A pauta também mostra progresso de resolução, gera PDF para reunião, permite editar prazos pelo administrador, copiar pendências para a semana seguinte, encerrar sessões com registro de auditoria e consultar métricas administrativas de eficiência. A situação da pauta é calculada automaticamente como **A iniciar**, **Em andamento** ou **Encerrada** conforme as datas; mesmo sessões vencidas permitem copiar pendências para uma nova pauta.
 
 ### 3.4 Processos parados
 
@@ -171,6 +171,8 @@ Serve para subsidiar decisões de redistribuição e acompanhamento de produtivi
 Identifica processos que aparecem em mais de um setor no mesmo snapshot diário.
 
 Isso é útil porque pode indicar tramitações simultâneas, duplicidades operacionais ou situações que merecem conferência.
+
+A tela também permite exportar as ocorrências visíveis em **Excel** ou **PDF**, mantendo a mesma identidade visual dos relatórios da plataforma.
 
 ### 3.8 Indicadores mensais
 
@@ -440,12 +442,12 @@ Ele guarda tanto dados operacionais, como processos e uploads, quanto dados admi
 | Central Executiva | Visão rápida das prioridades do dia, saúde dos dados, tendências e tempo de permanência |
 | Dashboard | Visão geral da situação dos processos |
 | Score de Risco | Ranking de processos que merecem maior atenção, com explicação dos fatores |
-| Pauta Prioritária | Lista semanal de processos críticos para acompanhamento, com responsáveis, notas, PDF de reunião e resolução automática quando o processo sai do setor |
+| Pauta Prioritária | Lista semanal de processos críticos para acompanhamento, com cronograma, responsáveis, notas, PDF de reunião e resolução automática quando o processo sai do setor |
 | Enviar Relatório | Upload manual e histórico de uploads para usuários autorizados |
 | Entradas e Saídas | Análise do fluxo diário por setor |
 | Produtividade | Análise de produção por atribuição |
 | Processos Parados | Lista de processos com maior tempo sem movimentação |
-| Múltiplos Setores | Processos presentes em mais de um setor, respeitando o escopo visível do usuário |
+| Múltiplos Setores | Processos presentes em mais de um setor, respeitando o escopo visível do usuário, com exportação Excel/PDF |
 | Atribuições | Carteira detalhada por servidor/atribuição |
 | Servidores | Carga e perfil longitudinal dos servidores |
 | Indicadores Mensais | Gestão de indicadores históricos filtrados por setor permitido |
@@ -518,7 +520,7 @@ Isso é importante porque os filtros de "Atribuição" e "Servidor" passam a mos
 
 ### 11.7 Cache isolado por usuário
 
-O sistema também separa o cache de dados por usuário. Assim, quando uma pessoa sai e outra entra no mesmo computador, a nova sessão não reutiliza dados carregados pela sessão anterior.
+O sistema também separa o cache de dados por usuário e respeita o escopo de setores na API. Assim, quando uma pessoa sai e outra entra no mesmo computador, a nova sessão não reutiliza dados carregados pela sessão anterior; usuários restritos aguardam a resposta atual do servidor antes de visualizar dados analíticos.
 
 ### 11.8 API key
 

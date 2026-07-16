@@ -839,6 +839,18 @@ Colunas:
 
 A busca da tela filtra por número de protocolo.
 
+### Exportações
+
+A tela possui os botões **Exportar Excel** e **Gerar PDF**, seguindo o mesmo padrão visual da tela Atribuições.
+
+As exportações respeitam:
+
+- filtros globais aplicados no topo da plataforma;
+- escopo de setores do usuário logado;
+- busca por protocolo feita dentro da própria tela.
+
+O Excel gera uma planilha com resumo e tabela de ocorrências. O PDF gera um relatório com identidade visual AnalyticSEI/PROGEP/UFC, cards de resumo e a lista dos protocolos em múltiplos setores.
+
 ---
 
 ## 12. Tela Atribuições
@@ -1069,6 +1081,8 @@ Transformar os processos críticos em acompanhamento semanal. A Pauta Prioritár
 Administradores:
 
 - criam sessões de pauta;
+- definem início, data da reunião e prazo da pauta;
+- editam título, datas e observações quando necessário;
 - adicionam processos a partir do Score de Risco, da tela Atribuições ou da própria página da pauta;
 - escolhem o responsável;
 - registram a nota da gestão;
@@ -1078,9 +1092,32 @@ Administradores:
 
 Responsáveis:
 
-- veem apenas os itens atribuídos a eles;
+- veem apenas os itens atribuídos a eles e dos setores aos quais ainda possuem acesso;
+- visualizam o cronograma da sessão, com início, reunião e prazo da pauta;
 - confirmam ciência;
 - registram atualização na nota do responsável.
+
+### Cronograma da sessão
+
+Cada pauta possui uma faixa de cronograma com três marcos:
+
+- **Início**: quando começa o acompanhamento da pauta;
+- **Reunião**: data prevista para discussão dos processos;
+- **Prazo da pauta**: data limite de acompanhamento da sessão.
+
+O sistema mostra mensagens como "faltam 2 dias", "prazo termina hoje" ou "vencido há X dias". Essas datas aparecem tanto para administradores quanto para responsáveis.
+
+O administrador pode usar o ícone de edição do cronograma para alterar título, início, reunião, prazo e observações. As alterações ficam registradas no log de auditoria.
+
+### Situação da pauta
+
+A situação da sessão é calculada automaticamente:
+
+- **A iniciar**: a data de início ainda não chegou;
+- **Em andamento**: a pauta já iniciou e o prazo ainda não venceu;
+- **Encerrada**: o prazo já passou ou o administrador encerrou manualmente.
+
+Mesmo quando a pauta estiver encerrada, o administrador pode editar datas para corrigir um prazo informado de forma errada. Sessões encerradas não recebem novos processos, mas pendências ainda podem ser copiadas para uma nova sessão.
 
 ### Como a resolução funciona
 
@@ -1095,7 +1132,7 @@ Isso significa que o processo foi concluído naquele setor ou encaminhado para f
 O botão **PDF** gera um documento da sessão selecionada com:
 
 - título da sessão;
-- período e data da reunião;
+- período, data da reunião e prazo da pauta;
 - resumo de status;
 - protocolo, setor, tipo, dias, risco, responsável, status e nota da gestão.
 
@@ -1107,6 +1144,24 @@ Administradores podem abrir o painel de métricas da pauta para acompanhar:
 - quantidade de resoluções manuais;
 - pendências arrastadas de sessões encerradas;
 - eficiência por sessão.
+
+### Progresso da pauta
+
+A tela mostra o progresso da sessão com uma barra de resolução:
+
+- processos resolvidos automaticamente ou manualmente;
+- processos em acompanhamento;
+- processos pendentes.
+
+Para responsáveis, os números consideram apenas os itens atribuídos a eles.
+
+### Encerramento e cópia de pendências
+
+Quando uma sessão ainda está **A iniciar** ou **Em andamento**, a ação **Encerrar e copiar pendências** encerra a sessão de origem e cria uma nova sessão com os itens pendentes ou em acompanhamento.
+
+Quando a sessão já está **Encerrada** pelo prazo, a ação passa a ser **Copiar pendências**: o sistema cria a nova sessão, preservando o histórico da sessão original.
+
+O sistema impede duplicidade de um mesmo processo na mesma passagem ativa. Para isso, usa a chave formada por protocolo, setor e entrada no setor.
 
 ---
 
