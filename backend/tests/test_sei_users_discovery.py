@@ -18,7 +18,12 @@ from sqlalchemy.orm import sessionmaker  # noqa: E402
 from backend.database import Base  # noqa: E402
 from backend import models  # noqa: E402  (registra as tabelas)
 from backend.models import Processo, SeiUser, SeiUserAlias, SeiUserSetor, Upload  # noqa: E402
-from backend.sei_users import discover_sei_users_from_processos, normalize_identity, upsert_sei_user  # noqa: E402
+from backend.sei_users import (  # noqa: E402
+    discover_sei_users_from_processos,
+    list_sei_user_names_for_setores,
+    normalize_identity,
+    upsert_sei_user,
+)
 
 _engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False})
 Base.metadata.create_all(_engine)
@@ -120,6 +125,34 @@ def test_descoberta_manual_usa_apenas_snapshot_mais_recente_por_setor():
 
         assert result["created"] == 1
         assert nomes == {"Servidor Atual"}
+    finally:
+        db.rollback()
+        db.close()
+
+
+def test_lista_usuarios_sei_filtra_por_setor_configurado():
+    db = _Session()
+    try:
+        _, diape = upsert_sei_user(db, "Servidor DIAPE", None, None)
+        _, dicaf = upsert_sei_user(db, "Servidor DICAF", None, None)
+        _, ambos = upsert_sei_user(db, "Servidor Ambos", None, None)
+        db.add_all(
+            [
+                SeiUserSetor(sei_user_id=diape.id, setor="DIAPE"),
+                SeiUserSetor(sei_user_id=dicaf.id, setor="DICAF"),
+                SeiUserSetor(sei_user_id=ambos.id, setor="DIAPE"),
+                SeiUserSetor(sei_user_id=ambos.id, setor="DICAF"),
+            ]
+        )
+        db.flush()
+
+        assert list_sei_user_names_for_setores(db, ["DIAPE"]) == ["Servidor Ambos", "Servidor DIAPE"]
+        assert list_sei_user_names_for_setores(db, ["DICAF"]) == ["Servidor Ambos", "Servidor DICAF"]
+        assert list_sei_user_names_for_setores(db, ["DIAPE", "DICAF"]) == [
+            "Servidor Ambos",
+            "Servidor DIAPE",
+            "Servidor DICAF",
+        ]
     finally:
         db.rollback()
         db.close()

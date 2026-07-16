@@ -78,6 +78,7 @@ from .sei_users import (
     import_sei_users_file,
     import_sei_users_rows,
     list_attribution_candidates,
+    list_sei_user_names_for_setores,
     needs_processo_atribuicoes_sync,
     sync_processo_atribuicoes,
     update_sei_user,
@@ -2719,51 +2720,38 @@ def alerts_summary(
 
 @app.get("/api/meta/options", response_model=FilterOptions)
 def filter_options(
+    setor: str | None = None,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> FilterOptions:
     setores_permitidos = get_user_setores(current_user, db)
+    selected_setor = setor.upper().strip() if setor else None
+    if selected_setor:
+        if selected_setor not in SETORES:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Setor invalido.")
+        if setores_permitidos is not None and selected_setor not in setores_permitidos:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Acesso não autorizado ao setor {selected_setor}.",
+            )
+
     # Opções já derivadas exclusivamente dos setores permitidos (datas, tipos,
     # setores e atribuições) — nenhum metadado de divisões não autorizadas
-    opts = get_filter_options(db, setores_permitidos)
+    opts = dict(get_filter_options(db, setores_permitidos))
     opts["setores_validos"] = SETORES
+
+    attr_scope: list[str] | None = None
+    if selected_setor:
+        attr_scope = [selected_setor]
+    elif setores_permitidos is not None:
+        attr_scope = list(setores_permitidos)
+
+    if attr_scope is not None:
+        opts["atribuicoes"] = list_sei_user_names_for_setores(db, attr_scope)
+
     if setores_permitidos is not None:
         opts["setor_restrito"] = True
         opts["setores_do_usuario"] = list(setores_permitidos)
-
-        # ── Filtro de atribuições por setor ─────────────────────────────
-        # Regra de fallback:
-        #   Se existe ao menos 1 vínculo explícito (sei_user_setor) no sistema
-        #   → usa apenas vínculos explícitos (comportamento definitivo).
-        #   Se não existe nenhum vínculo ainda
-        #   → infere pelo histórico de processos (fallback temporário, até o
-        #     admin rodar "Inferir setores" em Usuários SEI).
-        has_explicit_links = db.query(SeiUserSetor).limit(1).count() > 0
-
-        if has_explicit_links:
-            linked_nomes: set[str] = {
-                row[0]
-                for row in db.query(SeiUser.nome)
-                .join(SeiUserSetor, SeiUser.id == SeiUserSetor.sei_user_id)
-                .filter(SeiUserSetor.setor.in_(setores_permitidos))
-                .all()
-                if row[0]
-            }
-            opts["atribuicoes"] = [a for a in opts["atribuicoes"] if a in linked_nomes]
-        else:
-            # Fallback data-driven: atribuições que aparecem nos processos desses setores
-            data_atribs: set[str] = {
-                row[0]
-                for row in db.query(Processo.atribuicao_normalizada)
-                .filter(
-                    Processo.atribuicao_normalizada.is_not(None),
-                    Processo.setor.in_(setores_permitidos),
-                )
-                .distinct()
-                .all()
-                if row[0]
-            }
-            opts["atribuicoes"] = [a for a in opts["atribuicoes"] if a in data_atribs]
     else:
         opts["setor_restrito"] = False
         opts["setores_do_usuario"] = []

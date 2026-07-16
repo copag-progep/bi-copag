@@ -226,6 +226,22 @@ def _add_sei_user_setor_link(db: Session, sei_user: SeiUser, setor: str) -> bool
     return True
 
 
+def list_sei_user_names_for_setores(db: Session, setores: list[str] | tuple[str, ...]) -> list[str]:
+    scoped_setores = sorted({setor.upper().strip() for setor in setores if setor and setor.strip()})
+    if not scoped_setores:
+        return []
+
+    rows = (
+        db.query(SeiUser.nome)
+        .join(SeiUserSetor, SeiUser.id == SeiUserSetor.sei_user_id)
+        .filter(SeiUserSetor.setor.in_(scoped_setores))
+        .distinct()
+        .order_by(SeiUser.nome.asc())
+        .all()
+    )
+    return sorted({nome for (nome,) in rows if nome})
+
+
 def _processo_atribuicao_scope(
     db: Session,
     *,

@@ -27,7 +27,7 @@ export function FiltersProvider({ children }) {
   const [options, setOptions] = useState(EMPTY_OPTIONS);
   const [optionsLoading, setOptionsLoading] = useState(false);
 
-  async function reloadOptions({ focusLatestDate = false } = {}) {
+  async function reloadOptions({ focusLatestDate = false, selectedSetor } = {}) {
     if (!isAuthenticated) {
       setOptions(EMPTY_OPTIONS);
       setFilters(INITIAL_FILTERS);
@@ -37,7 +37,10 @@ export function FiltersProvider({ children }) {
 
     setOptionsLoading(true);
     try {
-      const { data } = await api.get("/meta/options");
+      const setorParam = selectedSetor !== undefined ? selectedSetor : filters.setor;
+      const { data } = await api.get("/meta/options", {
+        params: setorParam ? { setor: setorParam } : {},
+      });
       const latestDate = data.datas.at(-1) || "";
 
       setOptions(data);
@@ -45,9 +48,15 @@ export function FiltersProvider({ children }) {
         // Se o usuário tem exatamente um setor permitido, pré-seleciona automaticamente
         // para deixar claro na UI qual recorte está sendo aplicado
         const autoSetor =
-          data.setor_restrito && data.setores_do_usuario?.length === 1
+          selectedSetor !== undefined
+            ? selectedSetor
+            : data.setor_restrito && data.setores_do_usuario?.length === 1
             ? data.setores_do_usuario[0]
             : current.setor;
+        const atribuicaoValida =
+          !current.atribuicao ||
+          current.atribuicao === "__sem_atribuicao__" ||
+          data.atribuicoes.includes(current.atribuicao);
         return {
           ...current,
           data_referencia:
@@ -55,6 +64,7 @@ export function FiltersProvider({ children }) {
               ? latestDate
               : current.data_referencia,
           setor: autoSetor,
+          atribuicao: atribuicaoValida ? current.atribuicao : "",
         };
       });
     } catch {
@@ -69,6 +79,11 @@ export function FiltersProvider({ children }) {
   }, [isAuthenticated]);
 
   function setFilter(name, value) {
+    if (name === "setor") {
+      setFilters((current) => ({ ...current, setor: value, atribuicao: "" }));
+      reloadOptions({ selectedSetor: value });
+      return;
+    }
     setFilters((current) => ({ ...current, [name]: value }));
   }
 
@@ -77,6 +92,7 @@ export function FiltersProvider({ children }) {
       ...INITIAL_FILTERS,
       data_referencia: options.datas.at(-1) || "",
     }));
+    reloadOptions({ selectedSetor: "" });
   }
 
   function toQueryParams() {
