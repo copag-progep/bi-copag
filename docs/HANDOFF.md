@@ -359,6 +359,7 @@ Campos principais:
 - `protocolo`
 - `setor`
 - `entrada_setor`
+- `prazo`
 - `data_referencia`
 - `ultima_presenca`
 - `atribuicao`
@@ -370,7 +371,6 @@ Campos principais:
 - `assigned_by`
 - `status`
 - `nota_admin`
-- `nota_responsavel`
 - `data_status`
 - `resolucao_automatica`
 
@@ -380,8 +380,8 @@ Restricao importante:
 
 Status:
 
-- `pendente`: item incluido, aguardando ciencia do responsavel
-- `em_acompanhamento`: responsavel confirmou ciencia
+- `pendente`: item incluido, aguardando saida do setor ou acao da gestao
+- `em_acompanhamento`: status legado de acompanhamentos anteriores
 - `saiu_do_setor`: resolvido automaticamente porque o protocolo deixou de aparecer no snapshot do setor
 - `resolvido_manual`: override excepcional feito por administrador
 - `arquivado`: item removido da vista ativa sem apagar historico
@@ -775,7 +775,8 @@ Componentes principais:
 - sessoes semanais em `pauta_sessoes`
 - itens de pauta em `pauta_itens`
 - atribuicao a usuarios da plataforma com acesso ao setor do processo
-- notas da gestao (`nota_admin`) e notas do responsavel (`nota_responsavel`)
+- prazo por processo (`prazo`) e dias restantes/vencidos calculados na interface
+- notas da gestao (`nota_admin`)
 - cronograma com inicio, reuniao e prazo da pauta (`data_fim`)
 - situacao derivada da sessao: `a_iniciar`, `em_andamento` ou `encerrada`
 - editor inline de titulo, datas e observacoes para administradores
@@ -790,15 +791,14 @@ Fluxo operacional:
 1. Administrador cria uma sessao semanal.
 2. Administrador define inicio, data de reuniao e prazo da pauta.
 3. Administrador adiciona processos criticos a partir do Score de Risco, da tela Atribuicoes ou do modal em lote da propria pauta.
-4. Administrador atribui responsavel e registra uma orientacao.
-5. Responsavel confirma ciencia e pode atualizar sua nota.
+4. Administrador define prazo por processo, atribui responsavel e registra uma orientacao.
+5. Responsavel visualiza os itens atribuidos, prazos e notas da gestao.
 6. Apos cada upload valido do setor, `_check_pauta_resolution()` verifica se o protocolo ainda aparece no snapshot.
 7. Se o protocolo nao aparece mais, o item muda para `saiu_do_setor` com `resolucao_automatica=True`.
 
 Regras de permissao:
 
-- responsavel comum so pode editar `nota_responsavel`
-- responsavel comum so pode mudar `pendente -> em_acompanhamento`
+- responsavel comum visualiza apenas seus itens; nao edita prazo, nota ou status pela API atual
 - responsavel comum nao pode marcar resolucao manual
 - administrador pode forcar `resolvido_manual` em casos excepcionais
 - usuario comum so ve uma pauta quando ha itens atribuidos a ele e o setor do item ainda esta liberado em `user_sector_access`

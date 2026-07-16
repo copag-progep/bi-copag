@@ -176,11 +176,11 @@ O cache analítico também participa desse isolamento: o backend inclui o escopo
 
 ## Pauta Prioritária
 
-A **Pauta Prioritária** transforma o Score de Risco em rotina de acompanhamento semanal. Administradores criam sessões, adicionam processos críticos a partir das páginas **Score de Risco** ou **Atribuições**, atribuem responsáveis da plataforma e registram orientações para reunião.
+A **Pauta Prioritária** transforma o Score de Risco em rotina de acompanhamento semanal. Administradores criam sessões, adicionam processos críticos a partir das páginas **Score de Risco** ou **Atribuições**, definem prazo por processo, atribuem responsáveis da plataforma e registram orientações para reunião.
 
 Cada sessão possui cronograma visível para todos os perfis com **Início**, **Reunião** e **Prazo da pauta** (`data_fim`), além de contador dinâmico e barra temporal. A situação da sessão é derivada das datas: **A iniciar**, **Em andamento** ou **Encerrada**. O administrador pode editar título, datas e observações pelo editor inline da própria página, inclusive para corrigir sessões encerradas por prazo. A edição valida `data_inicio <= data_fim`, permite limpar datas opcionais e registra auditoria `pauta.sessao_editada` com valores anteriores e novos.
 
-Responsáveis não marcam processos como resolvidos manualmente. Eles apenas confirmam ciência e registram atualizações. A resolução é detectada automaticamente após upload válido: se o protocolo deixar de constar no snapshot do setor acompanhado, o item muda para **Resolvido automaticamente** (`saiu_do_setor`). O administrador mantém um override excepcional, registrado como **Resolvido manualmente**.
+Responsáveis não marcam processos como resolvidos manualmente nem editam prazos. A resolução é detectada automaticamente após upload válido: se o protocolo deixar de constar no snapshot do setor acompanhado, o item muda para **Resolvido automaticamente** (`saiu_do_setor`). O administrador mantém um override excepcional, registrado como **Resolvido manualmente**.
 
 Usuários comuns veem apenas sessões com itens atribuídos a eles e, de forma cumulativa, apenas se ainda tiverem acesso ao setor do processo. Se o administrador tentar remover de um usuário um setor que possui itens ativos na pauta, a API bloqueia a alteração até que os itens sejam reatribuídos.
 

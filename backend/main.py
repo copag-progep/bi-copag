@@ -8,7 +8,7 @@ from datetime import date, datetime, timezone
 from zoneinfo import ZoneInfo
 
 from fastapi import BackgroundTasks, Depends, FastAPI, File, Form, Header, HTTPException, Query, UploadFile, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
@@ -1064,6 +1064,7 @@ class PautaItemCreate(BaseModel):
     protocolo: str
     setor: str
     entrada_setor: date | None = None
+    prazo: date | None = None
     data_referencia: date | None = None
     ultima_presenca: date | None = None
     atribuicao: str | None = None
@@ -1083,9 +1084,10 @@ class PautaItemBulkCreate(BaseModel):
 
 
 class PautaItemUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     status: str | None = None  # em_acompanhamento | resolvido_manual | arquivado
     nota_admin: str | None = None
-    nota_responsavel: str | None = None
     assigned_to: int | None = None
     prazo: date | None = None
 
@@ -1112,7 +1114,6 @@ def _pauta_item_to_dict(item: PautaItem, users_map: dict) -> dict:
         "assigned_by": item.assigned_by,
         "status": item.status,
         "nota_admin": item.nota_admin,
-        "nota_responsavel": item.nota_responsavel,
         "data_status": str(item.data_status) if item.data_status else None,
         "resolucao_automatica": item.resolucao_automatica,
         "created_at": item.created_at.isoformat() if item.created_at else None,
@@ -1663,42 +1664,24 @@ def update_pauta_item(
 
     Regras de permissão:
       Admin:
-        - Pode alterar qualquer campo, incluindo nota_admin, assigned_to e resolvido_manual.
+        - Pode alterar prazo, nota_admin, assigned_to, status e resolução manual.
       Responsável (não-admin):
-        - Só pode alterar nota_responsavel.
-        - Só pode mudar status para em_acompanhamento, e apenas se o status atual for pendente.
-        - Não pode alterar nota_admin, assigned_to, nem declarar resolução.
-        - A resolução é exclusivamente automática (detectada via snapshot).
+        - Não altera item pela API.
+        - A resolução é exclusivamente automática (detectada via snapshot) ou override do admin.
     """
     item = db.query(PautaItem).filter(PautaItem.id == item_id).first()
     if not item:
         raise HTTPException(status_code=404, detail="Item não encontrado.")
 
+    # exclude_unset (não exclude_none): permite limpar prazo/nota enviando null explícito
+    data = payload.model_dump(exclude_unset=True)
+
     if not current_user.is_admin:
         if item.assigned_to != current_user.id:
             raise HTTPException(status_code=403, detail="Sem permissão para editar este item.")
+        if data:
+            raise HTTPException(status_code=403, detail="Apenas admins podem editar itens da pauta.")
 
-        # Campos restritos para o responsável
-        if payload.assigned_to is not None:
-            raise HTTPException(status_code=403, detail="Apenas admins podem reatribuir itens.")
-        if payload.nota_admin is not None:
-            raise HTTPException(status_code=403, detail="Apenas admins podem editar a nota da gestão.")
-
-        # Status: responsável só pode confirmar ciência (pendente → em_acompanhamento)
-        if payload.status is not None:
-            if payload.status != "em_acompanhamento":
-                raise HTTPException(
-                    status_code=403,
-                    detail="Responsável não pode declarar resolução. A resolução é automática via snapshot.",
-                )
-            if item.status != "pendente":
-                raise HTTPException(
-                    status_code=409,
-                    detail=f"Não é possível confirmar ciência: status atual é '{item.status}'.",
-                )
-
-    # exclude_unset (não exclude_none): permite limpar prazo/nota enviando null explícito
-    data = payload.model_dump(exclude_unset=True)
     if "assigned_to" in data:
         _ensure_assignee_can_access_setor(db, data["assigned_to"], item.setor)
 
@@ -1718,7 +1701,7 @@ def update_pauta_item(
             user=current_user,
         )
 
-    # Auditoria do prazo: registra antes/depois (admin ou responsável atribuído)
+    # Auditoria do prazo: registra antes/depois
     if "prazo" in data and data["prazo"] != item.prazo:
         _log_audit(
             db,

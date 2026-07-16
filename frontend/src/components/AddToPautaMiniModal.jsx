@@ -16,6 +16,7 @@ export default function AddToPautaMiniModal({ processo, onClose, onAdded }) {
   const [sessaoId, setSessaoId] = useState("");
   const [assignTo, setAssignTo] = useState("");
   const [nota, setNota] = useState("");
+  const [prazo, setPrazo] = useState("");
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
 
@@ -48,6 +49,7 @@ export default function AddToPautaMiniModal({ processo, onClose, onAdded }) {
         protocolo: processo.protocolo,
         setor: processo.setor,
         entrada_setor: processo.entrada_setor || null,
+        prazo: prazo || null,
         atribuicao: processo.atribuicao || null,
         tipo: processo.tipo || null,
         dias_no_setor: processo.dias_no_setor ?? processo.dias_com_atribuicao ?? null,
@@ -109,7 +111,12 @@ export default function AddToPautaMiniModal({ processo, onClose, onAdded }) {
         </label>
 
         <label className="field" style={{ margin: 0 }}>
-          <span>Nota para o responsável (opcional)</span>
+          <span>Prazo do processo (opcional)</span>
+          <input type="date" value={prazo} onChange={(e) => setPrazo(e.target.value)} />
+        </label>
+
+        <label className="field" style={{ margin: 0 }}>
+          <span>Nota da gestão (opcional)</span>
           <input type="text" value={nota} onChange={(e) => setNota(e.target.value)}
             placeholder="Orientação ou urgência" />
         </label>

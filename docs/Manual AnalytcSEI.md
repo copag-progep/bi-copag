@@ -1084,6 +1084,7 @@ Administradores:
 - definem início, data da reunião e prazo da pauta;
 - editam título, datas e observações quando necessário;
 - adicionam processos a partir do Score de Risco, da tela Atribuições ou da própria página da pauta;
+- definem o prazo dado para conclusão de cada processo;
 - escolhem o responsável;
 - registram a nota da gestão;
 - geram PDF da reunião;
@@ -1094,8 +1095,8 @@ Responsáveis:
 
 - veem apenas os itens atribuídos a eles e dos setores aos quais ainda possuem acesso;
 - visualizam o cronograma da sessão, com início, reunião e prazo da pauta;
-- confirmam ciência;
-- registram atualização na nota do responsável.
+- visualizam o prazo de cada processo e a contagem de dias restantes ou vencidos;
+- acompanham a nota da gestão e a resolução automática quando o processo sai do setor.
 
 ### Cronograma da sessão
 

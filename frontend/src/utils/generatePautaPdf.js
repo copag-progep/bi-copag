@@ -9,6 +9,7 @@ const BORDER = [218, 221, 238];
 const INK    = [26,  32,  80];
 const MUTED  = [90,  99,  144];
 const GREEN  = [26,  122, 80];
+const RED    = [191, 53, 53];
 const WHITE  = [255, 255, 255];
 
 const RISCO_COLORS = {
@@ -35,6 +36,22 @@ function fmtDate(value) {
   } catch {
     return value;
   }
+}
+
+function hojeFortaleza() {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Fortaleza" }).format(new Date());
+}
+
+function diffDias(value) {
+  if (!value) return null;
+  const MS_DIA = 86400000;
+  return Math.round((Date.parse(`${value}T00:00:00Z`) - Date.parse(`${hojeFortaleza()}T00:00:00Z`)) / MS_DIA);
+}
+
+function diasPrazoLabel(value) {
+  const d = diffDias(value);
+  if (d === null) return "—";
+  return `${d < 0 ? "-" : "+"}${String(Math.abs(d)).padStart(3, "0")}`;
 }
 
 function nivelLabel(nivel) {
@@ -143,22 +160,30 @@ export function generatePautaPdf(sessao) {
     { header: "Risco",        dataKey: "nivel" },
     { header: "Responsável",  dataKey: "responsavel" },
     { header: "Status",       dataKey: "status" },
+    { header: "Prazo",        dataKey: "prazo" },
+    { header: "Dias prazo",   dataKey: "diasPrazo" },
     { header: "Nota da gestão", dataKey: "nota" },
   ];
 
-  const rows = itens.map((item) => ({
-    protocolo:  item.protocolo,
-    setor:      item.setor,
-    tipo:       item.tipo || "—",
-    dias:       item.dias_no_setor != null ? `${item.dias_no_setor}d` : "—",
-    nivel:      nivelLabel(item.nivel_risco),
-    responsavel: item.assigned_to_nome || "—",
-    status:     STATUS_LABELS[item.status] || item.status,
-    nota:       item.nota_admin || "—",
-    _nivel:     item.nivel_risco,
-    _status:    item.status,
-    _score:     item.score_risco,
-  }));
+  const rows = itens.map((item) => {
+    const diasPrazo = diasPrazoLabel(item.prazo);
+    return {
+      protocolo:  item.protocolo,
+      setor:      item.setor,
+      tipo:       item.tipo || "—",
+      dias:       item.dias_no_setor != null ? `${item.dias_no_setor}d` : "—",
+      nivel:      nivelLabel(item.nivel_risco),
+      responsavel: item.assigned_to_nome || "—",
+      status:     STATUS_LABELS[item.status] || item.status,
+      prazo:      fmtDate(item.prazo),
+      diasPrazo,
+      nota:       item.nota_admin || "—",
+      _nivel:     item.nivel_risco,
+      _status:    item.status,
+      _score:     item.score_risco,
+      _diasPrazoDelta: diffDias(item.prazo),
+    };
+  });
 
   doc.autoTable({
     startY:  y,
@@ -180,14 +205,16 @@ export function generatePautaPdf(sessao) {
     },
     alternateRowStyles: { fillColor: LIGHT },
     columnStyles: {
-      0: { cellWidth: 36, fontStyle: "bold" },
-      1: { cellWidth: 24 },
-      2: { cellWidth: 46 },
-      3: { cellWidth: 14, halign: "center" },
-      4: { cellWidth: 20, halign: "center" },
-      5: { cellWidth: 30 },
-      6: { cellWidth: 30, halign: "center" },
-      7: { cellWidth: "auto" },
+      0: { cellWidth: 34, fontStyle: "bold" },
+      1: { cellWidth: 18 },
+      2: { cellWidth: 38 },
+      3: { cellWidth: 12, halign: "center" },
+      4: { cellWidth: 18, halign: "center" },
+      5: { cellWidth: 28 },
+      6: { cellWidth: 28, halign: "center" },
+      7: { cellWidth: 20, halign: "center" },
+      8: { cellWidth: 18, halign: "center", fontStyle: "bold" },
+      9: { cellWidth: "auto" },
     },
     willDrawCell: (data) => {
       if (data.section !== "body") return;
@@ -213,6 +240,12 @@ export function generatePautaPdf(sessao) {
         } else if (row._status === "arquivado") {
           doc.setTextColor(...MUTED);
         }
+      }
+
+      // Colorir coluna Dias prazo
+      if (data.column.index === 8 && row._diasPrazoDelta !== null) {
+        doc.setTextColor(...(row._diasPrazoDelta < 0 ? RED : GREEN));
+        doc.setFont("helvetica", "bold");
       }
     },
   });

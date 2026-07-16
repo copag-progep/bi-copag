@@ -17,6 +17,7 @@ os.environ["DATABASE_URL"] = "sqlite:///:memory:"
 from sqlalchemy import create_engine  # noqa: E402
 from sqlalchemy.orm import sessionmaker  # noqa: E402
 from fastapi import HTTPException  # noqa: E402
+from pydantic import ValidationError  # noqa: E402
 
 from backend.database import Base  # noqa: E402
 from backend import models  # noqa: E402  (registra as tabelas)
@@ -27,7 +28,9 @@ from backend.main import (  # noqa: E402
     _atribuicao_atual_por_processo,
     CopyPendingPayload,
     copy_pending_to_new_session,
+    PautaItemCreate,
     PautaItemUpdate,
+    add_pauta_item,
     update_pauta_item,
 )
 
@@ -258,19 +261,22 @@ def test_atribuicao_passagem_continua_usa_atual():
         db.rollback(); db.close()
 
 
-# ── Prazo do item (edição por admin ou responsável atribuído) ────────────────
+# ── Prazo do item (inclusão e edição admin-only) ────────────────────────────
 
-def test_prazo_pode_ser_definido_pelo_responsavel_atribuido():
+def test_prazo_pode_ser_definido_na_inclusao_do_item():
     db = _Session()
     try:
         s = _sessao(db, ativa=True, inicio=HOJE, fim=HOJE + timedelta(days=5))
-        responsavel = _user(db, "Fulano")
-        item = _item(db, s, protocolo="PZ1", setor="DIAPE", entrada=HOJE)
-        item.assigned_to = responsavel.id
-        db.flush()
+        admin = _admin(db)
         novo_prazo = HOJE + timedelta(days=3)
-        update_pauta_item(item.id, PautaItemUpdate(prazo=novo_prazo), current_user=responsavel, db=db)
-        db.refresh(item)
+        result = add_pauta_item(
+            s.id,
+            PautaItemCreate(protocolo="PZ1", setor="DIAPE", entrada_setor=HOJE, prazo=novo_prazo),
+            current_admin=admin,
+            db=db,
+        )
+        item = db.query(PautaItem).filter(PautaItem.id == result["id"]).first()
+        assert item is not None
         assert item.prazo == novo_prazo
     finally:
         db.rollback(); db.close()
@@ -292,21 +298,29 @@ def test_prazo_pode_ser_limpo_com_null_explicito():
         db.rollback(); db.close()
 
 
-def test_prazo_nao_pode_ser_editado_por_usuario_nao_atribuido():
+def test_prazo_nao_pode_ser_editado_pelo_responsavel_atribuido():
     db = _Session()
     try:
         s = _sessao(db, ativa=True, inicio=HOJE, fim=HOJE + timedelta(days=5))
-        outro_usuario = _user(db, "Sicrano")
+        responsavel = _user(db, "Sicrano")
         item = _item(db, s, protocolo="PZ3", setor="DIAPE", entrada=HOJE)
-        item.assigned_to = None
+        item.assigned_to = responsavel.id
         db.flush()
         try:
-            update_pauta_item(item.id, PautaItemUpdate(prazo=HOJE + timedelta(days=1)), current_user=outro_usuario, db=db)
-            assert False, "usuário não atribuído não deveria poder editar o item"
+            update_pauta_item(item.id, PautaItemUpdate(prazo=HOJE + timedelta(days=1)), current_user=responsavel, db=db)
+            assert False, "responsável atribuído não deveria poder editar prazo"
         except HTTPException as exc:
             assert exc.status_code == 403
     finally:
         db.rollback(); db.close()
+
+
+def test_update_item_rejeita_campo_legacy_nota_responsavel():
+    try:
+        PautaItemUpdate(nota_responsavel="texto antigo")
+        assert False, "campo legacy nota_responsavel deveria ser rejeitado"
+    except ValidationError:
+        pass
 
 
 # ── Copy pending ─────────────────────────────────────────────────────────────

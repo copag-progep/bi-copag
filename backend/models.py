@@ -179,7 +179,7 @@ class PautaItem(Base):
 
     Status:
       pendente        → incluído, aguardando ação
-      em_acompanhamento → responsável confirmou ciência
+      em_acompanhamento → legado de acompanhamento registrado antes da remoção da ciência manual
       saiu_do_setor   → processo não aparece mais no snapshot do setor (automático)
       resolvido_manual → marcado manualmente como resolvido
       arquivado       → removido da vista ativa pelo admin
@@ -212,7 +212,7 @@ class PautaItem(Base):
     )
     status: Mapped[str] = mapped_column(String(30), default="pendente", nullable=False)
     nota_admin: Mapped[str | None] = mapped_column(Text, nullable=True)
-    nota_responsavel: Mapped[str | None] = mapped_column(Text, nullable=True)
+    nota_responsavel: Mapped[str | None] = mapped_column(Text, nullable=True)  # legado, não exposto na UI/API atual
     data_status: Mapped[date | None] = mapped_column(Date, nullable=True)
     resolucao_automatica: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)

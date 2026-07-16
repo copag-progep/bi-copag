@@ -76,6 +76,7 @@ function PautaLoteModal({ processos, onClose, onAdded }) {
   const [sessaoId, setSessaoId] = useState("");
   const [assignTo, setAssignTo] = useState("");
   const [nota, setNota] = useState("");
+  const [prazo, setPrazo] = useState("");
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
 
@@ -114,6 +115,7 @@ function PautaLoteModal({ processos, onClose, onAdded }) {
           protocolo: p.protocolo,
           setor: p.setor,
           entrada_setor: p.entrada_setor || null,
+          prazo: prazo || null,
           atribuicao: p.atribuicao || null,
           tipo: p.tipo || null,
           dias_no_setor: p.dias_no_setor ?? null,
@@ -176,7 +178,12 @@ function PautaLoteModal({ processos, onClose, onAdded }) {
         </label>
 
         <label className="field" style={{ margin: 0 }}>
-          <span>Nota para o responsável (opcional)</span>
+          <span>Prazo dos processos (opcional)</span>
+          <input type="date" value={prazo} onChange={(e) => setPrazo(e.target.value)} />
+        </label>
+
+        <label className="field" style={{ margin: 0 }}>
+          <span>Nota da gestão (opcional)</span>
           <input type="text" value={nota} onChange={(e) => setNota(e.target.value)}
             placeholder="Orientação ou urgência" />
         </label>

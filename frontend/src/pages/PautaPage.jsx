@@ -554,6 +554,7 @@ function AdicionarProcessosModal({ sessaoId, users, onClose, onAdded }) {
   const [selected, setSelected] = useState(new Set());
   const [assignTo, setAssignTo] = useState("");
   const [nota, setNota] = useState("");
+  const [prazo, setPrazo] = useState("");
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
 
@@ -599,6 +600,7 @@ function AdicionarProcessosModal({ sessaoId, users, onClose, onAdded }) {
         protocolo: p.protocolo,
         setor: p.setor,
         entrada_setor: p.entrada_setor || null,
+        prazo: prazo || null,
         data_referencia: riskData?.data_referencia || null,
         ultima_presenca: riskData?.data_referencia || null,
         atribuicao: p.atribuicao || null,
@@ -713,7 +715,11 @@ function AdicionarProcessosModal({ sessaoId, users, onClose, onAdded }) {
             </select>
           </label>
           <label className="field" style={{ flex: 2, minWidth: 200, margin: 0 }}>
-            <span>Nota para o responsável</span>
+            <span>Prazo dos processos</span>
+            <input type="date" value={prazo} onChange={(e) => setPrazo(e.target.value)} />
+          </label>
+          <label className="field" style={{ flex: 2, minWidth: 200, margin: 0 }}>
+            <span>Nota da gestão</span>
             <input type="text" value={nota} onChange={(e) => setNota(e.target.value)}
               placeholder="Orientação ou contexto (opcional)" />
           </label>
@@ -734,12 +740,12 @@ function AdicionarProcessosModal({ sessaoId, users, onClose, onAdded }) {
 }
 
 // ── Linha de item com edição inline ──────────────────────────────────────
-function PautaItemRow({ item, idx, isAdmin, currentUserId, onUpdated, onDelete }) {
+function PautaItemRow({ item, idx, isAdmin, onUpdated, onDelete }) {
   const [saving, setSaving] = useState(false);
   // Edição da nota da gestão (admin)
   const [editingGestao, setEditingGestao] = useState(false);
   const [notaGestao, setNotaGestao] = useState(item.nota_admin || "");
-  // Edição do prazo (admin ou responsável atribuído)
+  // Edição do prazo (admin)
   const [editingPrazo, setEditingPrazo] = useState(false);
   const [prazo, setPrazo] = useState(item.prazo || "");
 
@@ -782,7 +788,7 @@ function PautaItemRow({ item, idx, isAdmin, currentUserId, onUpdated, onDelete }
   const isActive = ["pendente", "em_acompanhamento"].includes(item.status);
   const statusColor = (STATUS_CFG[item.status] || STATUS_CFG.pendente).color;
   const atribuicaoDisplay = item.atribuicao_display ?? item.atribuicao;
-  const canEditPrazo = isAdmin || item.assigned_to === currentUserId;
+  const canEditPrazo = isAdmin;
 
   return (
     <tr
@@ -819,7 +825,7 @@ function PautaItemRow({ item, idx, isAdmin, currentUserId, onUpdated, onDelete }
       <td><NivelBadge nivel={item.nivel_risco} /></td>
       <td style={{ fontSize: "0.78rem" }}>{item.assigned_to_nome || <span style={{ color: "var(--muted)", fontStyle: "italic" }}>Sem atribuição</span>}</td>
       <td><StatusBadge status={item.status} dataStatus={item.data_status} /></td>
-      {/* Prazo — editável por admin ou pelo responsável atribuído */}
+      {/* Prazo — editável por admin */}
       <td style={{ fontSize: "0.78rem" }}>
         {editingPrazo ? (
           <div style={{ display: "flex", gap: 4 }}>
@@ -1266,7 +1272,7 @@ export default function PautaPage() {
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, color: "var(--primary)" }}>
                 <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
               </svg>
-              A resolução é detectada automaticamente quando o processo deixar de constar no snapshot do setor. Confirme sua ciência para registrar o acompanhamento.
+              A resolução é detectada automaticamente quando o processo deixar de constar no snapshot do setor.
             </div>
           )}
 
@@ -1304,7 +1310,6 @@ export default function PautaPage() {
                       item={item}
                       idx={idx}
                       isAdmin={user?.is_admin}
-                      currentUserId={user?.id}
                       onUpdated={() => loadSessaoData(sessaoAtual)}
                       onDelete={handleDeleteItem}
                     />

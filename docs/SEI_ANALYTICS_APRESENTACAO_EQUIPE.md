@@ -131,9 +131,9 @@ Para evitar falsa precisão, a interface trabalha principalmente com níveis: Cr
 
 ### Pauta Prioritária
 
-A Pauta Prioritária transforma o ranking de risco em acompanhamento semanal. O administrador cria uma sessão de reunião com início, data de reunião e prazo da pauta, adiciona processos críticos a partir do Score de Risco ou da tela Atribuições, atribui responsáveis e registra uma orientação.
+A Pauta Prioritária transforma o ranking de risco em acompanhamento semanal. O administrador cria uma sessão de reunião com início, data de reunião e prazo da pauta, adiciona processos críticos a partir do Score de Risco ou da tela Atribuições, define prazo por processo, atribui responsáveis e registra uma orientação.
 
-O responsável visualiza o cronograma da sessão, mas não declara que resolveu o processo. Ele confirma ciência e pode registrar uma atualização. A resolução é detectada automaticamente pelo sistema quando, após novo upload válido, o processo deixa de constar no snapshot do setor acompanhado. Isso indica que ele foi concluído no setor ou encaminhado para fora dele.
+O responsável visualiza o cronograma da sessão, o prazo de cada processo e a nota da gestão, mas não declara que resolveu o processo. A resolução é detectada automaticamente pelo sistema quando, após novo upload válido, o processo deixa de constar no snapshot do setor acompanhado. Isso indica que ele foi concluído no setor ou encaminhado para fora dele.
 
 A pauta também mostra progresso de resolução, gera PDF para reunião, permite editar prazos pelo administrador, copiar pendências para a semana seguinte, encerrar sessões com registro de auditoria e consultar métricas administrativas de eficiência. A situação da pauta é calculada automaticamente como **A iniciar**, **Em andamento** ou **Encerrada** conforme as datas; mesmo sessões vencidas permitem copiar pendências para uma nova pauta.
 
@@ -557,7 +557,7 @@ O banco do AnalyticSEI é formado por tabelas principais que guardam usuários, 
 | `sei_user_setor` | Setores por usuário SEI | Filtra listas de Atribuição e Servidor |
 | `process_type_weights` | Pesos por tipo de processo | Ajusta o Score de Risco conforme prioridade do tipo |
 | `pauta_sessoes` | Sessões de acompanhamento | Organiza a pauta semanal da reunião |
-| `pauta_itens` | Processos priorizados na pauta | Guarda responsáveis, notas, risco e status de cada processo acompanhado |
+| `pauta_itens` | Processos priorizados na pauta | Guarda responsáveis, prazo, nota da gestão, risco e status de cada processo acompanhado |
 | `monthly_stats` | Indicadores mensais | Indicadores lançados por mês e setor |
 | `audit_logs` | Registro de ações críticas | Uploads, exclusões, alterações e gestão de usuários |
 
