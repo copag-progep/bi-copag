@@ -196,6 +196,7 @@ class PautaItem(Base):
     protocolo: Mapped[str] = mapped_column(String(120), nullable=False, index=True)
     setor: Mapped[str] = mapped_column(String(80), nullable=False)
     entrada_setor: Mapped[date | None] = mapped_column(Date, nullable=True)
+    prazo: Mapped[date | None] = mapped_column(Date, nullable=True)  # prazo definido para conclusão do processo
     data_referencia: Mapped[date | None] = mapped_column(Date, nullable=True)
     ultima_presenca: Mapped[date | None] = mapped_column(Date, nullable=True)
     atribuicao: Mapped[str | None] = mapped_column(String(255), nullable=True)

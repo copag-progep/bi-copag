@@ -27,6 +27,8 @@ from backend.main import (  # noqa: E402
     _atribuicao_atual_por_processo,
     CopyPendingPayload,
     copy_pending_to_new_session,
+    PautaItemUpdate,
+    update_pauta_item,
 )
 
 _engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False})
@@ -76,6 +78,18 @@ def _admin(db):
         email=f"admin-{id(db)}@teste.local",
         password_hash="x",
         is_admin=True,
+    )
+    db.add(user)
+    db.flush()
+    return user
+
+
+def _user(db, name="Responsável Teste"):
+    user = User(
+        name=name,
+        email=f"{name}-{id(db)}-{name}@teste.local".replace(" ", "").lower(),
+        password_hash="x",
+        is_admin=False,
     )
     db.add(user)
     db.flush()
@@ -244,6 +258,57 @@ def test_atribuicao_passagem_continua_usa_atual():
         db.rollback(); db.close()
 
 
+# ── Prazo do item (edição por admin ou responsável atribuído) ────────────────
+
+def test_prazo_pode_ser_definido_pelo_responsavel_atribuido():
+    db = _Session()
+    try:
+        s = _sessao(db, ativa=True, inicio=HOJE, fim=HOJE + timedelta(days=5))
+        responsavel = _user(db, "Fulano")
+        item = _item(db, s, protocolo="PZ1", setor="DIAPE", entrada=HOJE)
+        item.assigned_to = responsavel.id
+        db.flush()
+        novo_prazo = HOJE + timedelta(days=3)
+        update_pauta_item(item.id, PautaItemUpdate(prazo=novo_prazo), current_user=responsavel, db=db)
+        db.refresh(item)
+        assert item.prazo == novo_prazo
+    finally:
+        db.rollback(); db.close()
+
+
+def test_prazo_pode_ser_limpo_com_null_explicito():
+    db = _Session()
+    try:
+        s = _sessao(db, ativa=True, inicio=HOJE, fim=HOJE + timedelta(days=5))
+        admin = _admin(db)
+        item = _item(db, s, protocolo="PZ2", setor="DIAPE", entrada=HOJE)
+        item.prazo = HOJE + timedelta(days=5)
+        db.flush()
+        # exclude_unset garante que "prazo": None limpa o campo (não é ignorado como exclude_none faria)
+        update_pauta_item(item.id, PautaItemUpdate(prazo=None), current_user=admin, db=db)
+        db.refresh(item)
+        assert item.prazo is None
+    finally:
+        db.rollback(); db.close()
+
+
+def test_prazo_nao_pode_ser_editado_por_usuario_nao_atribuido():
+    db = _Session()
+    try:
+        s = _sessao(db, ativa=True, inicio=HOJE, fim=HOJE + timedelta(days=5))
+        outro_usuario = _user(db, "Sicrano")
+        item = _item(db, s, protocolo="PZ3", setor="DIAPE", entrada=HOJE)
+        item.assigned_to = None
+        db.flush()
+        try:
+            update_pauta_item(item.id, PautaItemUpdate(prazo=HOJE + timedelta(days=1)), current_user=outro_usuario, db=db)
+            assert False, "usuário não atribuído não deveria poder editar o item"
+        except HTTPException as exc:
+            assert exc.status_code == 403
+    finally:
+        db.rollback(); db.close()
+
+
 # ── Copy pending ─────────────────────────────────────────────────────────────
 
 def test_copy_pending_rejeita_prazo_anterior_ao_inicio():
@@ -271,7 +336,9 @@ def test_copy_pending_encerra_origem_e_cria_nova_sessao():
     db = _Session()
     try:
         source = _sessao(db, ativa=True, inicio=HOJE - timedelta(days=7), fim=HOJE)
-        _item(db, source, protocolo="CP2", setor="DIAPE", entrada=HOJE - timedelta(days=7))
+        item_origem = _item(db, source, protocolo="CP2", setor="DIAPE", entrada=HOJE - timedelta(days=7))
+        item_origem.prazo = HOJE + timedelta(days=10)
+        db.flush()
         admin = _admin(db)
         payload = CopyPendingPayload(
             titulo="Nova sessão com pendências",
@@ -285,7 +352,9 @@ def test_copy_pending_encerra_origem_e_cria_nova_sessao():
         assert source.ativa is False
         assert nova is not None
         assert result["itens_copiados"] == 1
-        assert db.query(PautaItem).filter(PautaItem.sessao_id == nova.id, PautaItem.protocolo == "CP2").count() == 1
+        item_copiado = db.query(PautaItem).filter(PautaItem.sessao_id == nova.id, PautaItem.protocolo == "CP2").first()
+        assert item_copiado is not None
+        assert item_copiado.prazo == item_origem.prazo  # prazo é preservado ao copiar pendências
     finally:
         db.query(AuditLog).delete()
         db.query(PautaItem).delete()

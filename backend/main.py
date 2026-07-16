@@ -1087,6 +1087,7 @@ class PautaItemUpdate(BaseModel):
     nota_admin: str | None = None
     nota_responsavel: str | None = None
     assigned_to: int | None = None
+    prazo: date | None = None
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────
@@ -1098,6 +1099,7 @@ def _pauta_item_to_dict(item: PautaItem, users_map: dict) -> dict:
         "protocolo": item.protocolo,
         "setor": item.setor,
         "entrada_setor": str(item.entrada_setor) if item.entrada_setor else None,
+        "prazo": str(item.prazo) if item.prazo else None,
         "data_referencia": str(item.data_referencia) if item.data_referencia else None,
         "ultima_presenca": str(item.ultima_presenca) if item.ultima_presenca else None,
         "atribuicao": item.atribuicao,
@@ -1695,7 +1697,8 @@ def update_pauta_item(
                     detail=f"Não é possível confirmar ciência: status atual é '{item.status}'.",
                 )
 
-    data = payload.model_dump(exclude_none=True)
+    # exclude_unset (não exclude_none): permite limpar prazo/nota enviando null explícito
+    data = payload.model_dump(exclude_unset=True)
     if "assigned_to" in data:
         _ensure_assignee_can_access_setor(db, data["assigned_to"], item.setor)
 
@@ -1711,6 +1714,22 @@ def update_pauta_item(
                 "sessao_id": item.sessao_id,
                 "de": item.nota_admin,
                 "para": data["nota_admin"],
+            },
+            user=current_user,
+        )
+
+    # Auditoria do prazo: registra antes/depois (admin ou responsável atribuído)
+    if "prazo" in data and data["prazo"] != item.prazo:
+        _log_audit(
+            db,
+            action="pauta.item_prazo_editado",
+            entity_type="pauta_item",
+            entity_id=str(item.id),
+            details={
+                "protocolo": item.protocolo,
+                "sessao_id": item.sessao_id,
+                "de": str(item.prazo) if item.prazo else None,
+                "para": str(data["prazo"]) if data["prazo"] else None,
             },
             user=current_user,
         )
@@ -1836,6 +1855,7 @@ def copy_pending_to_new_session(
             protocolo=item.protocolo,
             setor=item.setor,
             entrada_setor=item.entrada_setor,
+            prazo=item.prazo,
             data_referencia=item.data_referencia,
             ultima_presenca=item.ultima_presenca,
             atribuicao=item.atribuicao,

@@ -107,6 +107,18 @@ function fmtData(dateStr) {
   return new Intl.DateTimeFormat("pt-BR", { timeZone: "UTC" }).format(new Date(`${dateStr}T00:00:00Z`));
 }
 
+function diasPrazoLabel(prazo) {
+  if (!prazo) return <span style={{ color: "var(--muted)" }}>—</span>;
+  const d = diffDias(prazo);
+  const sinal = d < 0 ? "-" : "+";
+  const num = String(Math.abs(d)).padStart(3, "0");
+  return (
+    <strong style={{ color: d < 0 ? "#bf3535" : "#1a7a50" }}>
+      {sinal}{num}
+    </strong>
+  );
+}
+
 const MARCO_TONES = {
   ok:     { color: "var(--primary)", bg: "rgba(39,49,104,.07)" },
   warn:   { color: "#8a5b00",        bg: "rgba(254,187,18,.16)" },
@@ -722,13 +734,16 @@ function AdicionarProcessosModal({ sessaoId, users, onClose, onAdded }) {
 }
 
 // ── Linha de item com edição inline ──────────────────────────────────────
-function PautaItemRow({ item, idx, isAdmin, onUpdated, onDelete }) {
+function PautaItemRow({ item, idx, isAdmin, currentUserId, onUpdated, onDelete }) {
   const [editing, setEditing] = useState(false);
   const [nota, setNota] = useState(item.nota_responsavel || "");
   const [saving, setSaving] = useState(false);
   // Edição da nota da gestão (admin)
   const [editingGestao, setEditingGestao] = useState(false);
   const [notaGestao, setNotaGestao] = useState(item.nota_admin || "");
+  // Edição do prazo (admin ou responsável atribuído)
+  const [editingPrazo, setEditingPrazo] = useState(false);
+  const [prazo, setPrazo] = useState(item.prazo || "");
 
   async function handleStatusChange(newStatus) {
     setSaving(true);
@@ -765,9 +780,22 @@ function PautaItemRow({ item, idx, isAdmin, onUpdated, onDelete }) {
     }
   }
 
+  async function savePrazo() {
+    setSaving(true);
+    try {
+      // null limpa o prazo; backend audita a mudança
+      await api.patch(`/pauta/itens/${item.id}`, { prazo: prazo || null });
+      setEditingPrazo(false);
+      onUpdated();
+    } finally {
+      setSaving(false);
+    }
+  }
+
   const isActive = ["pendente", "em_acompanhamento"].includes(item.status);
   const statusColor = (STATUS_CFG[item.status] || STATUS_CFG.pendente).color;
   const atribuicaoDisplay = item.atribuicao_display ?? item.atribuicao;
+  const canEditPrazo = isAdmin || item.assigned_to === currentUserId;
 
   return (
     <tr
@@ -804,6 +832,30 @@ function PautaItemRow({ item, idx, isAdmin, onUpdated, onDelete }) {
       <td><NivelBadge nivel={item.nivel_risco} /></td>
       <td style={{ fontSize: "0.78rem" }}>{item.assigned_to_nome || <span style={{ color: "var(--muted)", fontStyle: "italic" }}>Sem atribuição</span>}</td>
       <td><StatusBadge status={item.status} dataStatus={item.data_status} /></td>
+      {/* Prazo — editável por admin ou pelo responsável atribuído */}
+      <td style={{ fontSize: "0.78rem" }}>
+        {editingPrazo ? (
+          <div style={{ display: "flex", gap: 4 }}>
+            <input type="date" value={prazo} onChange={(e) => setPrazo(e.target.value)}
+              style={{ padding: "3px 6px", borderRadius: 6, border: "1.5px solid var(--primary)", fontSize: "0.76rem" }} />
+            <button type="button" className="table-button" disabled={saving} onClick={savePrazo}
+              style={{ fontSize: "0.72rem", padding: "3px 8px" }}>✓</button>
+            <button type="button" className="ghost-button" onClick={() => { setEditingPrazo(false); setPrazo(item.prazo || ""); }}
+              style={{ fontSize: "0.72rem" }}>✕</button>
+          </div>
+        ) : (
+          <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+            <span style={{ color: item.prazo ? "var(--ink)" : "var(--muted)", fontStyle: item.prazo ? "normal" : "italic" }}>
+              {item.prazo ? fmtData(item.prazo) : "—"}
+            </span>
+            {canEditPrazo && (
+              <button type="button" className="ghost-button" onClick={() => setEditingPrazo(true)}
+                style={{ fontSize: "0.7rem", padding: "1px 6px" }} title="Editar prazo">✎</button>
+            )}
+          </div>
+        )}
+      </td>
+      <td>{diasPrazoLabel(item.prazo)}</td>
       {/* Nota da gestão — editável apenas por admin */}
       <td style={{ fontSize: "0.78rem", maxWidth: 220 }}>
         {editingGestao ? (
@@ -853,15 +905,6 @@ function PautaItemRow({ item, idx, isAdmin, onUpdated, onDelete }) {
       </td>
       <td>
         <div style={{ display: "flex", gap: 4, flexWrap: "nowrap" }}>
-          {/* Confirmar ciência: só aparece quando pendente, para qualquer um atribuído */}
-          {item.status === "pendente" && (
-            <button type="button" className="table-button" disabled={saving}
-              onClick={() => handleStatusChange("em_acompanhamento")}
-              style={{ fontSize: "0.7rem", padding: "3px 8px", whiteSpace: "nowrap" }}>
-              Confirmar ciência
-            </button>
-          )}
-
           {/* Forçar resolução: exclusivo do admin, com confirmação */}
           {isAdmin && isActive && (
             <button type="button" className="table-button" disabled={saving}
@@ -1284,6 +1327,8 @@ export default function PautaPage() {
                     <th>Risco</th>
                     <th>Responsável</th>
                     <th>Status</th>
+                    <th>Prazo</th>
+                    <th>Dias prazo</th>
                     <th>Nota gestão</th>
                     <th>Nota responsável</th>
                     <th>Ações</th>
@@ -1296,6 +1341,7 @@ export default function PautaPage() {
                       item={item}
                       idx={idx}
                       isAdmin={user?.is_admin}
+                      currentUserId={user?.id}
                       onUpdated={() => loadSessaoData(sessaoAtual)}
                       onDelete={handleDeleteItem}
                     />
