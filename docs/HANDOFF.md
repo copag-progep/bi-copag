@@ -30,7 +30,7 @@ O projeto esta organizado em tres camadas:
 
 Fluxo online:
 
-1. o usuario acessa `https://bi-copag.vercel.app`
+1. o usuario acessa `https://analyticsei.vercel.app`
 2. o Vercel entrega o frontend React ja buildado
 3. chamadas para `/api/*` sao reescritas pelo Vercel para a API publica do Render
 4. o backend no Render processa autenticacao, upload, consultas administrativas e analytics

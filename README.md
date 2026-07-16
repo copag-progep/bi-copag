@@ -2,8 +2,8 @@
 
 Plataforma web de Business Intelligence desenvolvida para a **COPAG (Coordenadoria de Cadastro e Pagamento)** da **UFC / Pró-Reitoria de Gestão de Pessoas**. Transforma snapshots CSV exportados do SEI em painéis, indicadores, análises de produtividade, alertas automáticos e relatórios.
 
-📖 **[Documentação técnica completa](https://bi-copag.vercel.app/documentacao)**  
-🚀 **[Acesso ao sistema](https://bi-copag.vercel.app)**
+📖 **[Documentação técnica completa](https://analyticsei.vercel.app/documentacao)**
+🚀 **[Acesso ao sistema](https://analyticsei.vercel.app)**
 
 ---
 
@@ -53,7 +53,7 @@ Plataforma web de Business Intelligence desenvolvida para a **COPAG (Coordenador
 ```
 GitHub (copag-progep/bi-copag)
     ├── Render     → API FastAPI  (bi-copag-api.onrender.com)
-    ├── Vercel     → Frontend     (bi-copag.vercel.app)
+    ├── Vercel     → Frontend     (analyticsei.vercel.app)
     └── Aiven      → PostgreSQL   (bi-copag-db · North America)
 ```
 
@@ -192,7 +192,7 @@ O módulo também permite acompanhar progresso de resolução por sessão, copia
 
 A documentação técnica detalhada (arquitetura, modelo de dados, endpoints, manutenção, guia de transição) está disponível em:
 
-**[bi-copag.vercel.app/documentacao](https://bi-copag.vercel.app/documentacao)**
+**[analyticsei.vercel.app/documentacao](https://analyticsei.vercel.app/documentacao)**
 
 ---
 

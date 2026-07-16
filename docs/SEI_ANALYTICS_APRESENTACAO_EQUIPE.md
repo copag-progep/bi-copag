@@ -3,7 +3,7 @@
 Atualizado em: 14/05/2026  
 Projeto: AnalyticSEI — Painéis, indicadores e alertas para gestão de processos do SEI  
 Unidade: COPAG / PROGEP / UFC  
-Sistema online: https://bi-copag.vercel.app  
+Sistema online: https://analyticsei.vercel.app
 Repositório: https://github.com/copag-progep/bi-copag
 
 ---
@@ -359,7 +359,7 @@ O Vercel hospeda a parte visual do AnalyticSEI.
 
 É o endereço que a equipe acessa no navegador:
 
-https://bi-copag.vercel.app
+https://analyticsei.vercel.app
 
 O usuário interage com o frontend, mas quando clica, filtra ou consulta informações, o frontend conversa com a API no Render.
 

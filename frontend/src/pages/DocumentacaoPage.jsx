@@ -122,7 +122,7 @@ const CHECKLIST_TRANSICAO = [
 const INFO_CRITICAS = {
   headers: ["Item", "Valor"],
   rows: [
-    ["URL do sistema", "https://bi-copag.vercel.app"],
+    ["URL do sistema", "https://analyticsei.vercel.app"],
     ["URL da API", "https://bi-copag-api.onrender.com"],
     ["Banco de dados", "Aiven for PostgreSQL — console.aiven.io — serviço bi-copag-db"],
     ["Repositório", "github.com/copag-progep/bi-copag (branch: main)"],
@@ -145,15 +145,10 @@ export default function DocumentacaoPage() {
           <h1 className="doc-hero-title">
             Documentação Técnica<br /><span>AnalyticSEI</span>
           </h1>
-          <p className="doc-hero-sub">
-            Painéis, indicadores, Pauta Prioritária, exportações e alertas para
-            gestão de processos do SEI. Plataforma de apoio gerencial para a
-            Coordenadoria de Cadastro e Pagamento da UFC.
-          </p>
           <div className="doc-hero-meta">
             <div className="doc-hero-meta-item"><strong>Versão</strong> {DOC_VERSION}</div>
             <div className="doc-hero-meta-item"><strong>Repositório</strong> <a href="https://github.com/copag-progep/bi-copag" target="_blank" rel="noreferrer">copag-progep/bi-copag</a></div>
-            <div className="doc-hero-meta-item"><strong>Produção</strong> <a href="https://bi-copag.vercel.app" target="_blank" rel="noreferrer">bi-copag.vercel.app</a></div>
+            <div className="doc-hero-meta-item"><strong>Produção</strong> <a href="https://analyticsei.vercel.app" target="_blank" rel="noreferrer">analyticsei.vercel.app</a></div>
             <div className="doc-hero-meta-item"><strong>Atualizado</strong> {DOC_UPDATED}</div>
           </div>
           <div className="doc-hero-stats">
@@ -199,7 +194,7 @@ export default function DocumentacaoPage() {
             <ArchDiagram />
             <Callout icon="💡">
               <strong>Rewrite do Vercel:</strong> toda chamada para <code>/api/*</code> em
-              bi-copag.vercel.app é redirecionada transparentemente para o Render. O usuário
+              analyticsei.vercel.app é redirecionada transparentemente para o Render. O usuário
               nunca vê a URL do backend.
             </Callout>
           </DocSection>
