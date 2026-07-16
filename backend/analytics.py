@@ -416,8 +416,15 @@ def _available_dates(db: Session, filters: AnalyticsFilters | None = None) -> li
 
 
 def _resolve_reference_date(db: Session, filters: AnalyticsFilters) -> date | None:
-    """Determina a data de referência: a solicitada (ou a mais recente disponível) dentro dos filtros."""
-    dates = _available_dates(db, filters)
+    """Determina a data de referência pelo escopo temporal/setorial.
+
+    Filtros de conteúdo (tipo/atribuição) não podem deslocar a referência para
+    uma data antiga. Se uma atribuição não existe no snapshot solicitado, o
+    resultado correto é carga zero naquela data, não a última data histórica em
+    que ela apareceu.
+    """
+    date_scope = replace(filters, tipo=None, atribuicao=None)
+    dates = _available_dates(db, date_scope)
     if not dates:
         return None
     if not filters.data_referencia:
