@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 
 import api from "../api/client";
@@ -35,7 +35,8 @@ function StatusBadge({ status, dataStatus }) {
   const isResolved = isItemResolvido(status);
   return (
     <span
-      style={{ padding: "2px 9px", borderRadius: 8, fontSize: "0.73rem", fontWeight: 700, color: cfg.color, background: cfg.bg, whiteSpace: "nowrap" }}
+      className="pauta-status-badge"
+      style={{ color: cfg.color, background: cfg.bg }}
       title={isResolved && dateStr ? `${cfg.label} em ${dateStr}` : undefined}
     >
       {cfg.label}
@@ -43,6 +44,66 @@ function StatusBadge({ status, dataStatus }) {
         <span style={{ marginLeft: 5, fontWeight: 500, opacity: 0.8 }}>· {dateStr}</span>
       )}
     </span>
+  );
+}
+
+const PAUTA_SORT_DEFAULT = {
+  protocolo: "asc",
+  setor: "asc",
+  atribuicao: "asc",
+  tipo: "asc",
+  dias_no_setor: "desc",
+  score_risco: "desc",
+  responsavel: "asc",
+  status: "asc",
+  prazo: "desc",
+  dias_prazo: "desc",
+  nota_admin: "asc",
+};
+
+const PAUTA_TEXT_SORTS = new Set(["protocolo", "setor", "atribuicao", "tipo", "responsavel", "status", "nota_admin"]);
+
+function pautaSortValue(item, key) {
+  if (key === "atribuicao") return item.atribuicao_display ?? item.atribuicao;
+  if (key === "responsavel") return item.assigned_to_nome;
+  if (key === "status") return STATUS_CFG[item.status]?.label?.replace("✓ ", "") || item.status;
+  if (key === "prazo") return item.prazo ? Date.parse(`${item.prazo}T00:00:00Z`) : null;
+  if (key === "dias_prazo") return isItemResolvido(item.status) ? null : diffDias(item.prazo);
+  return item[key];
+}
+
+function sortPautaItems(items, sort) {
+  const collator = new Intl.Collator("pt-BR", { sensitivity: "base", numeric: true });
+  return items.map((item, index) => ({ item, index })).sort((aEntry, bEntry) => {
+    const a = pautaSortValue(aEntry.item, sort.key);
+    const b = pautaSortValue(bEntry.item, sort.key);
+    const aEmpty = a === null || a === undefined || a === "";
+    const bEmpty = b === null || b === undefined || b === "";
+    if (aEmpty !== bEmpty) return aEmpty ? 1 : -1;
+    if (aEmpty && bEmpty) return aEntry.index - bEntry.index;
+
+    const comparison = PAUTA_TEXT_SORTS.has(sort.key)
+      ? collator.compare(String(a), String(b))
+      : Number(a) - Number(b);
+    if (comparison !== 0) return sort.dir === "asc" ? comparison : -comparison;
+    if (sort.key === "score_risco") {
+      const byDays = Number(bEntry.item.dias_no_setor ?? -1) - Number(aEntry.item.dias_no_setor ?? -1);
+      if (byDays !== 0) return byDays;
+    }
+    return collator.compare(aEntry.item.protocolo || "", bEntry.item.protocolo || "") || aEntry.index - bEntry.index;
+  }).map(({ item }) => item);
+}
+
+function SortablePautaHeader({ column, children, sort, onSort, className = "" }) {
+  const active = sort.key === column;
+  const ariaSort = active ? (sort.dir === "asc" ? "ascending" : "descending") : "none";
+  return (
+    <th className={className} aria-sort={ariaSort}>
+      <button type="button" className={`pauta-sort-button${active ? " active" : ""}`} onClick={() => onSort(column)}>
+        <span>{children}</span>
+        <span aria-hidden="true" className="pauta-sort-indicator">{active ? (sort.dir === "asc" ? "↑" : "↓") : "↕"}</span>
+      </button>
+    </th>
   );
 }
 
@@ -414,9 +475,14 @@ function AdminMenu({ onEditar, onEncerrar, onCopiar, sessaoOperavel, temPendenci
   );
 }
 
-// ── Formulário: copiar pendências para nova sessão ────────────────────────
-function CopiarPendenciasForm({ sessaoId, encerrarOrigem = true, onCreated, onCancel }) {
-  const today = new Date().toISOString().slice(0, 10);
+// ── Formulário: copiar pendências para sessão existente ou nova ──────────
+function CopiarPendenciasForm({ sessaoId, sessoes, encerrarOrigem = true, onCreated, onCancel }) {
+  const today = hojeFortaleza();
+  const destinosExistentes = sessoes.filter(
+    (sessao) => sessao.id !== sessaoId && ["a_iniciar", "em_andamento"].includes(sessao.situacao),
+  );
+  const [destinationMode, setDestinationMode] = useState(destinosExistentes.length ? "existing" : "new");
+  const [destinationSessionId, setDestinationSessionId] = useState(destinosExistentes[0]?.id || "");
   const [form, setForm] = useState({ titulo: "", data_inicio: today, data_fim: "", data_reuniao: "" });
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
@@ -426,12 +492,16 @@ function CopiarPendenciasForm({ sessaoId, encerrarOrigem = true, onCreated, onCa
     setSaving(true);
     setErr("");
     try {
-      const { data } = await api.post(`/pauta/sessoes/${sessaoId}/copy-pending`, {
-        titulo: form.titulo,
-        data_inicio: form.data_inicio,
-        data_fim: form.data_fim || null,
-        data_reuniao: form.data_reuniao || null,
-      });
+      const payload = destinationMode === "existing"
+        ? { destination_mode: "existing", destination_session_id: Number(destinationSessionId) }
+        : {
+            destination_mode: "new",
+            titulo: form.titulo,
+            data_inicio: form.data_inicio,
+            data_fim: form.data_fim || null,
+            data_reuniao: form.data_reuniao || null,
+          };
+      const { data } = await api.post(`/pauta/sessoes/${sessaoId}/copy-pending`, payload);
       onCreated(data);
     } catch (ex) {
       setErr(ex.response?.data?.detail || "Falha ao copiar pendências.");
@@ -442,37 +512,71 @@ function CopiarPendenciasForm({ sessaoId, encerrarOrigem = true, onCreated, onCa
 
   return (
     <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-      <label className="field">
-        <span>Título da nova sessão</span>
-        <input type="text" required value={form.titulo}
-          onChange={(e) => setForm((p) => ({ ...p, titulo: e.target.value }))}
-          placeholder="ex: Pauta COPAG — Semana 10/06 a 14/06" />
-      </label>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+      <div className="pauta-destination-switch" role="group" aria-label="Destino das pendências">
+        <button type="button" className={destinationMode === "existing" ? "active" : ""}
+          disabled={!destinosExistentes.length} onClick={() => setDestinationMode("existing")}>
+          Sessão existente
+        </button>
+        <button type="button" className={destinationMode === "new" ? "active" : ""}
+          onClick={() => setDestinationMode("new")}>
+          Criar nova sessão
+        </button>
+      </div>
+
+      {destinationMode === "existing" ? (
         <label className="field">
-          <span>Início do período</span>
-          <input type="date" required value={form.data_inicio}
-            onChange={(e) => setForm((p) => ({ ...p, data_inicio: e.target.value }))} />
+          <span>Sessão ativa de destino</span>
+          <select required value={destinationSessionId}
+            onChange={(e) => setDestinationSessionId(e.target.value)}>
+            {destinosExistentes.map((sessao) => (
+              <option key={sessao.id} value={sessao.id}>
+                {sessao.titulo} · {SITUACAO_CFG[sessao.situacao]?.label} · {fmtData(sessao.data_inicio)}
+              </option>
+            ))}
+          </select>
         </label>
-        <label className="field">
-          <span>Prazo da pauta</span>
-          <input type="date" value={form.data_fim}
-            onChange={(e) => setForm((p) => ({ ...p, data_fim: e.target.value }))} />
-        </label>
-        <label className="field">
-          <span>Data da reunião</span>
-          <input type="date" value={form.data_reuniao}
-            onChange={(e) => setForm((p) => ({ ...p, data_reuniao: e.target.value }))} />
-        </label>
+      ) : (
+        <>
+          <label className="field">
+            <span>Título da nova sessão</span>
+            <input type="text" required value={form.titulo}
+              onChange={(e) => setForm((p) => ({ ...p, titulo: e.target.value }))}
+              placeholder="ex: Pauta COPAG — Semana 10/06 a 14/06" />
+          </label>
+          <div className="pauta-copy-dates">
+            <label className="field">
+              <span>Início do período</span>
+              <input type="date" required value={form.data_inicio}
+                onChange={(e) => setForm((p) => ({ ...p, data_inicio: e.target.value }))} />
+            </label>
+            <label className="field">
+              <span>Prazo da pauta</span>
+              <input type="date" value={form.data_fim}
+                onChange={(e) => setForm((p) => ({ ...p, data_fim: e.target.value }))} />
+            </label>
+            <label className="field">
+              <span>Data da reunião</span>
+              <input type="date" value={form.data_reuniao}
+                onChange={(e) => setForm((p) => ({ ...p, data_reuniao: e.target.value }))} />
+            </label>
+          </div>
+        </>
+      )}
+      <div className="pauta-copy-warning">
+        {encerrarOrigem
+          ? "A sessão atual será encerrada após a cópia bem-sucedida."
+          : "O histórico da sessão de origem será preservado."}
       </div>
       {err && <div style={{ color: "#bf3535", fontSize: "0.85rem", fontWeight: 600 }}>{err}</div>}
       <div style={{ display: "flex", gap: 8 }}>
-        <button type="submit" className="primary-button" disabled={saving} style={{ fontSize: "0.85rem", padding: "8px 18px" }}>
+        <button type="submit" className="primary-button"
+          disabled={saving || (destinationMode === "existing" && !destinationSessionId)}
+          style={{ fontSize: "0.85rem", padding: "8px 18px" }}>
           {saving
             ? "Copiando..."
-            : encerrarOrigem
-              ? "Encerrar e criar nova sessão"
-              : "Criar nova sessão com pendências"}
+            : destinationMode === "existing"
+              ? `${encerrarOrigem ? "Encerrar e copiar" : "Copiar"} para esta sessão`
+              : `${encerrarOrigem ? "Encerrar e criar" : "Criar"} nova sessão`}
         </button>
         <button type="button" className="ghost-button" onClick={onCancel} style={{ fontSize: "0.85rem" }}>Cancelar</button>
       </div>
@@ -839,7 +943,7 @@ function PautaItemRow({ item, idx, isAdmin, onUpdated, onDelete }) {
       <td><strong>{item.dias_no_setor ?? "—"}</strong></td>
       <td><NivelBadge nivel={item.nivel_risco} /></td>
       <td style={{ fontSize: "0.78rem" }}>{item.assigned_to_nome || <span style={{ color: "var(--muted)", fontStyle: "italic" }}>Sem atribuição</span>}</td>
-      <td><StatusBadge status={item.status} dataStatus={item.data_status} /></td>
+      <td className="pauta-status-column"><StatusBadge status={item.status} dataStatus={item.data_status} /></td>
       {/* Prazo — editável por admin */}
       <td style={{ fontSize: "0.78rem" }}>
         {editingPrazo ? (
@@ -934,6 +1038,16 @@ export default function PautaPage() {
   const [metricas, setMetricas] = useState(null);
   const [pdfLoading, setPdfLoading] = useState(false);
   const [msg, setMsg] = useState("");
+  const [sort, setSort] = useState({ key: "score_risco", dir: "desc" });
+
+  const itens = sessaoData?.itens || [];
+  const sortedItens = useMemo(() => sortPautaItems(itens, sort), [itens, sort]);
+
+  function handleSort(column) {
+    setSort((current) => current.key === column
+      ? { key: column, dir: current.dir === "asc" ? "desc" : "asc" }
+      : { key: column, dir: PAUTA_SORT_DEFAULT[column] || "asc" });
+  }
 
   async function loadMetricas() {
     if (!user?.is_admin) return;
@@ -969,7 +1083,7 @@ export default function PautaPage() {
     if (!sessaoData) return;
     setPdfLoading(true);
     try {
-      generatePautaPdf(sessaoData);
+      generatePautaPdf({ ...sessaoData, itens: sortedItens });
     } finally {
       setPdfLoading(false);
     }
@@ -1030,7 +1144,6 @@ export default function PautaPage() {
   if (error) return <ErrorBlock message={error} onRetry={loadSessoes} />;
 
   const contagens = sessaoData?.contagens || {};
-  const itens = sessaoData?.itens || [];
   const totalAtivos = (contagens.pendente || 0) + (contagens.em_acompanhamento || 0);
   const totalResolvidos = (contagens.saiu_do_setor || 0) + (contagens.resolvido_manual || 0);
   // Sessão operável (adicionar/encerrar/copiar): apenas a_iniciar ou em_andamento
@@ -1192,7 +1305,7 @@ export default function PautaPage() {
 
             {((sessaoData.contagens?.pendente || 0) + (sessaoData.contagens?.em_acompanhamento || 0)) > 0 && (
               <div style={{ padding: "10px 14px", borderRadius: 8, background: "rgba(254,187,18,.12)", border: "1px solid rgba(254,187,18,.3)", marginBottom: 18, fontSize: "0.82rem", color: "#8a5b00", fontWeight: 600 }}>
-                ⚠ {(sessaoData.contagens?.pendente || 0) + (sessaoData.contagens?.em_acompanhamento || 0)} processo(s) ainda pendente(s). Deseja copiá-los para uma nova sessão?
+                ⚠ {(sessaoData.contagens?.pendente || 0) + (sessaoData.contagens?.em_acompanhamento || 0)} processo(s) ainda pendente(s). Você poderá copiá-los para uma sessão ativa ou criar uma nova.
               </div>
             )}
 
@@ -1226,23 +1339,24 @@ export default function PautaPage() {
               <h3>{sessaoOperavel ? "Encerrar sessão e copiar pendências" : "Copiar pendências"}</h3>
               <p>
                 {sessaoOperavel ? "Encerra a sessão atual e copia" : "Copia"} seus processos{" "}
-                <strong>Pendente</strong> e <strong>Em acompanhamento</strong> para uma nova sessão.
+                <strong>Pendente</strong> e <strong>Em acompanhamento</strong> para uma sessão ativa ou nova.
                 O histórico da sessão original é preservado.
               </p>
             </div>
           </div>
           <CopiarPendenciasForm
             sessaoId={sessaoAtual}
+            sessoes={sessoes}
             encerrarOrigem={sessaoOperavel}
             onCreated={async (nova) => {
               setShowCopiarForm(false);
-              const ignor = nova.ignorados ? ` · ${nova.ignorados} já em outra pauta` : "";
+              const ignor = nova.ignorados ? ` · ${nova.ignorados} já existente(s) no destino ou em outra pauta` : "";
               const prefixo = sessaoOperavel
                 ? "Sessão anterior encerrada e"
                 : "Pendências";
               setMsg(`✓ ${prefixo} ${nova.itens_copiados} item(s) copiado(s) para "${nova.titulo}"${ignor}.`);
-              await loadSessoes(nova.nova_sessao_id);
-              setSessaoAtual(nova.nova_sessao_id);
+              await loadSessoes(nova.sessao_destino_id);
+              setSessaoAtual(nova.sessao_destino_id);
               await loadMetricas();
             }}
             onCancel={() => setShowCopiarForm(false)}
@@ -1301,25 +1415,25 @@ export default function PautaPage() {
             </div>
           ) : (
             <div className="table-shell" style={{ overflowX: "auto" }}>
-              <table className="data-table" style={{ fontSize: "0.82rem", minWidth: 900 }}>
+              <table className="data-table pauta-items-table" style={{ fontSize: "0.82rem", minWidth: 1120 }}>
                 <thead>
                   <tr>
-                    <th>Protocolo</th>
-                    <th>Setor</th>
-                    <th>Atribuição</th>
-                    <th>Tipo</th>
-                    <th>Dias</th>
-                    <th>Risco</th>
-                    <th>Responsável</th>
-                    <th>Status</th>
-                    <th>Prazo</th>
-                    <th>Dias prazo</th>
-                    <th>Nota gestão</th>
+                    <SortablePautaHeader column="protocolo" sort={sort} onSort={handleSort}>Protocolo</SortablePautaHeader>
+                    <SortablePautaHeader column="setor" sort={sort} onSort={handleSort}>Setor</SortablePautaHeader>
+                    <SortablePautaHeader column="atribuicao" sort={sort} onSort={handleSort}>Atribuição</SortablePautaHeader>
+                    <SortablePautaHeader column="tipo" sort={sort} onSort={handleSort}>Tipo</SortablePautaHeader>
+                    <SortablePautaHeader column="dias_no_setor" sort={sort} onSort={handleSort}>Dias</SortablePautaHeader>
+                    <SortablePautaHeader column="score_risco" sort={sort} onSort={handleSort}>Risco</SortablePautaHeader>
+                    <SortablePautaHeader column="responsavel" sort={sort} onSort={handleSort}>Responsável</SortablePautaHeader>
+                    <SortablePautaHeader column="status" sort={sort} onSort={handleSort} className="pauta-status-column">Status</SortablePautaHeader>
+                    <SortablePautaHeader column="prazo" sort={sort} onSort={handleSort}>Prazo</SortablePautaHeader>
+                    <SortablePautaHeader column="dias_prazo" sort={sort} onSort={handleSort}>Dias prazo</SortablePautaHeader>
+                    <SortablePautaHeader column="nota_admin" sort={sort} onSort={handleSort}>Nota gestão</SortablePautaHeader>
                     <th>Ações</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {itens.map((item, idx) => (
+                  {sortedItens.map((item, idx) => (
                     <PautaItemRow
                       key={item.id}
                       item={item}

@@ -1603,6 +1603,107 @@ button, input, select { font: inherit; }
 .pauta-admin-menu button.danger { color: #bf3535; }
 .pauta-admin-menu button.danger:hover { background: rgba(191, 53, 53, .08); }
 
+.pauta-items-table .pauta-status-column {
+  width: 126px;
+  min-width: 108px;
+  max-width: 136px;
+}
+
+.pauta-status-badge {
+  display: inline-block;
+  max-width: 100%;
+  padding: 3px 8px;
+  border-radius: 8px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 1.25;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.pauta-sort-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  text-transform: inherit;
+  letter-spacing: inherit;
+  cursor: pointer;
+}
+
+.pauta-sort-button:hover,
+.pauta-sort-button:focus-visible,
+.pauta-sort-button.active {
+  color: var(--primary);
+}
+
+.pauta-sort-button:focus-visible {
+  outline: 2px solid rgba(243, 147, 32, .55);
+  outline-offset: 3px;
+  border-radius: 2px;
+}
+
+.pauta-sort-indicator {
+  flex-shrink: 0;
+  font-size: .8rem;
+  line-height: 1;
+}
+
+.pauta-destination-switch {
+  display: inline-grid;
+  grid-template-columns: 1fr 1fr;
+  align-self: flex-start;
+  padding: 3px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--primary-light);
+}
+
+.pauta-destination-switch button {
+  padding: 8px 14px;
+  border: 0;
+  border-radius: calc(var(--radius) - 3px);
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: .8rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.pauta-destination-switch button.active {
+  background: var(--primary);
+  color: #fff;
+  box-shadow: 0 2px 7px rgba(39, 49, 104, .2);
+}
+
+.pauta-destination-switch button:disabled {
+  opacity: .42;
+  cursor: not-allowed;
+}
+
+.pauta-copy-dates {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.pauta-copy-warning {
+  padding: 9px 12px;
+  border: 1px solid rgba(254, 187, 18, .32);
+  border-radius: 8px;
+  background: rgba(254, 187, 18, .1);
+  color: #8a5b00;
+  font-size: .8rem;
+  font-weight: 600;
+}
+
 /* Entrada discreta das linhas (apenas no carregamento) */
 @keyframes pauta-row-in {
   from { opacity: 0; transform: translateY(4px); }
@@ -1623,6 +1724,8 @@ button, input, select { font: inherit; }
   }
   .pauta-marco-edit { grid-column: 2; justify-self: end; }
   .pauta-edit-datas { grid-template-columns: 1fr; }
+  .pauta-copy-dates { grid-template-columns: 1fr; }
+  .pauta-destination-switch { width: 100%; }
 }
 
 

@@ -151,11 +151,8 @@ export function generatePautaPdf(sessao) {
   y += 20;
 
   /* ── Tabela de itens ─────────────────────────── */
-  // Ordenar: ativos primeiro (pendente, em_acompanhamento), depois resolvidos, arquivados
-  const ORDER = { pendente: 0, em_acompanhamento: 1, saiu_do_setor: 2, resolvido_manual: 3, arquivado: 4 };
-  const itens = [...(sessao.itens || [])].sort(
-    (a, b) => (ORDER[a.status] ?? 5) - (ORDER[b.status] ?? 5) || (b.score_risco ?? 0) - (a.score_risco ?? 0)
-  );
+  // A página envia os itens na ordem atualmente selecionada pelo usuário.
+  const itens = sessao.itens || [];
 
   const columns = [
     { header: "Protocolo",    dataKey: "protocolo" },

@@ -5,6 +5,7 @@ from statistics import median
 import threading
 from contextlib import asynccontextmanager
 from datetime import date, datetime, timezone
+from typing import Literal
 from zoneinfo import ZoneInfo
 
 from fastapi import BackgroundTasks, Depends, FastAPI, File, Form, Header, HTTPException, Query, UploadFile, status
@@ -1299,6 +1300,7 @@ def _pauta_item_em_sessao_ativa(
     protocolo: str,
     setor: str,
     entrada_setor: date | None,
+    exclude_session_ids: set[int] | None = None,
 ) -> PautaItem | None:
     """Retorna o item existente (se houver) do mesmo processo em QUALQUER sessão
     a_iniciar ou em_andamento — usado para impedir duplicidade global.
@@ -1321,6 +1323,8 @@ def _pauta_item_em_sessao_ativa(
         query = query.filter(PautaItem.entrada_setor.is_(None))
     else:
         query = query.filter(PautaItem.entrada_setor == entrada_setor)
+    if exclude_session_ids:
+        query = query.filter(PautaItem.sessao_id.notin_(exclude_session_ids))
 
     for item in query.all():
         if _situacao_pauta_sessao(item.sessao) in ("a_iniciar", "em_andamento"):
@@ -1807,8 +1811,10 @@ def get_minha_pauta(
 
 
 class CopyPendingPayload(BaseModel):
-    titulo: str = Field(min_length=3, max_length=255)
-    data_inicio: date
+    destination_mode: Literal["new", "existing"] = "new"
+    destination_session_id: int | None = None
+    titulo: str | None = Field(default=None, min_length=3, max_length=255)
+    data_inicio: date | None = None
     data_fim: date | None = None
     data_reuniao: date | None = None
 
@@ -1820,50 +1826,92 @@ def copy_pending_to_new_session(
     current_admin: User = Depends(get_current_admin_user),
     db: Session = Depends(get_db),
 ):
-    """Encerra a sessão de origem E copia seus itens pendentes para uma nova sessão,
-    tudo na mesma transação (atômico).
+    """Encerra a origem e copia pendências para uma sessão nova ou existente.
 
-    A regra de não-duplicidade impede o mesmo processo em duas pautas ativas — por
-    isso a origem é obrigatoriamente encerrada aqui. Encerrar a origem ANTES de
-    copiar faz seus itens deixarem de contar como "pauta ativa", permitindo a cópia.
+    Toda a operação é atômica. As validações e a apuração de conflitos ocorrem
+    antes de encerrar a origem; assim, uma tentativa sem itens transferíveis não
+    altera nenhuma das sessões.
     """
-    source = db.query(PautaSessao).filter(PautaSessao.id == sessao_id).first()
+    source = (
+        db.query(PautaSessao)
+        .filter(PautaSessao.id == sessao_id)
+        .with_for_update()
+        .first()
+    )
     if not source:
         raise HTTPException(status_code=404, detail="Sessão de origem não encontrada.")
-
-    # Mesma regra do PATCH: prazo não pode ser anterior ao início
-    if payload.data_fim is not None and payload.data_inicio > payload.data_fim:
-        raise HTTPException(status_code=400, detail="O prazo da pauta não pode ser anterior à data de início.")
 
     pending = [i for i in source.itens if i.status in ("pendente", "em_acompanhamento")]
     if not pending:
         raise HTTPException(status_code=400, detail="Nenhum item pendente nesta sessão.")
 
-    # 1) Encerra a origem primeiro (na mesma transação) — seus itens deixam de
-    #    contar como ativos, liberando a duplicidade global para a cópia
+    target: PautaSessao | None = None
+    if payload.destination_mode == "existing":
+        if payload.destination_session_id is None:
+            raise HTTPException(status_code=400, detail="Informe a sessão de destino.")
+        if payload.destination_session_id == source.id:
+            raise HTTPException(status_code=400, detail="A sessão de destino deve ser diferente da sessão de origem.")
+        target = (
+            db.query(PautaSessao)
+            .filter(PautaSessao.id == payload.destination_session_id)
+            .with_for_update()
+            .first()
+        )
+        if not target:
+            raise HTTPException(status_code=404, detail="Sessão de destino não encontrada.")
+        if _situacao_pauta_sessao(target) not in ("a_iniciar", "em_andamento"):
+            raise HTTPException(status_code=409, detail="A sessão de destino precisa estar A iniciar ou Em andamento.")
+    else:
+        if not payload.titulo or payload.data_inicio is None:
+            raise HTTPException(status_code=400, detail="Título e data de início são obrigatórios para criar a sessão de destino.")
+        if payload.data_fim is not None and payload.data_inicio > payload.data_fim:
+            raise HTTPException(status_code=400, detail="O prazo da pauta não pode ser anterior à data de início.")
+
+    # Pré-validação: a origem é ignorada na busca global porque será encerrada
+    # nesta transação. Itens já existentes no destino não são sobrescritos.
+    transferiveis: list[PautaItem] = []
+    conflitos: list[dict] = []
+    for item in pending:
+        if target and _pauta_item_exists(db, target.id, item.protocolo, item.setor, item.entrada_setor):
+            conflitos.append({"protocolo": item.protocolo, "motivo": "ja_existe_no_destino"})
+            continue
+        excluded = {source.id}
+        if target:
+            excluded.add(target.id)
+        existing = _pauta_item_em_sessao_ativa(
+            db, item.protocolo, item.setor, item.entrada_setor,
+            exclude_session_ids=excluded,
+        )
+        if existing:
+            conflitos.append({"protocolo": item.protocolo, "motivo": "outra_pauta_ativa"})
+            continue
+        transferiveis.append(item)
+
+    if not transferiveis:
+        raise HTTPException(
+            status_code=409,
+            detail="Nenhuma pendência pode ser copiada: todos os processos já estão em outra pauta ativa ou no destino.",
+        )
+
+    if target is None:
+        target = PautaSessao(
+            titulo=payload.titulo,
+            data_inicio=payload.data_inicio,
+            data_fim=payload.data_fim,
+            data_reuniao=payload.data_reuniao,
+            criado_por=current_admin.id,
+        )
+        db.add(target)
+        db.flush()
+
+    origem_estava_ativa = source.ativa
     source.ativa = False
     source.updated_at = datetime.now(timezone.utc)
     db.flush()
 
-    new_session = PautaSessao(
-        titulo=payload.titulo,
-        data_inicio=payload.data_inicio,
-        data_fim=payload.data_fim,
-        data_reuniao=payload.data_reuniao,
-        criado_por=current_admin.id,
-    )
-    db.add(new_session)
-    db.flush()
-
-    copiados = 0
-    ignorados = 0
-    for item in pending:
-        # Salvaguarda: pula se o processo já estiver em outra pauta ativa
-        if _pauta_item_em_sessao_ativa(db, item.protocolo, item.setor, item.entrada_setor):
-            ignorados += 1
-            continue
+    for item in transferiveis:
         db.add(PautaItem(
-            sessao_id=new_session.id,
+            sessao_id=target.id,
             protocolo=item.protocolo,
             setor=item.setor,
             entrada_setor=item.entrada_setor,
@@ -1880,7 +1928,15 @@ def copy_pending_to_new_session(
             nota_admin=item.nota_admin,
             status="pendente",
         ))
-        copiados += 1
+
+    try:
+        db.flush()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail="A pauta foi alterada durante a cópia. Atualize a página e tente novamente.",
+        )
 
     _log_audit(
         db,
@@ -1888,15 +1944,28 @@ def copy_pending_to_new_session(
         entity_type="pauta_sessao",
         entity_id=str(sessao_id),
         details={
-            "origem": source.titulo, "origem_encerrada": True,
-            "nova_sessao": payload.titulo, "itens_copiados": copiados, "ignorados": ignorados,
+            "origem": source.titulo,
+            "origem_encerrada": origem_estava_ativa,
+            "destino_tipo": payload.destination_mode,
+            "destino_id": target.id,
+            "destino": target.titulo,
+            "itens_copiados": len(transferiveis),
+            "ignorados": len(conflitos),
+            "conflitos": conflitos,
         },
         user=current_admin,
     )
     db.commit()
     return {
-        "nova_sessao_id": new_session.id, "titulo": payload.titulo,
-        "itens_copiados": copiados, "ignorados": ignorados, "origem_encerrada": True,
+        "sessao_destino_id": target.id,
+        # Mantido por compatibilidade com clientes anteriores.
+        "nova_sessao_id": target.id,
+        "destino_tipo": payload.destination_mode,
+        "titulo": target.titulo,
+        "itens_copiados": len(transferiveis),
+        "ignorados": len(conflitos),
+        "conflitos": conflitos,
+        "origem_encerrada": origem_estava_ativa,
     }
 
 

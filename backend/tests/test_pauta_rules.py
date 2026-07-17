@@ -378,6 +378,122 @@ def test_copy_pending_encerra_origem_e_cria_nova_sessao():
         db.close()
 
 
+def test_copy_pending_para_sessao_existente():
+    db = _Session()
+    try:
+        source = _sessao(db, ativa=True, inicio=HOJE - timedelta(days=7), fim=HOJE)
+        target = _sessao(db, ativa=True, inicio=HOJE, fim=HOJE + timedelta(days=7))
+        target.titulo = "Sessão destino existente"
+        item_origem = _item(db, source, protocolo="CP3", setor="DIAPE", entrada=HOJE - timedelta(days=7))
+        item_origem.prazo = HOJE + timedelta(days=3)
+        admin = _admin(db)
+
+        result = copy_pending_to_new_session(
+            source.id,
+            CopyPendingPayload(destination_mode="existing", destination_session_id=target.id),
+            current_admin=admin,
+            db=db,
+        )
+
+        db.refresh(source)
+        db.refresh(target)
+        copied = db.query(PautaItem).filter(PautaItem.sessao_id == target.id, PautaItem.protocolo == "CP3").first()
+        assert source.ativa is False
+        assert target.ativa is True
+        assert result["sessao_destino_id"] == target.id
+        assert result["destino_tipo"] == "existing"
+        assert result["itens_copiados"] == 1
+        assert copied is not None
+        assert copied.prazo == item_origem.prazo
+    finally:
+        db.query(AuditLog).delete()
+        db.query(PautaItem).delete()
+        db.query(PautaSessao).delete()
+        db.query(User).delete()
+        db.commit()
+        db.close()
+
+
+def test_copy_pending_rejeita_destino_encerrado_sem_encerrar_origem():
+    db = _Session()
+    try:
+        source = _sessao(db, ativa=True, inicio=HOJE, fim=HOJE + timedelta(days=2))
+        target = _sessao(db, ativa=False, inicio=HOJE - timedelta(days=7), fim=HOJE - timedelta(days=1))
+        _item(db, source, protocolo="CP4", setor="DIAPE", entrada=HOJE)
+        admin = _admin(db)
+        try:
+            copy_pending_to_new_session(
+                source.id,
+                CopyPendingPayload(destination_mode="existing", destination_session_id=target.id),
+                current_admin=admin,
+                db=db,
+            )
+            assert False, "destino encerrado deveria ser rejeitado"
+        except HTTPException as exc:
+            assert exc.status_code == 409
+        db.refresh(source)
+        assert source.ativa is True
+    finally:
+        db.rollback(); db.close()
+
+
+def test_copy_pending_conflito_total_preserva_origem():
+    db = _Session()
+    try:
+        source = _sessao(db, ativa=True, inicio=HOJE, fim=HOJE + timedelta(days=2))
+        target = _sessao(db, ativa=True, inicio=HOJE, fim=HOJE + timedelta(days=7))
+        entrada = HOJE - timedelta(days=3)
+        _item(db, source, protocolo="CP5", setor="DIAPE", entrada=entrada)
+        _item(db, target, protocolo="CP5", setor="DIAPE", entrada=entrada)
+        admin = _admin(db)
+        try:
+            copy_pending_to_new_session(
+                source.id,
+                CopyPendingPayload(destination_mode="existing", destination_session_id=target.id),
+                current_admin=admin,
+                db=db,
+            )
+            assert False, "conflito total deveria impedir a cópia"
+        except HTTPException as exc:
+            assert exc.status_code == 409
+        db.refresh(source)
+        assert source.ativa is True
+        assert db.query(PautaItem).filter(PautaItem.sessao_id == target.id).count() == 1
+    finally:
+        db.rollback(); db.close()
+
+
+def test_copy_pending_conflito_parcial_copia_apenas_transferiveis():
+    db = _Session()
+    try:
+        source = _sessao(db, ativa=True, inicio=HOJE, fim=HOJE + timedelta(days=2))
+        target = _sessao(db, ativa=True, inicio=HOJE, fim=HOJE + timedelta(days=7))
+        entrada = HOJE - timedelta(days=3)
+        _item(db, source, protocolo="CP6-A", setor="DIAPE", entrada=entrada)
+        _item(db, source, protocolo="CP6-B", setor="DIAPE", entrada=entrada)
+        _item(db, target, protocolo="CP6-A", setor="DIAPE", entrada=entrada)
+        admin = _admin(db)
+
+        result = copy_pending_to_new_session(
+            source.id,
+            CopyPendingPayload(destination_mode="existing", destination_session_id=target.id),
+            current_admin=admin,
+            db=db,
+        )
+
+        assert result["itens_copiados"] == 1
+        assert result["ignorados"] == 1
+        assert result["conflitos"][0]["motivo"] == "ja_existe_no_destino"
+        assert db.query(PautaItem).filter(PautaItem.sessao_id == target.id).count() == 2
+    finally:
+        db.query(AuditLog).delete()
+        db.query(PautaItem).delete()
+        db.query(PautaSessao).delete()
+        db.query(User).delete()
+        db.commit()
+        db.close()
+
+
 if __name__ == "__main__":
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
     for t in tests:
