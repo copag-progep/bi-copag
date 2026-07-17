@@ -1,6 +1,6 @@
 # AnalyticSEI — Documento de apresentação para a equipe
 
-Atualizado em: 14/05/2026  
+Atualizado em: 17/07/2026
 Projeto: AnalyticSEI — Painéis, indicadores e alertas para gestão de processos do SEI  
 Unidade: COPAG / PROGEP / UFC  
 Sistema online: https://analyticsei.vercel.app
@@ -59,13 +59,13 @@ O objetivo não é substituir o SEI. O objetivo é complementar o SEI com visão
 
 Essa tela foi pensada para responder rapidamente: "O que merece minha atenção agora?"
 
-### 3.1 Dashboard executivo
+### 3.1 Área de Trabalho
 
-É a visão geral do sistema. Mostra indicadores principais, como total de processos ativos, distribuição por setor, distribuição por tipo de processo, ranking de atribuições e evolução diária do volume de processos.
+É o ponto de partida operacional do sistema. Reúne uma fila acionável de prioridades, atalhos para os fluxos mais usados e indicadores como total de processos ativos, distribuição por setor, ranking de atribuições e evolução diária.
 
-Serve para responder rapidamente: "Como está a situação geral da COPAG hoje?"
+Serve para responder rapidamente: "O que precisa de atenção e para onde devo seguir agora?"
 
-### 3.2 Entradas e saídas
+### 3.2 Desempenho — Fluxo
 
 Compara o relatório atual com o relatório anterior e identifica:
 
@@ -76,7 +76,7 @@ Compara o relatório atual com o relatório anterior e identifica:
 
 Serve para entender o fluxo diário, não apenas o estoque de processos.
 
-### 3.3 Produtividade
+### 3.3 Desempenho — Produtividade
 
 Analisa movimentações por atribuição/servidor, com foco em produção estimada, entradas, carga atual e evolução.
 
@@ -160,13 +160,13 @@ As faixas de criticidade usadas são:
 
 A tela permite filtros, busca e exportação em PDF ou Excel.
 
-### 3.6 Servidores
+### 3.6 Pessoas
 
 Analisa a carga por servidor/atribuição. Ajuda a identificar concentração de processos, desequilíbrios de carga e evolução individual ao longo do tempo.
 
 Serve para subsidiar decisões de redistribuição e acompanhamento de produtividade.
 
-### 3.7 Múltiplos setores
+### 3.7 Inconsistências
 
 Identifica processos que aparecem em mais de um setor no mesmo snapshot diário.
 
@@ -192,7 +192,7 @@ Serve para responder perguntas pontuais sobre um processo específico.
 
 O log de auditoria registra ações críticas, como uploads, exclusões, alterações de data, criação de usuários e troca de senha.
 
-### 3.11 Usuários SEI
+### 3.11 Administração — Base SEI
 
 Área administrativa usada para manter o "DE-PARA" de nomes do SEI.
 
@@ -240,7 +240,7 @@ Se o upload automático falhar, o sistema envia e-mail de alerta com link para o
 
 ### 4.2 Upload manual
 
-Na tela "Enviar Relatório", um usuário autorizado pode selecionar:
+Em **Gestão de Dados → Novo envio**, um usuário autorizado pode selecionar:
 
 - O setor.
 - A data do relatório.
@@ -440,19 +440,19 @@ Ele guarda tanto dados operacionais, como processos e uploads, quanto dados admi
 | Tela | Para que serve |
 |---|---|
 | Central Executiva | Visão rápida das prioridades do dia, saúde dos dados, tendências e tempo de permanência |
-| Dashboard | Visão geral da situação dos processos |
+| Área de Trabalho | Fila acionável, panorama operacional e atalhos para os fluxos mais usados |
 | Score de Risco | Ranking de processos que merecem maior atenção, com explicação dos fatores |
 | Pauta Prioritária | Lista semanal de processos críticos para acompanhamento, com cronograma, responsáveis, notas, PDF de reunião e resolução automática quando o processo sai do setor |
-| Enviar Relatório | Upload manual e histórico de uploads para usuários autorizados |
-| Entradas e Saídas | Análise do fluxo diário por setor |
-| Produtividade | Análise de produção por atribuição |
+| Gestão de Dados | Novo envio e histórico de uploads para usuários autorizados |
+| Desempenho — Fluxo | Análise do fluxo diário por setor |
+| Desempenho — Produtividade | Análise de produção por atribuição |
 | Processos Parados | Lista de processos com maior tempo sem movimentação |
-| Múltiplos Setores | Processos presentes em mais de um setor, respeitando o escopo visível do usuário, com exportação Excel/PDF |
+| Inconsistências | Processos presentes em mais de um setor, respeitando o escopo visível do usuário, com exportação Excel/PDF |
 | Atribuições | Carteira detalhada por servidor/atribuição |
-| Servidores | Carga e perfil longitudinal dos servidores |
+| Pessoas | Carga e perfil longitudinal dos servidores |
 | Indicadores Mensais | Gestão de indicadores históricos filtrados por setor permitido |
 | Busca | Consulta de histórico por protocolo |
-| Usuários SEI | Cadastro de equivalência de nomes do SEI, aliases e vínculos por setor |
+| Administração — Base SEI | Cadastro de equivalência de nomes do SEI, aliases e vínculos por setor |
 | Administração | Gestão de usuários, divisões, permissões, pesos do Score e log de auditoria |
 | Minha Conta | Dados pessoais e troca de senha |
 | Documentação | Documentação técnica dentro da própria plataforma |
@@ -480,7 +480,7 @@ Em termos simples: mesmo que alguém olhe o banco de dados, não verá a senha o
 Algumas telas são restritas a administradores, como:
 
 - Administração.
-- Usuários SEI.
+- Administração — Base SEI.
 - Criação e exclusão de usuários.
 - Liberação de divisões por usuário.
 - Permissão para envio manual de relatórios.
@@ -493,13 +493,13 @@ Administradores visualizam todos os setores. Usuários comuns visualizam apenas 
 Esse controle vale para:
 
 - Central Executiva.
-- Dashboard.
-- Entradas e Saídas.
-- Produtividade.
-- Múltiplos Setores.
+- Área de Trabalho.
+- Desempenho — Fluxo.
+- Desempenho — Produtividade.
+- Inconsistências.
 - Atribuições.
 - Score de Risco.
-- Servidores.
+- Pessoas.
 - Indicadores Mensais.
 - Histórico de uploads.
 - Badge de saúde dos dados.
@@ -508,13 +508,13 @@ Em termos simples: se um usuário comum tem acesso apenas a uma divisão, os nú
 
 ### 11.5 Permissão de upload
 
-Enviar relatórios é uma permissão separada. Um usuário comum só vê a tela "Enviar Relatório" se o administrador habilitar essa permissão.
+Enviar relatórios é uma permissão separada. Um usuário comum só vê **Gestão de Dados** se o administrador habilitar essa permissão.
 
 Mesmo habilitado, ele só pode enviar relatórios dos setores aos quais possui acesso.
 
-### 11.6 Usuários SEI vinculados a setores
+### 11.6 Base SEI vinculada a setores
 
-A tela "Usuários SEI" permite informar em quais setores cada servidor/atribuição atua.
+A aba **Administração → Base SEI** permite informar em quais setores cada servidor/atribuição atua.
 
 Isso é importante porque os filtros de "Atribuição" e "Servidor" passam a mostrar apenas nomes compatíveis com as divisões liberadas para o usuário logado.
 
@@ -730,7 +730,7 @@ Verificar:
 - Se a API do AnalyticSEI está online.
 - Se houve mudança na tela do SEI que possa afetar a automação.
 
-Se necessário, fazer upload manual pela tela "Enviar Relatório".
+Se necessário, fazer upload manual em **Gestão de Dados → Novo envio**.
 
 ### 18.4 Quando trocar o coordenador ou responsável
 

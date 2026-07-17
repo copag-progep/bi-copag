@@ -11,34 +11,34 @@ import TocSidebar from "./documentacao/TocSidebar";
 
 /* ── Dados ─────────────────────────────────────── */
 
-const DOC_VERSION = "2.4";
+const DOC_VERSION = "2.5";
 const DOC_UPDATED = "Julho 2026";
 const CHAPTER_COUNT = 12;
 const DATABASE_TABLE_COUNT = 12;
 
 const FEATURES = [
+  { icon: "🗂️", title: "Área de Trabalho", desc: "Fila acionável de prioridades, panorama operacional e atalhos para os fluxos mais usados" },
   { icon: "🎯", title: "Central Executiva", desc: "Prioridades do dia, saúde dos dados, KPIs principais, sparklines e tempo de permanência" },
-  { icon: "📊", title: "Dashboard principal", desc: "KPIs, distribuição por setor/tipo, rankings e evolução diária" },
-  { icon: "↔️", title: "Entradas e saídas", desc: "Comparativo de fluxo entre snapshots consecutivos" },
-  { icon: "⚡", title: "Produtividade", desc: "Processos recebidos, finalizados e tempo médio por servidor" },
+  { icon: "📊", title: "Desempenho", desc: "Abas de Fluxo e Produtividade com comparativos, rankings e evolução histórica" },
   { icon: "⏱️", title: "Tempo de permanência", desc: "Lead time estimado com média, mediana, P90, faixas por duração e ranking por setor" },
   { icon: "📈", title: "Tendências estimadas", desc: "Forecasting simples com projeção de estoque ativo, tendência por setor e estimativa de críticos" },
   { icon: "🛡️", title: "Score de Risco", desc: "Ranking de processos por prioridade de atenção, com breakdown dos fatores do score" },
   { icon: "✅", title: "Pauta Prioritária", desc: "Sessões semanais com cronograma, responsáveis, notas, PDF, métricas e resolução automática por snapshot" },
   { icon: "📋", title: "Atribuições", desc: "Carteira completa com flags de criticidade (6 faixas até 90d+)" },
-  { icon: "⚖️", title: "Servidores", desc: "Balanceamento de carga, sobrecarga e perfil longitudinal" },
-  { icon: "🔀", title: "Múltiplos setores", desc: "Detecção de processos em mais de um setor no mesmo dia, com exportação Excel/PDF" },
+  { icon: "⚖️", title: "Pessoas", desc: "Balanceamento de carga, sobrecarga e perfil longitudinal" },
+  { icon: "🔀", title: "Inconsistências", desc: "Detecção de processos em mais de um setor no mesmo dia, com exportação Excel/PDF" },
   { icon: "📅", title: "Indicadores mensais", desc: "Painel histórico com importação de CSV e lançamento manual" },
   { icon: "🔐", title: "Controle por divisão", desc: "Usuários comuns visualizam apenas os setores liberados pelo administrador" },
   { icon: "📤", title: "Permissão de upload", desc: "Envio manual restrito a usuários habilitados e aos setores permitidos" },
-  { icon: "🧭", title: "Usuários SEI por setor", desc: "Atribuições e servidores filtrados conforme vínculos administrativos por divisão" },
+  { icon: "🧭", title: "Base SEI por setor", desc: "Atribuições e servidores filtrados conforme vínculos administrativos por divisão" },
+  { icon: "📤", title: "Gestão de Dados", desc: "Novo envio e histórico de uploads reunidos em uma área com abas" },
   { icon: "🔍", title: "Busca global", desc: "Histórico completo de movimentações de qualquer protocolo" },
   { icon: "🔔", title: "Alertas por e-mail", desc: "Notificação semanal às sextas, 21:00 BRT, para processos críticos (>30, >45, >90 dias)" },
   { icon: "🔔", title: "Notificação in-app", desc: "Sino com badge em tempo real de processos ≥45 dias e itens pendentes da Pauta Prioritária" },
   { icon: "🤖", title: "Upload automático", desc: "Script Playwright que acessa o SEI e envia dados sem intervenção (19h BRT)" },
   { icon: "📨", title: "Relatório diário", desc: "E-mail automático seg–sex às 19:30 BRT com ativos, fluxo do dia por setor e alertas de processos críticos" },
   { icon: "📧", title: "Relatório semanal", desc: "E-mail automático toda sexta com resumo dos indicadores da semana" },
-  { icon: "📄", title: "Exportação PDF / Excel", desc: "Relatórios de Atribuições e Múltiplos Setores com identidade visual Progep/UFC" },
+  { icon: "📄", title: "Exportação PDF / Excel", desc: "Relatórios de Atribuições e Inconsistências com identidade visual Progep/UFC" },
   { icon: "🔒", title: "Log de auditoria", desc: "Registro de todas as ações críticas: uploads, exclusões, trocas de senha" },
 ];
 
@@ -88,20 +88,20 @@ const WORKFLOWS = [
 ];
 
 const MANUTENCAO = [
-  { title: "Upload manual", desc: "Acessar Enviar Relatório → selecionar setor permitido, data e arquivo CSV exportado do SEI. A tela só aparece para admins ou usuários habilitados para upload." },
-  { title: "Corrigir data de upload", desc: "Em Enviar Relatório, clicar em Editar data na linha do upload. O sistema verifica conflitos automaticamente." },
-  { title: "Remover snapshot incorreto", desc: "Em Enviar Relatório, clicar em Excluir. Todos os processos daquele snapshot são removidos." },
-  { title: "Adicionar servidor ao DE-PARA", desc: "Em Usuários SEI, preencher o formulário. A plataforma sincroniza todos os processos históricos automaticamente." },
-  { title: "Editar servidor no DE-PARA", desc: "Em Usuários SEI, clicar em Editar na tabela, ajustar nome canônico, nome SEI ou usuário SEI e salvar. Os processos são ressincronizados automaticamente." },
-  { title: "Unir nomes históricos de servidor", desc: "Em Usuários SEI, escolher o usuário principal e informar o nome antigo ou alternativo. O alias passa a consolidar filtros, gráficos e rankings sem alterar o texto bruto importado do SEI." },
-  { title: "Vincular usuário SEI a setores", desc: "Em Usuários SEI, abrir o editor de Setores ou usar Inferir setores. Esses vínculos filtram listas de Atribuição e Servidor para usuários restritos." },
+  { title: "Upload manual", desc: "Acessar Gestão de Dados → Novo envio, selecionar setor permitido, data e arquivo CSV exportado do SEI. A área só aparece para admins ou usuários habilitados para upload." },
+  { title: "Corrigir data de upload", desc: "Em Gestão de Dados → Histórico, clicar em Editar data na linha do upload. O sistema verifica conflitos automaticamente." },
+  { title: "Remover snapshot incorreto", desc: "Em Gestão de Dados → Histórico, clicar em Excluir. Todos os processos daquele snapshot são removidos." },
+  { title: "Adicionar servidor ao DE-PARA", desc: "Em Administração → Base SEI, preencher o formulário. A plataforma sincroniza todos os processos históricos automaticamente." },
+  { title: "Editar servidor no DE-PARA", desc: "Em Administração → Base SEI, clicar em Editar na tabela, ajustar nome canônico, nome SEI ou usuário SEI e salvar. Os processos são ressincronizados automaticamente." },
+  { title: "Unir nomes históricos de servidor", desc: "Em Administração → Base SEI, escolher o usuário principal e informar o nome antigo ou alternativo. O alias passa a consolidar filtros, gráficos e rankings sem alterar o texto bruto importado do SEI." },
+  { title: "Vincular usuário SEI a setores", desc: "Em Administração → Base SEI, abrir o editor de Setores ou usar Inferir setores. Esses vínculos filtram listas de Atribuição e Servidor para usuários restritos." },
   { title: "Criar novo usuário", desc: "Em Administração, preencher o formulário com nome, e-mail, senha e nível de acesso (admin ou não)." },
   { title: "Liberar divisões e upload", desc: "Em Administração → Acessos, configurar quais divisões cada usuário comum pode visualizar e se ele pode enviar relatórios." },
   { title: "Lançar indicadores mensais", desc: "Em Indicadores Mensais → aba Atualização mensal, selecionar setor, ano e mês, preencher os 6 indicadores." },
   { title: "Verificar processos críticos", desc: "O sino na topbar mostra a contagem de processos ≥45d. Clicar abre o resumo. Detalhes completos em /atribuicoes." },
   { title: "Montar pauta prioritária semanal", desc: "Em Pauta Prioritária, criar sessão com início, reunião e prazo, adicionar processos do Score de Risco ou das páginas Risco/Atribuições, definir prazo do processo, atribuir responsável e registrar nota de gestão." },
   { title: "Editar cronograma da pauta", desc: "Administradores podem editar título, início, reunião, prazo da pauta e observações pelo editor inline no cronograma. As alterações ficam registradas na auditoria." },
-  { title: "Acompanhar resolução da pauta", desc: "Responsáveis confirmam ciência e atualizam sua nota. A resolução é automática: após upload válido, o item é marcado como resolvido quando o protocolo deixa de constar no snapshot do setor." },
+  { title: "Acompanhar resolução da pauta", desc: "Responsáveis consultam a orientação e os prazos definidos pela gestão. A resolução é automática: após upload válido, o item é marcado como resolvido quando o protocolo deixa de constar no snapshot do setor." },
   { title: "Encerrar pauta e exportar reunião", desc: "Administradores podem gerar PDF da sessão, consultar métricas, encerrar a sessão com auditoria e copiar pendências para uma nova pauta semanal. Sessões vencidas por prazo ainda permitem copiar pendências." },
   { title: "Consultar log de auditoria", desc: "Em Administração → seção Log de auditoria. Mostra quem fez o quê e quando, com detalhes JSON." },
 ];
@@ -349,27 +349,27 @@ export default function DocumentacaoPage() {
 
             <h3>Elementos globais</h3>
             <p><strong>Topbar:</strong> título dinâmico por rota · badge de frescor dos dados · busca global de protocolo · sino de notificações com críticos e itens pendentes da pauta · chip do usuário.</p>
-            <p><strong>Sidebar:</strong> colapsável (248px → 72px) com ícones SVG · itens admin ocultos para não-admins · Enviar Relatório oculto para usuários sem permissão de upload · chip do usuário e botão Sair no rodapé.</p>
+            <p><strong>Sidebar:</strong> colapsável (248px → 72px), organizada nos grupos Operacional, Análise e Administração, com ícones e tooltips no modo recolhido. Gestão de Dados fica oculta para usuários sem permissão de upload; Minha Conta e Documentação permanecem na área do usuário.</p>
             <p><strong>FilterBar:</strong> aparece nas páginas analíticas — Data de referência, setor, tipo, atribuição (inclui "Sem atribuição"). Para usuários restritos, mostra apenas setores permitidos e atribuições vinculadas aos seus setores.</p>
 
             <h3>Páginas</h3>
             <div className="doc-features-grid">
               {[
-                { icon: "🎯", title: "/executivo", desc: "Central de decisão com prioridades do dia, saúde dos dados, cards com sparklines, lead time e listas executivas" },
-                { icon: "📊", title: "/  Dashboard", desc: "KPIs, distribuição por setor/tipo, ranking, evolução diária, tabela de finalizações" },
-                { icon: "📤", title: "/enviar-relatorio", desc: "Upload de CSV + histórico paginado; visível apenas para admins ou usuários com permissão de upload" },
-                { icon: "↔️", title: "/entradas-saidas", desc: "Entradas, saídas, saldo e evolução do fluxo por setor" },
-                { icon: "⚡", title: "/produtividade", desc: "Produção estimada, ranking acumulado e evolução histórica por servidor" },
-                { icon: "🔀", title: "/multiplos-setores", desc: "Protocolos presentes em mais de um setor; detecção limitada ao escopo visível, busca local e exportação PDF/Excel" },
+                { icon: "🗂️", title: "/  Área de Trabalho", desc: "Fila acionável de prioridades, panorama operacional, indicadores e atalhos para os fluxos mais usados" },
+                { icon: "🎯", title: "/executivo · Central Executiva", desc: "Central de decisão com prioridades do dia, saúde dos dados, cards com sparklines, lead time e listas executivas" },
+                { icon: "📤", title: "/enviar-relatorio · Gestão de Dados", desc: "Abas Novo envio e Histórico; visível apenas para admins ou usuários com permissão de upload" },
+                { icon: "↔️", title: "/entradas-saidas · Desempenho / Fluxo", desc: "Entradas, saídas, saldo e evolução do fluxo por setor" },
+                { icon: "⚡", title: "/produtividade · Desempenho / Produtividade", desc: "Produção estimada, ranking acumulado e evolução histórica por servidor" },
+                { icon: "🔀", title: "/multiplos-setores · Inconsistências", desc: "Protocolos presentes em mais de um setor; detecção limitada ao escopo visível, busca local e exportação PDF/Excel" },
                 { icon: "📋", title: "/atribuicoes", desc: "Carteira com 6 faixas de criticidade, busca, filtros server-side, exportação PDF e Excel" },
                 { icon: "🛡️", title: "/risco", desc: "Ranking de Score de Risco por processo, filtros por nível e explicação dos fatores" },
-              { icon: "✅", title: "/pauta", desc: "Pauta Prioritária: sessões semanais com cronograma, prazo por processo, dias prazo com check em resolvidos, PDF, métricas e resolução automática quando o processo sai do setor" },
-                { icon: "⚖️", title: "/servidores", desc: "Balanceamento de carga + perfil longitudinal individual; filtro de servidor respeita setores vinculados" },
+                { icon: "✅", title: "/pauta", desc: "Pauta Prioritária: sessões semanais com cronograma, prazo por processo, dias prazo com check em resolvidos, PDF, métricas e resolução automática quando o processo sai do setor" },
+                { icon: "⚖️", title: "/servidores · Pessoas", desc: "Balanceamento de carga + perfil longitudinal individual; filtro de servidor respeita setores vinculados" },
                 { icon: "📅", title: "/indicadores-mensais", desc: "Dashboard histórico + importação de CSV + lançamento manual mensal, filtrado pelos setores permitidos" },
                 { icon: "🔍", title: "/busca", desc: "Histórico completo de movimentações de um protocolo específico" },
                 { icon: "👤", title: "/minha-conta", desc: "Informações do usuário + formulário de troca de senha" },
-                { icon: "⚙️", title: "/administracao", desc: "Gestão de usuários, divisões liberadas, permissão de upload, pesos do Score e log de auditoria (admin only)" },
-                { icon: "🔗", title: "/usuarios-sei", desc: "DE-PARA de nomes, aliases históricos, setores por usuário SEI e inferência em lote (admin only)" },
+                { icon: "⚙️", title: "/administracao · Administração / Sistema", desc: "Gestão de usuários, divisões liberadas, permissão de upload, pesos do Score e log de auditoria (admin only)" },
+                { icon: "🔗", title: "/usuarios-sei · Administração / Base SEI", desc: "DE-PARA de nomes, aliases históricos, setores por usuário SEI e inferência em lote (admin only)" },
               ].map((p, i) => <FeatureCard key={i} {...p} />)}
             </div>
 
@@ -433,10 +433,10 @@ export default function DocumentacaoPage() {
             <p>Na Pauta Prioritária, o acesso é cumulativo: o item precisa estar atribuído ao usuário e o setor do processo ainda precisa estar liberado para ele. Se houver itens ativos, a remoção desse setor do usuário é bloqueada até a reatribuição.</p>
 
             <h3>Permissão de upload</h3>
-            <p>A tela <strong>Enviar Relatório</strong> só fica disponível para administradores ou usuários marcados com permissão de upload. Mesmo com permissão, o usuário só consegue enviar CSV de setores aos quais tem acesso.</p>
+            <p>A área <strong>Gestão de Dados</strong> só fica disponível para administradores ou usuários marcados com permissão de upload. Mesmo com permissão, o usuário só consegue enviar CSV de setores aos quais tem acesso.</p>
 
-            <h3>Usuários SEI por setor</h3>
-            <p>A página <strong>Usuários SEI</strong> permite vincular servidores/atribuições a um ou mais setores. Usuários restritos passam a ver nos filtros de Atribuição e Servidor apenas os nomes vinculados aos seus setores permitidos.</p>
+            <h3>Base SEI por setor</h3>
+            <p>A aba <strong>Administração → Base SEI</strong> permite vincular servidores/atribuições a um ou mais setores. Usuários restritos passam a ver nos filtros de Atribuição e Servidor apenas os nomes vinculados aos seus setores permitidos.</p>
 
             <h3>Alembic — migrações versionadas</h3>
             <p>Novas colunas/tabelas criadas como arquivos em <code>alembic/versions/</code>. Na inicialização, o backend executa <code>alembic upgrade head</code>. Em bancos sem Alembic, sela automaticamente no baseline antes de aplicar migrações novas.</p>
@@ -546,6 +546,7 @@ export default function DocumentacaoPage() {
               { title: "Fundação do sistema", items: ["Autenticação JWT + bcrypt","Importação de CSVs (UTF-8, UTF-8-BOM, Latin-1)","Hash SHA-256 para evitar duplicatas","Substituição de snapshot por setor/data","Dashboard com KPIs, distribuição, evolução diária","Entradas e saídas, produtividade, múltiplos setores","Administração de usuários com proteção do último admin"] },
               { title: "Infraestrutura e qualidade", items: ["Alembic para migrações formais com auto-stamp","Log de auditoria em tabela dedicada","Lifespan context manager (substituiu @app.on_event)","datetime.now(timezone.utc) (substituiu utcnow)","sync_processo_atribuicoes com SQL UPDATE em lote","Cache analítico LRU com orçamento de memória, invalidação automática e chave por escopo de setores","Pré-aquecimento leve do cache em background, com endpoints históricos pesados controlados por PRECOMPUTE_HEAVY_ANALYTICS e precompute pós-alteração desligável","Healthcheck com verificação do banco","Endpoint /api/health/data-freshness + badge no topo para avisar dado velho, setor ausente/defasado e queda simples de volume"] },
               { title: "Identidade visual Progep/UFC", items: ["Paleta: navy #273168 · laranja #f39320 · amarelo #febb12 · azul #81c7ee","Fonte Plus Jakarta Sans","Sidebar redesenhada com ícones SVG e chip do usuário","Topbar com título dinâmico por rota","StatCards com hover e estrutura vertical","LoginPage com dois painéis e stats decorativos"] },
+              { title: "Gestão por Prioridades", items: ["Área de Trabalho com fila acionável, panorama operacional e atalhos contextuais","Sidebar agrupada em Operacional, Análise e Administração","Ícones com tooltip no menu recolhido, sem siglas automáticas","Desempenho com abas Fluxo e Produtividade","Gestão de Dados com abas Novo envio e Histórico","Administração com navegação entre Sistema e Base SEI","Nomes operacionais Inconsistências e Pessoas, preservando as rotas técnicas existentes"] },
               { title: "Performance", items: ["React.lazy + Suspense para code splitting por rota","preconnect e dns-prefetch para o backend","LoadingBlock com spinner e mensagem de servidor iniciando","useAnalyticsData hook com cache stale-while-revalidate para admins e resposta atual obrigatória para usuários restritos","clearAnalyticsCache chamado após upload"] },
               { title: "Analíticas avançadas", items: ["Central Executiva com prioridades do dia, saúde dos dados, sparklines dos KPIs principais e carregamento escalonado","Lead time estimado dos processos que saíram da carteira, com média, mediana, P90, faixas por duração e ranking por setor/tipo/atribuição","Tendências estimadas com regressão linear simples, projeção de estoque ativo em 15/30 dias, tendência por setor e estimativa de críticos","Score de Risco por processo com pesos configuráveis, P90 com piso técnico e explicação por fator","Pauta Prioritária com sessões semanais, cronograma visível, situação derivada por prazo, edição de prazos pelo admin, responsáveis, resolução automática via snapshot, PDF de reunião, encerramento e métricas de eficiência","Página Atribuições com spans consecutivos por setor, 6 faixas de criticidade, filtros server-side, busca por protocolo e badge de risco por processo","Múltiplos setores com detecção e exibição limitadas ao escopo visível do usuário, busca local e exportação PDF/Excel","Exportação PDF com identidade visual (jsPDF + jspdf-autotable)","Exportação Excel (SheetJS)","Página Servidores: balanceamento por desvio-padrão + perfil longitudinal","Busca global de processo com histórico de movimentações","Filtro Sem atribuição no FilterBar global","Indicadores mensais com dashboard e lançamento manual"] },
               { title: "Automação (Bloco 4)", items: ["API key para uploads sem JWT","Script SEI Scraper (Playwright headless): login, troca de setor por JS, coleta todas as páginas","Workflow daily-upload (19:00 BRT) com notificação de falha","Workflow daily-report (19:30 BRT) bloqueado por check_daily_upload_success.py quando o upload do dia não concluiu com sucesso","Workflow weekly-report (sexta 20:00 BRT)","Script de alertas com anti-spam (não envia se sem críticos)","Workflow critical-alerts (sexta 21:00 BRT)"] },

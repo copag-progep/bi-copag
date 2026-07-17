@@ -11,21 +11,21 @@ Plataforma web de Business Intelligence desenvolvida para a **COPAG (Coordenador
 
 | Funcionalidade | Descrição |
 |---|---|
+| **Área de Trabalho** | Fila acionável de prioridades, panorama operacional e atalhos para os fluxos mais usados |
 | **Central Executiva** | Tela única com prioridades do dia, saúde dos dados, KPIs principais e sparklines de tendência |
-| **Dashboard executivo** | KPIs, distribuição por setor/tipo, ranking de atribuições, evolução diária |
-| **Entradas e saídas** | Comparativo de fluxo entre snapshots consecutivos |
-| **Produtividade** | Processos recebidos, finalizados e tempo médio por servidor |
+| **Desempenho** | Abas de Fluxo e Produtividade com comparativos entre snapshots, produção estimada e evolução por servidor |
 | **Tempo de permanência** | Lead time estimado dos processos que saíram da carteira, com média, mediana, P90, faixas por duração e ranking por setor |
 | **Tendências estimadas** | Forecasting simples na Central Executiva: projeção de estoque ativo, tendência por setor e estimativa de críticos |
 | **Score de Risco** | Ranking de processos por prioridade de atenção, com explicação dos fatores do score |
 | **Pauta Prioritária** | Sessões semanais para acompanhar processos críticos, atribuir responsáveis, acompanhar prazos/reuniões, registrar notas, gerar PDF, encerrar ciclos e medir eficiência |
 | **Atribuições** | Carteira completa com flags de criticidade por tempo (6 faixas até 90d+) |
-| **Servidores** | Balanceamento de carga, classificação de sobrecarga, perfil longitudinal |
-| **Múltiplos setores** | Detecção de processos em mais de um setor no mesmo dia, com exportação Excel/PDF |
+| **Pessoas** | Balanceamento de carga, classificação de sobrecarga e perfil longitudinal dos servidores |
+| **Inconsistências** | Detecção de processos em mais de um setor no mesmo dia, com exportação Excel/PDF |
 | **Indicadores mensais** | Painel histórico com importação de CSV e lançamento manual |
 | **Controle por divisão** | Usuários comuns visualizam apenas os setores liberados pelo administrador |
 | **Permissão de upload** | O administrador define quais usuários podem enviar relatórios e de quais setores |
-| **Usuários SEI por setor** | Vincula servidores/atribuições aos setores para filtrar listas de Atribuição e Servidor |
+| **Base SEI por setor** | Administração do DE-PARA, aliases e vínculos de servidores aos setores |
+| **Gestão de Dados** | Novo envio e histórico de uploads reunidos em uma área operacional com abas |
 | **Busca global** | Histórico completo de movimentações de qualquer protocolo |
 | **Alertas por e-mail** | Notificação semanal de processos críticos (>30, >45, >90 dias), às sextas 21:00 BRT |
 | **Notificação in-app** | Sino com contagem em tempo real de processos ≥45 dias e itens pendentes da Pauta Prioritária |
@@ -33,7 +33,7 @@ Plataforma web de Business Intelligence desenvolvida para a **COPAG (Coordenador
 | **Upload automático** | Script que acessa o SEI e envia dados sem intervenção humana (19h BRT) |
 | **Relatório diário** | E-mail automático seg–sex às 19:30 BRT com ativos, fluxo por setor e alertas |
 | **Relatório semanal** | E-mail automático toda sexta com resumo dos indicadores |
-| **Exportação PDF / Excel** | Relatórios de Atribuições e Múltiplos Setores com identidade visual Progep/UFC |
+| **Exportação PDF / Excel** | Relatórios de Atribuições e Inconsistências com identidade visual Progep/UFC |
 | **Exportação de pauta em PDF** | Documento de reunião com processos priorizados, responsáveis, status e notas da gestão |
 | **Log de auditoria** | Registro de todas as ações críticas do sistema |
 
@@ -80,11 +80,19 @@ Depois acesse `http://127.0.0.1:5173`.
 ```bash
 python -m venv .venv
 source .venv/bin/activate        # Windows: .venv\Scripts\Activate.ps1
-pip install -r requirements.txt
+pip install -r requirements-dev.txt
 uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
 API disponível em `http://localhost:8000` · Docs interativos em `http://localhost:8000/docs`
+
+Execute a suíte de testes com:
+
+```bash
+python -m pytest backend/tests -q
+```
+
+Em produção, o Render continua instalando apenas `requirements.txt`; as dependências de desenvolvimento ficam separadas em `requirements-dev.txt`.
 
 ### Frontend
 
@@ -166,11 +174,11 @@ Por padrão, o frontend local usa o proxy do Vite para encaminhar `/api` para `h
 
 Administradores têm visão completa da plataforma. Usuários comuns só visualizam dados dos setores liberados na aba **Acessos** da página Administração. Esse recorte é aplicado no backend e afeta painéis, KPIs, listas, filtros, datas de referência, indicadores mensais, histórico de uploads e badge de saúde dos dados.
 
-A permissão de envio de relatório é independente: além de ter acesso ao setor, o usuário precisa estar marcado como autorizado para upload. A página **Usuários SEI** também permite vincular servidores/atribuições a um ou mais setores, para que filtros como **Atribuição** e **Servidor** respeitem o escopo do usuário logado.
+A permissão de envio de relatório é independente: além de ter acesso ao setor, o usuário precisa estar marcado como autorizado para upload. A aba **Administração → Base SEI** também permite vincular servidores/atribuições a um ou mais setores, para que filtros como **Atribuição** e **Servidor** respeitem o escopo do usuário logado.
 
-Na métrica de **Múltiplos setores**, a detecção respeita o escopo do usuário. Usuários restritos só consultam e visualizam ocorrências dentro dos setores permitidos, sem revelar metadados de divisões não autorizadas.
+Na área **Inconsistências**, a detecção de múltiplos setores respeita o escopo do usuário. Usuários restritos só consultam e visualizam ocorrências dentro dos setores permitidos, sem revelar metadados de divisões não autorizadas.
 
-Na tela **Múltiplos setores**, os botões **Exportar Excel** e **Gerar PDF** exportam as ocorrências visíveis no momento, respeitando filtros globais e busca por protocolo.
+Na tela **Inconsistências**, os botões **Exportar Excel** e **Gerar PDF** exportam as ocorrências visíveis no momento, respeitando filtros globais e busca por protocolo.
 
 O cache analítico também participa desse isolamento: o backend inclui o escopo de setores na chave e o frontend não reaproveita cache persistente para usuários comuns antes da resposta atual do servidor.
 

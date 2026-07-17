@@ -1068,15 +1068,27 @@ Arquivos:
 
 - `frontend/src/components/AppLayout.jsx`
 - `frontend/src/components/Sidebar.jsx`
+- `frontend/src/components/WorkspaceTabs.jsx`
+- `frontend/src/components/PerformanceTabs.jsx`
 - `frontend/src/styles.css`
 
 Comportamento:
 
-- sidebar lateral com recolhimento
+- sidebar lateral com recolhimento e grupos Operacional, Analise e Administracao
+- icones com tooltip no modo recolhido, sem siglas geradas a partir dos rotulos
 - rolagem propria da sidebar em telas menores
 - topbar com identificacao do usuario logado, badge de frescor dos dados, busca global e sino de notificacoes
 - barra de filtros visivel apenas em rotas analiticas
-- item Enviar Relatorio fica oculto para usuario comum sem permissao de upload
+- item Gestao de Dados fica oculto para usuario comum sem permissao de upload
+
+A arquitetura de informacao segue o modelo **Gestao por Prioridades**:
+
+- **Operacional:** Area de Trabalho, Central Executiva, Pauta Prioritaria, Score de Risco e Atribuicoes
+- **Analise:** Desempenho, Inconsistencias, Pessoas e Indicadores Mensais
+- **Administracao:** Gestao de Dados e Administracao
+- **Area do usuario:** Minha Conta e Documentacao
+
+As rotas historicas foram preservadas. Links diretos, favoritos, filtros, chamadas de API e automacoes continuam compativeis.
 
 
 ## 19. Paginas principais do frontend
@@ -1118,7 +1130,7 @@ Entrega:
 - tendencias estimadas de estoque ativo, saldo por setor e processos em envelhecimento
 - carregamento escalonado para evitar que endpoints pesados derrubem a tela inteira
 
-### 19.3 Dashboard
+### 19.3 Area de Trabalho
 
 Arquivo:
 
@@ -1130,6 +1142,8 @@ Consome:
 
 Entrega:
 
+- fila acionavel de prioridades e alertas operacionais
+- atalhos para os fluxos mais usados
 - KPIs gerais
 - distribuicoes
 - ranking de atribuicoes
@@ -1145,6 +1159,8 @@ Consome:
 
 - `/analytics/entries-exits`
 
+Na interface, a rota aparece como a aba **Fluxo** da area **Desempenho**, por meio de `PerformanceTabs.jsx`.
+
 ### 19.5 Produtividade
 
 Arquivo:
@@ -1157,6 +1173,8 @@ Consome:
 
 Observacao:
 
+- na interface, a rota aparece como a aba **Produtividade** da area **Desempenho**
+- a separacao de rotas preserva carregamento, filtros e URLs
 - nomes longos de atribuicao sao abreviados para iniciais nos graficos
 - o nome completo continua acessivel por hover
 
@@ -1174,7 +1192,7 @@ Observacao:
 
 - a tabela de processos criticos esta paginada em 50 itens por pagina
 
-### 19.7 Processos em multiplos setores
+### 19.7 Inconsistencias / processos em multiplos setores
 
 Arquivo:
 
@@ -1190,7 +1208,7 @@ Regra importante:
 - depois disso, a resposta e filtrada para mostrar apenas ocorrencias que envolvem setores visiveis ao usuario logado
 - isso permite que um usuario restrito saiba que um processo do seu setor tambem aparece em outro setor, sem receber a carteira completa da outra divisao
 
-### 19.8 Enviar relatorio
+### 19.8 Gestao de Dados
 
 Arquivo:
 
@@ -1205,8 +1223,8 @@ Consome:
 
 Recursos:
 
-- formulario de upload
-- historico recente paginado
+- aba **Novo envio** com formulario de upload
+- aba **Historico** com os envios recentes paginados
 - edicao de data do snapshot
 - exclusao de snapshot
 
@@ -1240,7 +1258,7 @@ Recursos:
 - permissao individual para envio de relatorios
 - pesos por tipo de processo usados no Score de Risco
 
-### 19.10 Usuarios SEI
+### 19.10 Administracao - Base SEI
 
 Arquivo:
 
@@ -1441,6 +1459,15 @@ source .venv/bin/activate
 pip install -r requirements.txt
 uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000
 ```
+
+Para desenvolvimento e testes, prefira:
+
+```bash
+pip install -r requirements-dev.txt
+python -m pytest backend/tests -q
+```
+
+`requirements-dev.txt` inclui as dependencias de producao e acrescenta o `pytest`. O Render continua instalando exclusivamente `requirements.txt`.
 
 ### 22.2 Frontend
 
@@ -1684,6 +1711,7 @@ bi-copag/
 ├── package.json
 ├── render.yaml
 ├── requirements.txt
+├── requirements-dev.txt
 ├── vercel.json
 ├── docs/
 │   ├── AMBIENTE_LOCAL.md
@@ -1730,7 +1758,9 @@ bi-copag/
 │       │   ├── ProtectedRoute.jsx
 │       │   ├── Sidebar.jsx
 │       │   ├── SparklineCard.jsx
-│       │   └── StatCard.jsx
+│       │   ├── StatCard.jsx
+│       │   ├── WorkspaceTabs.jsx
+│       │   └── PerformanceTabs.jsx
 │       ├── context/
 │       │   ├── AuthContext.jsx
 │       │   └── FiltersContext.jsx

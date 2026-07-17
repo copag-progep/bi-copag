@@ -136,23 +136,14 @@ Também existe a opção **Sem atribuição**, usada para localizar processos se
 
 ### 4.1. Menu lateral
 
-O menu lateral dá acesso às principais áreas:
+O menu lateral organiza o trabalho por finalidade:
 
-- Central Executiva
-- Dashboard
-- Enviar Relatório
-- Entradas e Saídas
-- Produtividade
-- Múltiplos Setores
-- Atribuições
-- Score de Risco
-- Pauta Prioritária
-- Servidores
-- Indicadores Mensais
-- Minha Conta
-- Documentação
-- Usuários SEI, para administradores
-- Administração, para administradores
+- **Operacional:** Área de Trabalho, Central Executiva, Pauta Prioritária, Score de Risco e Atribuições.
+- **Análise:** Desempenho, Inconsistências, Pessoas e Indicadores Mensais.
+- **Administração:** Gestão de Dados e Administração, conforme as permissões do usuário.
+- **Área do usuário:** Minha Conta e Documentação.
+
+Quando o menu está recolhido, os itens permanecem identificados por ícones e tooltips. **Gestão de Dados** só aparece para administradores ou usuários habilitados a enviar relatórios.
 
 ### 4.2. Busca global por protocolo
 
@@ -418,11 +409,19 @@ Mostra os cinco processos com maior tempo sem movimentação no setor atual.
 
 ---
 
-## 7. Tela Dashboard
+## 7. Área de Trabalho
 
 ### Objetivo da tela
 
-Oferecer uma visão geral da tramitação dos processos no snapshot selecionado.
+Transformar a página inicial em um ponto de partida operacional. A tela combina uma fila acionável de prioridades, atalhos para os fluxos mais usados e a visão geral do snapshot selecionado.
+
+### Fila de trabalho
+
+A parte inicial destaca situações que exigem ação, como processos críticos, pendências da Pauta Prioritária e alertas de qualidade dos dados. Cada item direciona para a página adequada, preservando os filtros e as regras de acesso do usuário.
+
+### Ações rápidas
+
+Atalhos contextuais reduzem o caminho até Pauta Prioritária, Score de Risco, Atribuições, Central Executiva e demais rotinas frequentes.
 
 ### Cards principais
 
@@ -519,15 +518,15 @@ Importante:
 
 ---
 
-## 8. Tela Enviar Relatório
+## 8. Gestão de Dados
 
 ### Objetivo da tela
 
-Permitir a atualização dos dados a partir de arquivos CSV exportados do SEI.
+Reunir a atualização dos dados e a consulta dos envios anteriores. A área possui as abas **Novo envio** e **Histórico**.
 
 ### Quem pode acessar
 
-A tela só fica disponível para:
+A área só fica disponível para:
 
 - Administradores.
 - Usuários comuns habilitados pelo administrador com a permissão de envio de relatório.
@@ -590,7 +589,7 @@ Ao excluir um upload, os processos daquele snapshot também são removidos.
 
 ---
 
-## 9. Tela Entradas e Saídas
+## 9. Desempenho — aba Fluxo
 
 ### Objetivo da tela
 
@@ -665,7 +664,7 @@ Colunas:
 
 ---
 
-## 10. Tela Produtividade
+## 10. Desempenho — aba Produtividade
 
 ### Objetivo da tela
 
@@ -773,7 +772,7 @@ Média diária = produzidos no período / número de transições entre snapshot
 
 ---
 
-## 11. Tela Múltiplos Setores
+## 11. Tela Inconsistências
 
 ### Objetivo da tela
 
@@ -1223,7 +1222,7 @@ Um processo com muitos dias sem movimentação não significa, sozinho, erro ou 
 
 ---
 
-## 15. Tela Servidores
+## 15. Tela Pessoas
 
 ### Objetivo da tela
 
@@ -1480,7 +1479,7 @@ Se o processo ainda estiver ativo, o cálculo usa a data atual como referência 
 
 ---
 
-## 18. Tela Usuários SEI
+## 18. Administração — Base SEI
 
 ### Objetivo da tela
 
@@ -1533,7 +1532,7 @@ Cada usuário SEI pode ser vinculado a uma ou mais divisões.
 Esse vínculo é usado para filtrar:
 
 - O filtro **Atribuição** nas páginas analíticas.
-- O filtro **Servidor** na página Servidores.
+- O filtro **Servidor** na página Pessoas.
 
 Exemplo conceitual:
 
@@ -1601,13 +1600,13 @@ Administradores têm acesso total por padrão. Usuários comuns só devem enxerg
 Esse controle afeta:
 
 - Central Executiva.
-- Dashboard.
-- Entradas e Saídas.
-- Produtividade.
-- Múltiplos Setores.
+- Área de Trabalho.
+- Desempenho — Fluxo.
+- Desempenho — Produtividade.
+- Inconsistências.
 - Atribuições.
 - Score de Risco.
-- Servidores.
+- Pessoas.
 - Indicadores Mensais.
 - Histórico de uploads.
 - Badge de saúde dos dados.
@@ -1618,7 +1617,7 @@ Além das divisões liberadas, o administrador pode marcar se o usuário comum p
 
 Essa permissão controla:
 
-- Exibição da página Enviar Relatório no menu.
+- Exibição de Gestão de Dados no menu.
 - Autorização no backend para aceitar uploads.
 - Bloqueio de upload de setor não permitido.
 
@@ -1928,20 +1927,20 @@ Se houver alerta de dados:
 
 Use esta ordem:
 
-1. Central Executiva.
-2. Score de Risco.
-3. Pauta Prioritária.
-4. Atribuições.
-5. Entradas e Saídas.
-6. Produtividade.
+1. Área de Trabalho.
+2. Central Executiva.
+3. Score de Risco.
+4. Pauta Prioritária.
+5. Atribuições.
+6. Desempenho.
 
 ### Para análise semanal
 
 Use:
 
-1. Dashboard.
+1. Área de Trabalho.
 2. Pauta Prioritária.
-3. Servidores.
+3. Pessoas.
 4. Indicadores Mensais, quando aplicável.
 5. Relatório semanal por e-mail.
 
@@ -1949,9 +1948,9 @@ Use:
 
 Use:
 
-1. Enviar Relatório.
+1. Gestão de Dados.
 2. Administração.
-3. Usuários SEI.
+3. Administração → Base SEI.
 4. Documentação.
 
 ---

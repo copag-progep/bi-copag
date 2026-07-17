@@ -2,6 +2,8 @@
 
 **Data da análise:** 16/07/2026
 
+**Situação em 17/07/2026:** a arquitetura de informação **Gestão por Prioridades** foi implementada. Entraram em produção o menu agrupado, a Área de Trabalho, as abas de Desempenho, Gestão de Dados e Administração/Base SEI, além dos novos rótulos Inconsistências e Pessoas. Rotas, filtros, APIs e automações foram preservados. As demais recomendações visuais deste relatório continuam como backlog incremental e não devem ser interpretadas como já entregues.
+
 **Escopo:** arquitetura de informação, navegação, layout, filtros, tabelas, gráficos, responsividade e consistência visual.
 
 **Premissa:** preservar a identidade central do AnalyticSEI: azul institucional, laranja, amarelo, fundos claros, tipografia Plus Jakarta Sans e caráter operacional.
