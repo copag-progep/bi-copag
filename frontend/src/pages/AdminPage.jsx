@@ -4,6 +4,7 @@ import api from "../api/client";
 import DataTable from "../components/DataTable";
 import LoadingBlock from "../components/LoadingBlock";
 import StatCard from "../components/StatCard";
+import WorkspaceTabs from "../components/WorkspaceTabs";
 import { useAuth } from "../context/AuthContext";
 import { normalizeUploadsPayload } from "../utils/uploadsPayload";
 
@@ -411,6 +412,14 @@ export default function AdminPage() {
 
   return (
     <div className="page-grid">
+
+      <WorkspaceTabs
+        label="Área de administração"
+        tabs={[
+          { to: "/administracao", label: "Sistema", icon: "⚙" },
+          { to: "/usuarios-sei", label: "Base SEI", icon: "◎" },
+        ]}
+      />
 
       {/* ── Hero ───────────────────────────────────────────────────────── */}
       <section className="hero-panel ms-hero">

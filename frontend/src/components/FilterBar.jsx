@@ -2,19 +2,22 @@ import { useFilters } from "../context/FiltersContext";
 
 
 export default function FilterBar() {
-  const { filters, options, setFilter, clearFilters } = useFilters();
+  const { filters, options, optionsLoading, setFilter, clearFilters } = useFilters();
 
   const setorRestrito = options.setor_restrito === true;
   const setoresVisiveis = setorRestrito
     ? (options.setores_do_usuario || [])
     : [...new Set(["DIAPE", "DICAT", "DIJOR", "DICAF", "DICAF-CHEFIA", "DICAF-REPOSICOES", ...options.setores])].filter(Boolean);
+  const hasActiveFilters = Boolean(
+    filters.data_inicial || filters.data_final || filters.setor || filters.tipo || filters.atribuicao
+  );
 
   return (
     <section className="filter-bar">
       <div className="filter-header">
         <div>
           <p className="eyebrow">Filtros</p>
-          <h2>Recorte analítico</h2>
+          <h2>Recorte operacional</h2>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
           {setorRestrito && setoresVisiveis.length > 0 && (
@@ -34,9 +37,10 @@ export default function FilterBar() {
               Sem acesso a divisões
             </span>
           )}
-          <button type="button" className="ghost-button" onClick={clearFilters}>
-            Limpar filtros
-          </button>
+          {optionsLoading ? <span className="filter-loading">Atualizando opções...</span> : null}
+          {hasActiveFilters ? (
+            <button type="button" className="ghost-button" onClick={clearFilters}>Limpar filtros</button>
+          ) : null}
         </div>
       </div>
 

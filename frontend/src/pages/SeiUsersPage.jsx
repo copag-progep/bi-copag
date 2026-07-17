@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import * as XLSX from "xlsx";
 
 import api from "../api/client";
+import WorkspaceTabs from "../components/WorkspaceTabs";
 import DataTable from "../components/DataTable";
 import LoadingBlock from "../components/LoadingBlock";
 import { useAuth } from "../context/AuthContext";
@@ -374,6 +375,13 @@ export default function SeiUsersPage() {
 
   return (
     <div className="page-grid">
+      <WorkspaceTabs
+        label="Área de administração"
+        tabs={[
+          { to: "/administracao", label: "Sistema", icon: "⚙" },
+          { to: "/usuarios-sei", label: "Base SEI", icon: "◎" },
+        ]}
+      />
       <section className="hero-panel">
         <div>
           <p className="eyebrow">Usuários SEI</p>

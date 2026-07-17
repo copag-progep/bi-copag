@@ -3,6 +3,7 @@ import LineChartCard from "../charts/LineChartCard";
 import DataTable from "../components/DataTable";
 import ErrorBlock from "../components/ErrorBlock";
 import LoadingBlock from "../components/LoadingBlock";
+import PerformanceTabs from "../components/PerformanceTabs";
 import StatCard from "../components/StatCard";
 import { useFilters } from "../context/FiltersContext";
 import { useAnalyticsData } from "../hooks/useAnalyticsData";
@@ -64,14 +65,15 @@ export default function ProductivityPage() {
     toQueryParams()
   );
 
-  if (loading) return <LoadingBlock label="Calculando produtividade por atribuição..." />;
-  if (error) return <ErrorBlock message={error} onRetry={retry} />;
+  if (loading) return <div className="page-grid"><PerformanceTabs /><LoadingBlock label="Calculando produtividade por atribuição..." /></div>;
+  if (error) return <div className="page-grid"><PerformanceTabs /><ErrorBlock message={error} onRetry={retry} /></div>;
 
   const maiorProdutor = data?.maior_produtor;
   const top3 = (data?.producao_por_atribuicao || []).slice(0, 3).filter(item => item.value > 0);
 
   return (
     <div className="page-grid">
+      <PerformanceTabs />
       <section className="hero-panel ms-hero">
         <div className="ms-hero-body">
           <p className="eyebrow">Produtividade</p>

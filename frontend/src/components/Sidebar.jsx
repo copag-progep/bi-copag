@@ -1,4 +1,4 @@
-import { NavLink } from "react-router-dom";
+import { NavLink, useLocation } from "react-router-dom";
 
 import { useAuth } from "../context/AuthContext";
 
@@ -43,32 +43,49 @@ function Icon({ name, size = 18 }) {
   );
 }
 
-const menuItems = [
-  { to: "/executivo",           label: "Central Executiva",  icon: "executive" },
-  { to: "/",                    label: "Dashboard",           icon: "dashboard", end: true },
-  { to: "/enviar-relatorio",    label: "Enviar Relatório",    icon: "upload", requiresUpload: true },
-  { to: "/entradas-saidas",     label: "Entradas e Saídas",   icon: "flow" },
-  { to: "/produtividade",       label: "Produtividade",       icon: "prod" },
-  { to: "/multiplos-setores",   label: "Múltiplos Setores",   icon: "multi" },
-  { to: "/atribuicoes",         label: "Atribuições",          icon: "atribuicoes" },
-  { to: "/risco",               label: "Score de Risco",       icon: "risco" },
-  { to: "/pauta",               label: "Pauta Prioritária",    icon: "pauta" },
-  { to: "/servidores",          label: "Servidores",           icon: "servidores" },
-  { to: "/indicadores-mensais", label: "Indicadores Mensais", icon: "monthly" },
-  { to: "/minha-conta",         label: "Minha Conta",          icon: "profile" },
-  { to: "/documentacao",        label: "Documentação",         icon: "docs" },
-  { to: "/usuarios-sei",        label: "Usuários SEI",        icon: "users",  adminOnly: true },
-  { to: "/administracao",       label: "Administração",       icon: "admin",  adminOnly: true },
+const menuGroups = [
+  {
+    label: "Operacional",
+    items: [
+      { to: "/",              label: "Área de Trabalho",  icon: "dashboard", end: true },
+      { to: "/executivo",     label: "Central Executiva", icon: "executive" },
+      { to: "/pauta",         label: "Pauta Prioritária", icon: "pauta" },
+      { to: "/risco",         label: "Score de Risco",    icon: "risco" },
+      { to: "/atribuicoes",   label: "Atribuições",       icon: "atribuicoes" },
+    ],
+  },
+  {
+    label: "Análise",
+    items: [
+      { to: "/entradas-saidas",     label: "Desempenho",          icon: "flow", activePaths: ["/entradas-saidas", "/produtividade"] },
+      { to: "/multiplos-setores",   label: "Inconsistências",     icon: "multi" },
+      { to: "/servidores",          label: "Pessoas",             icon: "servidores" },
+      { to: "/indicadores-mensais", label: "Indicadores Mensais", icon: "monthly" },
+    ],
+  },
+  {
+    label: "Administração",
+    items: [
+      { to: "/enviar-relatorio", label: "Gestão de Dados", icon: "upload", requiresUpload: true },
+      { to: "/administracao",    label: "Administração",  icon: "admin", adminOnly: true, activePaths: ["/administracao", "/usuarios-sei"] },
+    ],
+  },
+];
+
+const utilityItems = [
+  { to: "/minha-conta",  label: "Minha Conta",  icon: "profile" },
+  { to: "/documentacao", label: "Documentação", icon: "docs" },
 ];
 
 
 export default function Sidebar({ open, collapsed, onClose, onToggleCollapse }) {
   const { user } = useAuth();
-  const visibleItems = menuItems.filter((item) => {
+  const { pathname } = useLocation();
+  const canSee = (item) => {
     if (item.adminOnly && !user?.is_admin) return false;
     if (item.requiresUpload && !user?.is_admin && !user?.can_upload) return false;
     return true;
-  });
+  };
 
   return (
     <aside className={`sidebar ${open ? "open" : ""} ${collapsed ? "collapsed" : ""}`}>
@@ -97,26 +114,30 @@ export default function Sidebar({ open, collapsed, onClose, onToggleCollapse }) 
       </div>
 
       <div className="sidebar-scroll">
-        <nav className="menu">
-          {visibleItems.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              end={item.end}
-              onClick={onClose}
-              title={collapsed ? item.label : undefined}
-              className={({ isActive }) => `menu-link ${isActive ? "active" : ""}`}
-            >
-              <Icon name={item.icon} size={18} />
-              {collapsed ? (
-                <span style={{ fontSize: "0.55rem", fontWeight: 700, letterSpacing: "0.04em" }}>
-                  {item.label.substring(0, 2).toUpperCase()}
-                </span>
-              ) : (
-                item.label
-              )}
-            </NavLink>
-          ))}
+        <nav className="menu" aria-label="Navegação principal">
+          {menuGroups.map((group) => {
+            const items = group.items.filter(canSee);
+            if (items.length === 0) return null;
+            return (
+              <div className="menu-group" key={group.label}>
+                {!collapsed ? <p className="menu-group-label">{group.label}</p> : <span className="menu-group-divider" />}
+                {items.map((item) => (
+                  <NavLink
+                    key={item.to}
+                    to={item.to}
+                    end={item.end}
+                    onClick={onClose}
+                    title={collapsed ? item.label : undefined}
+                    aria-label={collapsed ? item.label : undefined}
+                    className={({ isActive }) => `menu-link ${isActive || item.activePaths?.includes(pathname) ? "active" : ""}`}
+                  >
+                    <Icon name={item.icon} size={18} />
+                    {!collapsed ? <span>{item.label}</span> : null}
+                  </NavLink>
+                ))}
+              </div>
+            );
+          })}
         </nav>
       </div>
 
@@ -124,6 +145,14 @@ export default function Sidebar({ open, collapsed, onClose, onToggleCollapse }) 
         <div className="sidebar-user">
           <div className="user-name">{user?.name || user?.email || "Usuário"}</div>
           <div className="user-role">{user?.is_admin ? "Administrador" : "Servidor"}</div>
+          <div className="sidebar-utilities">
+            {utilityItems.map((item) => (
+              <NavLink key={item.to} to={item.to} onClick={onClose} className="sidebar-utility-link">
+                <Icon name={item.icon} size={14} />
+                {item.label}
+              </NavLink>
+            ))}
+          </div>
           <NavLink to="/logout" className="sidebar-logout" onClick={onClose}>
             <Icon name="logout" size={14} />
             Sair

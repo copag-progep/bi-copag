@@ -62,6 +62,7 @@ export default function UploadPage() {
   const [deletingUploadId, setDeletingUploadId] = useState(null);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [dataSection, setDataSection] = useState("novo");
 
   useEffect(() => {
     if (!setores.length) return;
@@ -305,6 +306,10 @@ export default function UploadPage() {
 
   return (
     <div className="page-grid">
+      <nav className="workspace-tabs" aria-label="Gestão de dados">
+        <a className={`workspace-tab ${dataSection === "novo" ? "active" : ""}`} href="#novo-envio" onClick={() => setDataSection("novo")}><span className="workspace-tab-icon" aria-hidden="true">↑</span>Novo envio</a>
+        <a className={`workspace-tab ${dataSection === "historico" ? "active" : ""}`} href="#historico-uploads" onClick={() => setDataSection("historico")}><span className="workspace-tab-icon" aria-hidden="true">↻</span>Histórico</a>
+      </nav>
       <section className="hero-panel">
         <div>
           <p className="eyebrow">Envio diário</p>
@@ -313,7 +318,7 @@ export default function UploadPage() {
         </div>
       </section>
 
-      <section className="panel">
+      <section className="panel" id="novo-envio">
         <form className="form-grid" onSubmit={handleSubmit}>
           <label className="field">
             <span>Setor</span>
@@ -356,7 +361,7 @@ export default function UploadPage() {
         </form>
       </section>
 
-      <section className="panel">
+      <section className="panel" id="historico-uploads">
         <div className="panel-header">
           <div>
             <h3>Histórico recente de uploads</h3>

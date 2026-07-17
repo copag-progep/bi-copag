@@ -1,3 +1,5 @@
+import { Link } from "react-router-dom";
+
 import BarChartCard from "../charts/BarChartCard";
 import LineChartCard from "../charts/LineChartCard";
 import PieChartCard from "../charts/PieChartCard";
@@ -47,59 +49,57 @@ export default function DashboardPage() {
   const duplicidades = data?.kpis?.duplicidades_multissetor ?? 0;
 
   return (
-    <div className="page-grid">
-      <section className="hero-panel ms-hero">
-        <div className="ms-hero-body">
-          <p className="eyebrow">Dashboard principal</p>
-          <h1>Visão geral da tramitação de processos</h1>
-          <p className="ms-hero-sub">
-            Data de referência: {data?.data_referencia || "Sem snapshots importados"}
-          </p>
-          {duplicidades > 0 && (
-            <p className="ms-hero-breakdown">
-              <span className="dash-alert-pill">
-                ⚠ {duplicidades} {duplicidades === 1 ? "processo" : "processos"} em múltiplos setores
+    <div className="page-grid priority-workspace">
+      <section className="priority-overview-grid">
+        <div className="priority-action-panel">
+          <div className="priority-action-heading">
+            <div>
+              <p className="eyebrow">Fila de ação imediata</p>
+              <h1>Exceções e prioridades</h1>
+              <p>Referência: {data?.data_referencia || "Sem snapshots importados"}</p>
+            </div>
+            {stale ? <span className="stale-badge">Atualizando...</span> : null}
+          </div>
+
+          <div className="priority-action-list">
+            <Link to="/multiplos-setores" className={`priority-action-item ${duplicidades > 0 ? "critical" : "resolved"}`}>
+              <span className="priority-action-icon"><IcoAlert /></span>
+              <span>
+                <strong>{duplicidades > 0 ? `${duplicidades} ${duplicidades === 1 ? "processo" : "processos"} em múltiplos setores` : "Nenhuma duplicidade entre setores"}</strong>
+                <small>{duplicidades > 0 ? "Requer conferência da tramitação atual." : "A consistência setorial está regular."}</small>
               </span>
-            </p>
-          )}
-          {stale && <span className="stale-badge">Atualizando...</span>}
+              <span className="priority-action-arrow" aria-hidden="true">→</span>
+            </Link>
+            <Link to="/risco" className="priority-action-item">
+              <span className="priority-action-icon"><IcoLayers /></span>
+              <span><strong>Revisar processos com maior risco</strong><small>Priorize tempo parado, tipo e grau calculado.</small></span>
+              <span className="priority-action-arrow" aria-hidden="true">→</span>
+            </Link>
+            <Link to="/pauta" className="priority-action-item">
+              <span className="priority-action-icon"><IcoFile /></span>
+              <span><strong>Acompanhar prazos da Pauta Prioritária</strong><small>Consulte sessões, responsáveis e itens pendentes.</small></span>
+              <span className="priority-action-arrow" aria-hidden="true">→</span>
+            </Link>
+          </div>
         </div>
-        <div className="ms-hero-kpi">
-          <span className="ms-hero-kpi-value">{data?.kpis?.total_processos_ativos ?? 0}</span>
-          <span className="ms-hero-kpi-label">processos ativos</span>
+
+        <div className="priority-kpi-rail" aria-label="Resumo do snapshot">
+          <StatCard icon={<IcoFile />} label="Processos ativos" value={data?.kpis?.total_processos_ativos ?? 0} hint="No snapshot atual" />
+          <StatCard icon={<IcoGrid />} label="Setores ativos" value={data?.kpis?.setores_ativos ?? 0} hint="Com processos no snapshot" />
+          <StatCard icon={<IcoLayers />} label="Registros totais" value={data?.kpis?.total_registros_snapshot ?? 0} hint="Linhas importadas" />
+          <StatCard icon={<IcoAlert />} label="Inconsistências" value={duplicidades} hint={duplicidades > 0 ? "Requer verificação" : "Consistente"} />
         </div>
       </section>
 
-      <section className="stats-grid">
-        <StatCard
-          icon={<IcoFile />}
-          label="Processos ativos"
-          value={data?.kpis?.total_processos_ativos ?? 0}
-          hint="No snapshot atual"
-        />
-        <StatCard
-          icon={<IcoLayers />}
-          label="Registros no snapshot"
-          value={data?.kpis?.total_registros_snapshot ?? 0}
-          hint="Total de linhas importadas"
-        />
-        <StatCard
-          icon={<IcoGrid />}
-          label="Setores ativos"
-          value={data?.kpis?.setores_ativos ?? 0}
-          hint="Com processos no snapshot"
-        />
-        <StatCard
-          icon={<IcoAlert />}
-          label="Em múltiplos setores"
-          value={duplicidades}
-          hint={duplicidades > 0 ? "Requer verificação" : "Consistente"}
-        />
+      <section className="workspace-shortcuts" aria-label="Atalhos operacionais">
+        <Link to="/atribuicoes"><strong>Atribuições</strong><span>Gerir carteiras e incluir processos em pauta</span></Link>
+        <Link to="/entradas-saidas"><strong>Desempenho</strong><span>Acompanhar fluxo e produtividade diária</span></Link>
+        <Link to="/servidores"><strong>Pessoas</strong><span>Comparar carga de trabalho e perfis</span></Link>
       </section>
 
       <section className="charts-grid">
-        <BarChartCard title="Processos por setor" data={data?.por_setor || []} />
-        <PieChartCard title="Processos por tipo" data={(data?.por_tipo || []).slice(0, 8)} />
+        <BarChartCard title="Distribuição por setor" data={data?.por_setor || []} />
+        <PieChartCard title="Composição por tipo" data={(data?.por_tipo || []).slice(0, 8)} />
         <BarChartCard
           title="Ranking de atribuições"
           data={(data?.ranking_atribuicoes || []).slice(0, 10)}

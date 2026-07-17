@@ -13,6 +13,7 @@ backend/data/
 node_modules/
 frontend/node_modules/
 frontend/dist/
+.superdesign/
 .DS_Store
 ListaProcessos_SEIPro_*.csv
 SEI/

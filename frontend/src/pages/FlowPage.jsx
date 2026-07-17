@@ -3,6 +3,7 @@ import LineChartCard from "../charts/LineChartCard";
 import DataTable from "../components/DataTable";
 import ErrorBlock from "../components/ErrorBlock";
 import LoadingBlock from "../components/LoadingBlock";
+import PerformanceTabs from "../components/PerformanceTabs";
 import StatCard from "../components/StatCard";
 import { useFilters } from "../context/FiltersContext";
 import { useAnalyticsData } from "../hooks/useAnalyticsData";
@@ -32,8 +33,8 @@ export default function FlowPage() {
     toQueryParams()
   );
 
-  if (loading) return <LoadingBlock label="Calculando entradas e saídas..." />;
-  if (error) return <ErrorBlock message={error} onRetry={retry} />;
+  if (loading) return <div className="page-grid"><PerformanceTabs /><LoadingBlock label="Calculando entradas e saídas..." /></div>;
+  if (error) return <div className="page-grid"><PerformanceTabs /><ErrorBlock message={error} onRetry={retry} /></div>;
 
   const totalEntradas = (data?.resumo_setorial || []).reduce((acc, item) => acc + item.entradas, 0);
   const totalSaidas   = (data?.resumo_setorial || []).reduce((acc, item) => acc + item.saidas, 0);
@@ -42,6 +43,7 @@ export default function FlowPage() {
 
   return (
     <div className="page-grid">
+      <PerformanceTabs />
       <section className="hero-panel flow-hero">
         <div className="ms-hero-body">
           <p className="eyebrow">Entradas e saídas</p>
