@@ -24,6 +24,7 @@ from .analytics import (
     get_dashboard_data,
     get_entries_exits_data,
     get_filter_options,
+    get_flow_details_data,
     get_forecast_data,
     get_lead_time_data,
     get_multi_sector_data,
@@ -2855,6 +2856,67 @@ def entries_exits(
 ):
     filters = build_filters_for_user(current_user, db, data_referencia, data_inicial, data_final, setor, tipo, atribuicao)
     return JSONResponse(get_entries_exits_data(db, filters))
+
+
+@app.get("/api/analytics/flow-details")
+def flow_details(
+    data_referencia: date | None = None,
+    data_inicial: date | None = None,
+    data_final: date | None = None,
+    setor: str | None = None,
+    tipo: str | None = None,
+    atribuicao: str | None = None,
+    fluxo: Literal["todos", "entrada", "saida"] = Query("todos"),
+    protocolo_busca: str | None = Query(None),
+    sort_by: Literal["protocolo", "atribuicao", "tipo", "setor", "fluxo"] = Query("fluxo"),
+    sort_dir: Literal["asc", "desc"] = Query("asc"),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=200),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    filters = build_filters_for_user(
+        current_user, db, data_referencia, data_inicial, data_final, setor, tipo, atribuicao
+    )
+    result = get_flow_details_data(db, filters)
+    items = result["movimentacoes"]
+    total_entradas = sum(item["fluxo"] == "entrada" for item in items)
+    total_saidas = sum(item["fluxo"] == "saida" for item in items)
+
+    if fluxo != "todos":
+        items = [item for item in items if item["fluxo"] == fluxo]
+    if protocolo_busca:
+        busca = protocolo_busca.strip().casefold()
+        items = [item for item in items if busca in item["protocolo"].casefold()]
+
+    reverse = sort_dir == "desc"
+    items = sorted(
+        items,
+        key=lambda item: (
+            str(item.get(sort_by) or "").casefold(),
+            item["setor"].casefold(),
+            item["protocolo"].casefold(),
+        ),
+        reverse=reverse,
+    )
+    total = len(items)
+    total_pages = max((total + page_size - 1) // page_size, 1)
+    page = min(page, total_pages)
+    start = (page - 1) * page_size
+
+    return JSONResponse({
+        "data_referencia": result["data_referencia"],
+        "data_anterior": result["data_anterior"],
+        "comparacao_disponivel": result["comparacao_disponivel"],
+        "setores_sem_base_anterior": result["setores_sem_base_anterior"],
+        "items": items[start:start + page_size],
+        "page": page,
+        "page_size": page_size,
+        "total": total,
+        "total_pages": total_pages,
+        "total_entradas": total_entradas,
+        "total_saidas": total_saidas,
+    })
 
 
 @app.get("/api/analytics/productivity")

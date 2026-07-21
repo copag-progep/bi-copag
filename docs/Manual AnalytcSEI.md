@@ -662,6 +662,28 @@ Colunas:
 - Saldo
 - Carga atual
 
+Se não houver snapshot anterior, a tela informa que a comparação ainda não está disponível e mantém entradas e saídas zeradas. Quando um setor não possuir base na data anterior global, um aviso identifica a limitação metodológica.
+
+---
+
+## 9.1. Desempenho — aba Movimentações
+
+### Objetivo da tela
+
+Detalhar os processos que formam os totais da aba Fluxo. A tabela compara os mesmos dois snapshots e lista:
+
+- Protocolo.
+- Atribuição normalizada pelo DE-PARA da Base SEI.
+- Tipo de processo.
+- Setor.
+- Fluxo: Entrada ou Saída.
+
+Uma **entrada** usa os dados do snapshot atual. Uma **saída** usa os últimos dados conhecidos no snapshot anterior. Transferências entre divisões geram uma saída no setor de origem e uma entrada no setor de destino.
+
+Mudanças de atribuição ou tipo dentro do mesmo setor não são classificadas como movimentação. Primeiro o sistema compara a presença por `protocolo + setor`; depois aplica os filtros de tipo e atribuição.
+
+Todas as colunas podem ser ordenadas em ambos os sentidos. A busca por protocolo, o controle `Todos | Entradas | Saídas` e a paginação são executados no servidor e respeitam o escopo de divisões do usuário.
+
 ---
 
 ## 10. Desempenho — aba Produtividade

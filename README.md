@@ -13,7 +13,7 @@ Plataforma web de Business Intelligence desenvolvida para a **COPAG (Coordenador
 |---|---|
 | **Área de Trabalho** | Fila acionável de prioridades, panorama operacional e atalhos para os fluxos mais usados |
 | **Central Executiva** | Tela única com prioridades do dia, saúde dos dados, KPIs principais e sparklines de tendência |
-| **Desempenho** | Abas de Fluxo e Produtividade com comparativos entre snapshots, produção estimada e evolução por servidor |
+| **Desempenho** | Abas de Fluxo, Movimentações e Produtividade, com resumo setorial, lista dos processos que entraram/saíram e evolução por servidor |
 | **Tempo de permanência** | Lead time estimado dos processos que saíram da carteira, com média, mediana, P90, faixas por duração e ranking por setor |
 | **Tendências estimadas** | Forecasting simples na Central Executiva: projeção de estoque ativo, tendência por setor e estimativa de críticos |
 | **Score de Risco** | Ranking de processos por prioridade de atenção, com explicação dos fatores do score |

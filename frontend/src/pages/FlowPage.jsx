@@ -77,6 +77,20 @@ export default function FlowPage() {
         </div>
       </section>
 
+      {data?.comparacao_disponivel === false ? (
+        <section className="flow-comparison-notice neutral" role="status">
+          <strong>Comparação ainda indisponível</strong>
+          <span>Não há snapshot anterior para comparar com {data?.data_referencia || "a referência selecionada"}. Os indicadores de entrada e saída permanecem zerados.</span>
+        </section>
+      ) : null}
+
+      {data?.setores_sem_base_anterior?.length ? (
+        <section className="flow-comparison-notice warning" role="status">
+          <strong>Base anterior incompleta</strong>
+          <span>{data.setores_sem_base_anterior.join(", ")} não possui snapshot na data anterior. Os registros atuais desses setores são tratados como entradas de base.</span>
+        </section>
+      ) : null}
+
       <section className="stats-grid stats-grid-3">
         <StatCard
           icon={<IcoArrowIn />}

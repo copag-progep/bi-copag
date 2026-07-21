@@ -7,6 +7,7 @@ Executar: python backend/tests/test_pauta_rules.py
 import os
 import sys
 from datetime import date, timedelta
+from itertools import count
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
@@ -39,6 +40,7 @@ Base.metadata.create_all(_engine)
 _Session = sessionmaker(bind=_engine)
 
 HOJE = date.today()
+_USER_SEQUENCE = count(1)
 
 
 def _sessao(db, ativa=True, inicio=None, fim=None):
@@ -76,9 +78,10 @@ def _processo(db, protocolo, setor, atribuicao, atribuicao_normalizada, data_rel
 
 
 def _admin(db):
+    sequence = next(_USER_SEQUENCE)
     user = User(
         name="Admin Teste",
-        email=f"admin-{id(db)}@teste.local",
+        email=f"admin-{sequence}@teste.local",
         password_hash="x",
         is_admin=True,
     )
@@ -88,9 +91,10 @@ def _admin(db):
 
 
 def _user(db, name="Responsável Teste"):
+    sequence = next(_USER_SEQUENCE)
     user = User(
         name=name,
-        email=f"{name}-{id(db)}-{name}@teste.local".replace(" ", "").lower(),
+        email=f"{name}-{sequence}@teste.local".replace(" ", "").lower(),
         password_hash="x",
         is_admin=False,
     )

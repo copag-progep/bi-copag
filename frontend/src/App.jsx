@@ -11,6 +11,7 @@ const ExecutivePage      = lazy(() => import("./pages/ExecutivePage"));
 const DashboardPage      = lazy(() => import("./pages/DashboardPage"));
 const UploadPage         = lazy(() => import("./pages/UploadPage"));
 const FlowPage           = lazy(() => import("./pages/FlowPage"));
+const FlowDetailsPage    = lazy(() => import("./pages/FlowDetailsPage"));
 const ProductivityPage   = lazy(() => import("./pages/ProductivityPage"));
 const MultiSectorPage    = lazy(() => import("./pages/MultiSectorPage"));
 const AttributionsPage   = lazy(() => import("./pages/AttributionsPage"));
@@ -44,6 +45,7 @@ export default function App() {
           <Route index element={<DashboardPage />} />
           <Route path="enviar-relatorio"    element={<UploadPage />} />
           <Route path="entradas-saidas"     element={<FlowPage />} />
+          <Route path="movimentacoes"       element={<FlowDetailsPage />} />
           <Route path="produtividade"       element={<ProductivityPage />} />
           <Route path="multiplos-setores"   element={<MultiSectorPage />} />
           <Route path="atribuicoes"         element={<AttributionsPage />} />

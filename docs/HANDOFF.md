@@ -909,6 +909,7 @@ Observacao:
 
 - `GET /api/analytics/dashboard`
 - `GET /api/analytics/entries-exits`
+- `GET /api/analytics/flow-details`
 - `GET /api/analytics/productivity`
 - `GET /api/analytics/stale`
 - `GET /api/analytics/multi-sector`
@@ -1000,6 +1001,7 @@ Rotas principais:
 - `/`
 - `/enviar-relatorio`
 - `/entradas-saidas`
+- `/movimentacoes`
 - `/produtividade`
 - `/processos-parados`
 - `/multiplos-setores`
@@ -1160,6 +1162,26 @@ Consome:
 - `/analytics/entries-exits`
 
 Na interface, a rota aparece como a aba **Fluxo** da area **Desempenho**, por meio de `PerformanceTabs.jsx`.
+
+O resumo da transicao atual e derivado da mesma classificacao usada pela aba Movimentacoes. A presenca e comparada por `protocolo+setor` antes dos filtros de tipo/atribuicao, evitando fluxo falso quando muda apenas a atribuicao.
+
+### 19.4.1 Movimentacoes
+
+Arquivo:
+
+- `frontend/src/pages/FlowDetailsPage.jsx`
+
+Consome:
+
+- `/analytics/flow-details`
+
+Entrega:
+
+- lista paginada de protocolos que entraram ou sairam entre os snapshots
+- atribuicao normalizada, tipo, setor e badge de fluxo
+- busca, filtro Entrada/Saida e ordenacao server-side
+- aviso de comparacao indisponivel ou setor sem base anterior
+- recorte integral por `setores_permitidos`
 
 ### 19.5 Produtividade
 

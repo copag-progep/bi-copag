@@ -57,7 +57,7 @@ const menuGroups = [
   {
     label: "Análise",
     items: [
-      { to: "/entradas-saidas",     label: "Desempenho",          icon: "flow", activePaths: ["/entradas-saidas", "/produtividade"] },
+      { to: "/entradas-saidas",     label: "Desempenho",          icon: "flow", activePaths: ["/entradas-saidas", "/movimentacoes", "/produtividade"] },
       { to: "/multiplos-setores",   label: "Inconsistências",     icon: "multi" },
       { to: "/servidores",          label: "Pessoas",             icon: "servidores" },
       { to: "/indicadores-mensais", label: "Indicadores Mensais", icon: "monthly" },

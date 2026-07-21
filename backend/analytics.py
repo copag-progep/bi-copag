@@ -86,6 +86,7 @@ PROCESS_FIELD_DEFAULTS = {
 }
 
 FLOW_FIELDS = ["protocolo", "setor", "data_relatorio"]
+FLOW_DETAIL_FIELDS = ["protocolo", "atribuicao", "tipo", "setor", "data_relatorio"]
 SPAN_FIELDS = ["protocolo", "atribuicao", "tipo", "setor", "data_relatorio"]
 ASSIGNMENT_FIELDS = ["protocolo", "atribuicao", "setor", "data_relatorio"]
 ATTRIBUTION_FIELDS = ["protocolo", "atribuicao", "tipo", "setor", "data_relatorio"]
@@ -712,32 +713,132 @@ def get_dashboard_data(db: Session, filters: AnalyticsFilters) -> dict:
     return _cached_response(db, "dashboard", filters, build)
 
 
+def _flow_content_matches(row: dict, filters: AnalyticsFilters) -> bool:
+    """Aplica filtros de conteúdo depois que a movimentação foi classificada."""
+    if filters.tipo and row.get("tipo") != filters.tipo:
+        return False
+    if filters.atribuicao == "__sem_atribuicao__":
+        return not row.get("atribuicao")
+    if filters.atribuicao and row.get("atribuicao") != filters.atribuicao:
+        return False
+    return True
+
+
+def _flow_item(row: dict, fluxo: str) -> dict:
+    return {
+        "protocolo": row["protocolo"],
+        "atribuicao": row.get("atribuicao") or "Sem atribuição",
+        "tipo": row.get("tipo") or "Não informado",
+        "setor": row["setor"],
+        "fluxo": fluxo,
+    }
+
+
+def _classify_flow_movements(
+    current_rows: list[dict],
+    previous_rows: list[dict],
+    filters: AnalyticsFilters,
+) -> list[dict]:
+    """Classifica a transição por protocolo+setor e só então filtra conteúdo.
+
+    A linha atual representa uma entrada; a anterior representa uma saída. Assim,
+    troca de atribuição/tipo dentro do mesmo setor não cria movimentação falsa.
+    """
+    current = {(row["protocolo"], row["setor"]): row for row in current_rows}
+    previous = {(row["protocolo"], row["setor"]): row for row in previous_rows}
+
+    movements: list[dict] = []
+    for key in sorted(current.keys() - previous.keys()):
+        row = current[key]
+        if _flow_content_matches(row, filters):
+            movements.append(_flow_item(row, "entrada"))
+    for key in sorted(previous.keys() - current.keys()):
+        row = previous[key]
+        if _flow_content_matches(row, filters):
+            movements.append(_flow_item(row, "saida"))
+    return movements
+
+
+def _get_flow_transition(db: Session, filters: AnalyticsFilters) -> dict:
+    """Carrega somente os dois snapshots da transição atual e os classifica.
+
+    Datas e presença são resolvidas sem filtros de tipo/atribuição. O escopo por
+    divisão, o setor selecionado e o recorte temporal permanecem preservados.
+    """
+    effective = _effective_filters(filters)
+    presence_filters = replace(effective, tipo=None, atribuicao=None)
+    reference_date = _resolve_reference_date(db, presence_filters)
+    available_dates = _available_dates(db, presence_filters)
+    previous_date = _previous_date(available_dates, reference_date)
+
+    if not reference_date:
+        return {
+            "data_referencia": None,
+            "data_anterior": None,
+            "comparacao_disponivel": False,
+            "setores_sem_base_anterior": [],
+            "movimentacoes": [],
+            "resumo_setorial": [],
+        }
+
+    query = _base_query(db, presence_filters).filter(Processo.data_relatorio == reference_date)
+    if previous_date:
+        query = _base_query(db, presence_filters).filter(
+            Processo.data_relatorio.in_([previous_date, reference_date])
+        )
+
+    columns = [PROCESS_COLUMN_MAP[field].label(field) for field in FLOW_DETAIL_FIELDS]
+    rows = [dict(row._mapping) for row in query.with_entities(*columns).all()]
+    current_rows = [row for row in rows if row["data_relatorio"] == reference_date]
+    previous_rows = [row for row in rows if previous_date and row["data_relatorio"] == previous_date]
+
+    if not previous_date:
+        movements: list[dict] = []
+    else:
+        movements = _classify_flow_movements(current_rows, previous_rows, filters)
+
+    current_sectors = {row["setor"] for row in current_rows}
+    previous_sectors = {row["setor"] for row in previous_rows}
+    sectors_without_base = sorted(current_sectors - previous_sectors) if previous_date else []
+
+    current_filtered = [row for row in current_rows if _flow_content_matches(row, filters)]
+    previous_filtered = [row for row in previous_rows if _flow_content_matches(row, filters)]
+    sectors = sorted(
+        {row["setor"] for row in current_filtered}
+        | {row["setor"] for row in previous_filtered}
+        | {item["setor"] for item in movements}
+    )
+    resumo: list[dict] = []
+    for setor in sectors:
+        entradas = sum(item["setor"] == setor and item["fluxo"] == "entrada" for item in movements)
+        saidas = sum(item["setor"] == setor and item["fluxo"] == "saida" for item in movements)
+        carga_atual = sum(row["setor"] == setor for row in current_filtered)
+        resumo.append({
+            "setor": setor,
+            "entradas": entradas,
+            "saidas": saidas,
+            "saldo": entradas - saidas,
+            "carga_atual": carga_atual,
+        })
+
+    return {
+        "data_referencia": str(reference_date),
+        "data_anterior": str(previous_date) if previous_date else None,
+        "comparacao_disponivel": previous_date is not None,
+        "setores_sem_base_anterior": sectors_without_base,
+        "movimentacoes": movements,
+        "resumo_setorial": resumo,
+    }
+
+
 def get_entries_exits_data(db: Session, filters: AnalyticsFilters) -> dict:
     """Fluxo de entradas e saídas por setor entre snapshots consecutivos."""
     def build() -> dict:
+        transition = _get_flow_transition(db, filters)
         frame, reference_date, available_dates = _load_dataframe(db, filters, fields=FLOW_FIELDS)
-        previous_date = _previous_date(available_dates, reference_date)
         protocol_map = _protocols_by_date_and_sector(frame)
-        summary_days = {day for day in (reference_date, previous_date) if day}
-        summary_sectors = sorted({setor for (day, setor) in protocol_map.keys() if day in summary_days})
         all_sectors = sorted({setor for (_, setor) in protocol_map.keys()})
-
-        resumo: list[dict] = []
-        for setor in summary_sectors:
-            current_protocols = protocol_map.get((reference_date, setor), set())
-            previous_protocols = protocol_map.get((previous_date, setor), set()) if previous_date else set()
-            entradas = len(current_protocols - previous_protocols)
-            saidas = len(previous_protocols - current_protocols)
-            saldo = len(current_protocols) - len(previous_protocols)
-            resumo.append(
-                {
-                    "setor": setor,
-                    "entradas": entradas,
-                    "saidas": saidas,
-                    "saldo": saldo,
-                    "carga_atual": len(current_protocols),
-                }
-            )
+        resumo = transition["resumo_setorial"]
 
         flow_series = []
         for idx, day in enumerate(available_dates):
@@ -757,8 +858,10 @@ def get_entries_exits_data(db: Session, filters: AnalyticsFilters) -> dict:
                 )
 
         return {
-            "data_referencia": str(reference_date) if reference_date else None,
-            "data_anterior": str(previous_date) if previous_date else None,
+            "data_referencia": transition["data_referencia"],
+            "data_anterior": transition["data_anterior"],
+            "comparacao_disponivel": transition["comparacao_disponivel"],
+            "setores_sem_base_anterior": transition["setores_sem_base_anterior"],
             "resumo_setorial": resumo,
             "entradas_por_setor": [{"label": item["setor"], "value": item["entradas"]} for item in resumo],
             "saidas_por_setor": [{"label": item["setor"], "value": item["saidas"]} for item in resumo],
@@ -767,6 +870,11 @@ def get_entries_exits_data(db: Session, filters: AnalyticsFilters) -> dict:
         }
 
     return _cached_response(db, "entries-exits", filters, build)
+
+
+def get_flow_details_data(db: Session, filters: AnalyticsFilters) -> dict:
+    """Movimentações detalhadas da mesma transição usada no resumo de fluxo."""
+    return _get_flow_transition(db, filters)
 
 
 def get_productivity_data(db: Session, filters: AnalyticsFilters) -> dict:

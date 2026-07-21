@@ -76,6 +76,12 @@ Compara o relatório atual com o relatório anterior e identifica:
 
 Serve para entender o fluxo diário, não apenas o estoque de processos.
 
+### 3.2.1 Desempenho — Movimentações
+
+Detalha os protocolos que formam os totais do Fluxo. A tabela mostra atribuição normalizada, tipo, setor e se o processo entrou ou saiu entre os dois snapshots, com busca, filtros e ordenação em todas as colunas.
+
+Uma transferência entre divisões aparece como saída no setor de origem e entrada no setor de destino. Mudanças apenas de atribuição dentro do mesmo setor não são contabilizadas como fluxo setorial.
+
 ### 3.3 Desempenho — Produtividade
 
 Analisa movimentações por atribuição/servidor, com foco em produção estimada, entradas, carga atual e evolução.
@@ -445,6 +451,7 @@ Ele guarda tanto dados operacionais, como processos e uploads, quanto dados admi
 | Pauta Prioritária | Lista semanal de processos críticos para acompanhamento, com cronograma, responsáveis, notas, PDF de reunião e resolução automática quando o processo sai do setor |
 | Gestão de Dados | Novo envio e histórico de uploads para usuários autorizados |
 | Desempenho — Fluxo | Análise do fluxo diário por setor |
+| Desempenho — Movimentações | Protocolos que entraram ou saíram entre os snapshots comparados |
 | Desempenho — Produtividade | Análise de produção por atribuição |
 | Processos Parados | Lista de processos com maior tempo sem movimentação |
 | Inconsistências | Processos presentes em mais de um setor, respeitando o escopo visível do usuário, com exportação Excel/PDF |

@@ -11,7 +11,7 @@ import TocSidebar from "./documentacao/TocSidebar";
 
 /* ── Dados ─────────────────────────────────────── */
 
-const DOC_VERSION = "2.5";
+const DOC_VERSION = "2.6";
 const DOC_UPDATED = "Julho 2026";
 const CHAPTER_COUNT = 12;
 const DATABASE_TABLE_COUNT = 12;
@@ -19,7 +19,7 @@ const DATABASE_TABLE_COUNT = 12;
 const FEATURES = [
   { icon: "🗂️", title: "Área de Trabalho", desc: "Fila acionável de prioridades, panorama operacional e atalhos para os fluxos mais usados" },
   { icon: "🎯", title: "Central Executiva", desc: "Prioridades do dia, saúde dos dados, KPIs principais, sparklines e tempo de permanência" },
-  { icon: "📊", title: "Desempenho", desc: "Abas de Fluxo e Produtividade com comparativos, rankings e evolução histórica" },
+  { icon: "📊", title: "Desempenho", desc: "Abas de Fluxo, Movimentações e Produtividade com resumo, protocolos movimentados e evolução histórica" },
   { icon: "⏱️", title: "Tempo de permanência", desc: "Lead time estimado com média, mediana, P90, faixas por duração e ranking por setor" },
   { icon: "📈", title: "Tendências estimadas", desc: "Forecasting simples com projeção de estoque ativo, tendência por setor e estimativa de críticos" },
   { icon: "🛡️", title: "Score de Risco", desc: "Ranking de processos por prioridade de atenção, com breakdown dos fatores do score" },
@@ -282,6 +282,7 @@ export default function DocumentacaoPage() {
                 ["GET", "/api/meta/options", "Opções de filtro já filtradas pelo escopo do usuário logado"],
                 ["GET", "/api/analytics/dashboard", "KPIs, distribuições, rankings"],
                 ["GET", "/api/analytics/entries-exits", "Entradas e saídas por setor"],
+                ["GET", "/api/analytics/flow-details", "Processos que entraram ou saíram, com ordenação e paginação"],
                 ["GET", "/api/analytics/productivity", "Produtividade por atribuição"],
                 ["GET", "/api/analytics/stale", "Processos parados"],
                 ["GET", "/api/analytics/multi-sector", "Processos em múltiplos setores"],
@@ -359,6 +360,7 @@ export default function DocumentacaoPage() {
                 { icon: "🎯", title: "/executivo · Central Executiva", desc: "Central de decisão com prioridades do dia, saúde dos dados, cards com sparklines, lead time e listas executivas" },
                 { icon: "📤", title: "/enviar-relatorio · Gestão de Dados", desc: "Abas Novo envio e Histórico; visível apenas para admins ou usuários com permissão de upload" },
                 { icon: "↔️", title: "/entradas-saidas · Desempenho / Fluxo", desc: "Entradas, saídas, saldo e evolução do fluxo por setor" },
+                { icon: "📑", title: "/movimentacoes · Desempenho / Movimentações", desc: "Tabela paginada e ordenável dos processos que entraram ou saíram entre os snapshots" },
                 { icon: "⚡", title: "/produtividade · Desempenho / Produtividade", desc: "Produção estimada, ranking acumulado e evolução histórica por servidor" },
                 { icon: "🔀", title: "/multiplos-setores · Inconsistências", desc: "Protocolos presentes em mais de um setor; detecção limitada ao escopo visível, busca local e exportação PDF/Excel" },
                 { icon: "📋", title: "/atribuicoes", desc: "Carteira com 6 faixas de criticidade, busca, filtros server-side, exportação PDF e Excel" },

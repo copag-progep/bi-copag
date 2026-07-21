@@ -2626,6 +2626,26 @@ button, input, select { font: inherit; }
   white-space: nowrap;
 }
 
+.data-table-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  cursor: pointer;
+}
+
+.data-table-sort:hover,
+.data-table-sort.active {
+  color: var(--primary);
+}
+
 .data-table tr:last-child td { border-bottom: none; }
 .data-table tr:hover td { background: var(--primary-light); }
 
@@ -3425,6 +3445,122 @@ button, input, select { font: inherit; }
   align-self: stretch;
 }
 
+.flow-comparison-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px 14px;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--panel);
+  color: var(--muted);
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+
+.flow-comparison-notice strong {
+  flex: 0 0 auto;
+  color: var(--ink);
+}
+
+.flow-comparison-notice.warning {
+  border-color: rgba(243, 147, 32, 0.28);
+  background: rgba(254, 187, 18, 0.09);
+}
+
+.flow-detail-header {
+  align-items: flex-end;
+  gap: 20px;
+}
+
+.flow-detail-segments {
+  display: inline-flex;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #f6f7fb;
+}
+
+.flow-detail-segments button {
+  min-height: 34px;
+  padding: 6px 11px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.flow-detail-segments button span {
+  margin-left: 5px;
+  opacity: 0.72;
+}
+
+.flow-detail-segments button.active {
+  background: var(--primary);
+  color: #fff;
+}
+
+.flow-detail-search {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 16px;
+}
+
+.flow-detail-search input {
+  min-width: 0;
+  flex: 1;
+  padding: 10px 13px;
+  border: 1.5px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: #fafbff;
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.875rem;
+}
+
+.flow-detail-search input:focus {
+  outline: 2px solid rgba(39, 49, 104, 0.14);
+  border-color: var(--primary);
+}
+
+.flow-detail-badge,
+.sector-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  border-radius: 7px;
+  font-size: 0.73rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.flow-detail-badge.entry {
+  color: var(--success);
+  background: rgba(26, 122, 80, 0.1);
+}
+
+.flow-detail-badge.exit {
+  color: #b8640a;
+  background: rgba(243, 147, 32, 0.12);
+}
+
+.sector-tag {
+  color: var(--primary);
+  background: var(--primary-light);
+}
+
+.flow-protocol {
+  color: var(--ink);
+  white-space: nowrap;
+}
+
 
 /* ══════════════════════════════════════════
    PRODUTIVIDADE — destaques e progress bar
@@ -3541,5 +3677,20 @@ button, input, select { font: inherit; }
     width: 100%;
     height: 1px;
     align-self: auto;
+  }
+
+  .flow-comparison-notice,
+  .flow-detail-header,
+  .flow-detail-search {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .flow-detail-segments {
+    width: 100%;
+  }
+
+  .flow-detail-segments button {
+    flex: 1;
   }
 }
