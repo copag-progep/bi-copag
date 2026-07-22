@@ -22,15 +22,6 @@ function flagRgb(days) {
   return [26, 122, 80];                   // ok
 }
 
-function flagLabel(days) {
-  if (days >= 90) return "90d+";
-  if (days >= 60) return "60–89d";
-  if (days >= 45) return "45–59d";
-  if (days >= 30) return "30–44d";
-  if (days >= 15) return "15–29d";
-  return "<15d";
-}
-
 /* ── Formatação de data ──────────────────────────── */
 function fmtDate(value) {
   if (!value) return "—";
@@ -115,12 +106,12 @@ function drawPageFooter(doc, pageNum, totalPages, PW, PH, ML) {
 
 /* ── Função principal exportada ──────────────────── */
 export function generateAttributionsPdf({ items, stats, dataReferencia, filtersText }) {
-  const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-  const PW = 210;
-  const PH = 297;
+  const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+  const PW = 297;
+  const PH = 210;
   const ML = 13;
   const MR = 13;
-  const CW = PW - ML - MR; // 184 mm
+  const CW = PW - ML - MR;
 
   /* ── 1. CABEÇALHO ─────────────────────────────── */
   drawPageHeader(doc, dataReferencia, PW, ML);
@@ -171,17 +162,19 @@ export function generateAttributionsPdf({ items, stats, dataReferencia, filtersT
   }
 
   /* ── 4. TABELA ───────────────────────────────── */
-  const COL_W = [48, 44, 34, 21, 20, 17]; // total = 184 = CW
+  const COL_W = [50, 44, 60, 20, 25, 20, 25, 20];
 
   doc.autoTable({
     startY: y,
     margin: { left: ML, right: MR, bottom: 14, top: 52 },
-    head: [["Atribuição", "Protocolo", "Tipo", "Setor", "Desde", "Dias"]],
+    head: [["Atribuição", "Protocolo", "Tipo", "Setor", "Entrada setor", "Dias setor", "Atribuído desde", "Dias atrib."]],
     body: items.map((item) => [
       item.atribuicao || "",
       item.protocolo || "",
       item.tipo || "—",
       item.setor || "",
+      fmtDate(item.entrada_setor),
+      item.dias_no_setor,
       fmtDate(item.entrada_atribuicao),
       item.dias_com_atribuicao,
     ]),
@@ -205,6 +198,8 @@ export function generateAttributionsPdf({ items, stats, dataReferencia, filtersT
       3: { cellWidth: COL_W[3], halign: "center" },
       4: { cellWidth: COL_W[4], halign: "center" },
       5: { cellWidth: COL_W[5], halign: "center" },
+      6: { cellWidth: COL_W[6], halign: "center" },
+      7: { cellWidth: COL_W[7], halign: "center" },
     },
     tableLineColor: BORDER,
     tableLineWidth: 0.15,
@@ -223,19 +218,19 @@ export function generateAttributionsPdf({ items, stats, dataReferencia, filtersT
           data.cell.text = ["Sem atribuição"];
         }
       }
-      // Coluna Dias: limpa o texto para desenho manual
-      if (data.column.index === 5) {
+      // Colunas de dias: limpa o texto para desenho manual
+      if (data.column.index === 5 || data.column.index === 7) {
         data.cell.text = [""];
       }
     },
 
     /* Desenho manual na coluna Dias */
     didDrawCell(data) {
-      if (data.section !== "body" || data.column.index !== 5) return;
+      if (data.section !== "body" || ![5, 7].includes(data.column.index)) return;
       const item = items[data.row.index];
       if (!item) return;
 
-      const days = item.dias_com_atribuicao;
+      const days = data.column.index === 5 ? item.dias_no_setor : item.dias_com_atribuicao;
       const color = flagRgb(days);
       const cx = data.cell.x + 4;
       const cy = data.cell.y + data.cell.height / 2;

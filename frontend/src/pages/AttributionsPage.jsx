@@ -232,8 +232,9 @@ export default function AttributionsPage() {
   const [data, setData]             = useState(null);
   const [page, setPage]             = useState(1);
   const [faixaIdx, setFaixaIdx]     = useState(0);
-  const [sortBy, setSortBy]         = useState("dias");
+  const [sortBy, setSortBy]         = useState("dias_setor");
   const [sortDir, setSortDir]       = useState("desc");
+  const [diasBase, setDiasBase]     = useState("setor");
   const [buscaInput, setBuscaInput] = useState("");
   const [buscaParam, setBuscaParam] = useState("");
   const [loading, setLoading]       = useState(true);
@@ -285,7 +286,7 @@ export default function AttributionsPage() {
   // Reset page quando qualquer filtro/ordenação muda
   useEffect(() => {
     setPage(1);
-  }, [filters, faixaIdx, sortBy, sortDir, buscaParam]);
+  }, [filters, faixaIdx, sortBy, sortDir, diasBase, buscaParam]);
 
   useEffect(() => {
     let cancelled = false;
@@ -307,6 +308,7 @@ export default function AttributionsPage() {
           page_size: PAGE_SIZE,
           sort_by: sortBy,
           sort_dir: sortDir,
+          dias_base: diasBase,
           ...(faixa.min != null  ? { min_dias: faixa.min }        : {}),
           ...(faixa.max != null  ? { max_dias: faixa.max }        : {}),
           ...(buscaParam         ? { protocolo_busca: buscaParam } : {}),
@@ -324,7 +326,7 @@ export default function AttributionsPage() {
 
     load();
     return () => { cancelled = true; };
-  }, [filters, page, faixaIdx, sortBy, sortDir, buscaParam, retryCount, waitingForDefaultSetor]);
+  }, [filters, page, faixaIdx, sortBy, sortDir, diasBase, buscaParam, retryCount, waitingForDefaultSetor]);
 
   function handleSort(col) {
     if (sortBy === col) {
@@ -344,7 +346,8 @@ export default function AttributionsPage() {
     const faixa = FAIXAS[faixaIdx];
     if (faixa.label !== "Todos") parts.push(`Faixa: ${faixa.label}`);
     if (buscaParam)         parts.push(`Protocolo: "${buscaParam}"`);
-    if (sortBy !== "dias")  parts.push(`Ordem: ${sortBy} ${sortDir === "asc" ? "↑" : "↓"}`);
+    if (faixa.label !== "Todos") parts.push(`Faixa calculada por: ${diasBase === "setor" ? "dias no setor" : "dias na atribuição"}`);
+    if (sortBy !== "dias_setor")  parts.push(`Ordem: ${sortBy} ${sortDir === "asc" ? "↑" : "↓"}`);
     return parts.length ? parts.join("  ·  ") : null;
   }
 
@@ -356,6 +359,7 @@ export default function AttributionsPage() {
       page_size: 5000,
       sort_by: sortBy,
       sort_dir: sortDir,
+      dias_base: diasBase,
       ...(faixa.min != null  ? { min_dias: faixa.min }        : {}),
       ...(faixa.max != null  ? { max_dias: faixa.max }        : {}),
       ...(buscaParam         ? { protocolo_busca: buscaParam } : {}),
@@ -374,7 +378,7 @@ export default function AttributionsPage() {
           total:    pdfData.total,
           totalCom: pdfData.total_com_atribuicao,
           totalSem: pdfData.total_sem_atribuicao,
-          maxDias:  pdfData.max_dias,
+          maxDias:  pdfData.max_dias_setor,
         },
         dataReferencia: pdfData.data_referencia,
         filtersText:    buildFiltersText(),
@@ -396,7 +400,7 @@ export default function AttributionsPage() {
           total:      pdfData.total,
           totalCom:   pdfData.total_com_atribuicao,
           totalSem:   pdfData.total_sem_atribuicao,
-          maxDias:    pdfData.max_dias,
+          maxDias:    pdfData.max_dias_setor,
         },
         dataReferencia: pdfData.data_referencia,
         filtersText:    buildFiltersText(),
@@ -433,8 +437,7 @@ export default function AttributionsPage() {
           <p className="eyebrow">Carteiras</p>
           <h1>Atribuições por processo</h1>
           <span>
-            Referência: {data?.data_referencia || "Sem dados"} — processos ordenados pelo
-            maior tempo com a mesma atribuição.
+            Referência: {data?.data_referencia || "Sem dados"} — permanência no setor e com a atribuição atual.
           </span>
         </div>
       </section>
@@ -444,14 +447,14 @@ export default function AttributionsPage() {
         <StatCard label="Com atribuição" value={data?.total_com_atribuicao ?? 0} />
         <StatCard label="Sem atribuição" value={data?.total_sem_atribuicao ?? 0} />
         <StatCard
-          label="Maior tempo registrado"
-          value={`${data?.max_dias ?? 0}d`}
+          label="Maior tempo no setor"
+          value={`${data?.max_dias_setor ?? 0}d`}
           hint={
-            (data?.max_dias ?? 0) >= 90 ? "Situação extrema"
-            : (data?.max_dias ?? 0) >= 60 ? "Crítico"
-            : (data?.max_dias ?? 0) >= 45 ? "Grave"
-            : (data?.max_dias ?? 0) >= 30 ? "Alerta"
-            : (data?.max_dias ?? 0) >= 15 ? "Atenção"
+            (data?.max_dias_setor ?? 0) >= 90 ? "Situação extrema"
+            : (data?.max_dias_setor ?? 0) >= 60 ? "Crítico"
+            : (data?.max_dias_setor ?? 0) >= 45 ? "Grave"
+            : (data?.max_dias_setor ?? 0) >= 30 ? "Alerta"
+            : (data?.max_dias_setor ?? 0) >= 15 ? "Atenção"
             : "Normal"
           }
         />
@@ -531,7 +534,13 @@ export default function AttributionsPage() {
           </div>
         </div>
 
-        {/* Linha 1: filtros de faixa + toggle sem atribuição */}
+        <div className="attribution-days-base" aria-label="Métrica usada nas faixas de tempo">
+          <span>Faixa por</span>
+          <button type="button" className={diasBase === "setor" ? "active" : ""} onClick={() => setDiasBase("setor")}>Dias no setor</button>
+          <button type="button" className={diasBase === "atribuicao" ? "active" : ""} onClick={() => setDiasBase("atribuicao")}>Dias na atribuição</button>
+        </div>
+
+        {/* Linha 1: filtros de faixa */}
         <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8, marginBottom: 10 }}>
           {FAIXAS.map((faixa, idx) => {
             const active = faixaIdx === idx;
@@ -637,13 +646,20 @@ export default function AttributionsPage() {
                   Tipo <SortIcon col="tipo" sortBy={sortBy} sortDir={sortDir} />
                 </th>
                 <th>Setor</th>
-                <th>Desde</th>
+                <th>Atribuído desde</th>
                 <th
                   style={{ cursor: "pointer", userSelect: "none", whiteSpace: "nowrap" }}
-                  onClick={() => handleSort("dias")}
-                  title="Ordenar por dias"
+                  onClick={() => handleSort("dias_setor")}
+                  title="Ordenar por dias no setor"
                 >
-                  Dias <SortIcon col="dias" sortBy={sortBy} sortDir={sortDir} />
+                  Dias setor <SortIcon col="dias_setor" sortBy={sortBy} sortDir={sortDir} />
+                </th>
+                <th
+                  style={{ cursor: "pointer", userSelect: "none", whiteSpace: "nowrap" }}
+                  onClick={() => handleSort("dias_atribuicao")}
+                  title="Ordenar por dias com a atribuição atual"
+                >
+                  Dias atribuição <SortIcon col="dias_atribuicao" sortBy={sortBy} sortDir={sortDir} />
                 </th>
                 <th style={{ whiteSpace: "nowrap" }}>
                   Risco
@@ -660,7 +676,7 @@ export default function AttributionsPage() {
             <tbody>
               {items.length === 0 ? (
                 <tr>
-                  <td colSpan={user?.is_admin ? 9 : 7} style={{ textAlign: "center", color: "var(--muted)", padding: "28px" }}>
+                  <td colSpan={user?.is_admin ? 10 : 8} style={{ textAlign: "center", color: "var(--muted)", padding: "28px" }}>
                     Nenhum processo encontrado com os filtros atuais.
                   </td>
                 </tr>
@@ -698,15 +714,18 @@ export default function AttributionsPage() {
                       {formatDate(item.entrada_atribuicao)}
                     </td>
                     <td>
+                      <DaysFlag days={item.dias_no_setor} />
+                    </td>
+                    <td>
                       <DaysFlag days={item.dias_com_atribuicao} />
                     </td>
                     <td>
                       <RiskBadgeInline nivel={riskMap[`${item.protocolo}|${item.setor}`]?.nivel} />
                     </td>
                     {user?.is_admin && (() => {
-                      // entrada_setor canônico do próprio endpoint (fallback: risk / entrada_atribuicao)
+                      // Identidade canônica: início real da passagem no setor.
                       const risk = riskMap[`${item.protocolo}|${item.setor}`];
-                      const entrada = item.entrada_setor || risk?.entrada_setor || item.entrada_atribuicao || null;
+                      const entrada = item.entrada_setor || risk?.entrada_setor || null;
                       const canon = pautaKey(item.protocolo, item.setor, entrada);
                       // Match pela chave canônica completa — não bloqueia re-ingresso legítimo
                       const naPautaEntry = naPautaMap[canon];
@@ -714,7 +733,7 @@ export default function AttributionsPage() {
                       const isSel = Boolean(selecionados[canon]);
                       const leve = {
                         ...item,
-                        dias_no_setor: item.dias_com_atribuicao,
+                        dias_no_setor: item.dias_no_setor,
                         entrada_setor: entrada,
                         score: risk?.score ?? null,
                         nivel: risk?.nivel ?? null,

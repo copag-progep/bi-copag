@@ -215,6 +215,14 @@ def run_noncritical_startup_tasks() -> None:
     finally:
         db.close()
 
+    db = SessionLocal()
+    try:
+        _reconcile_active_pauta_item_entries(db)
+    except Exception:
+        db.rollback()
+    finally:
+        db.close()
+
     if not DISABLE_STARTUP_PRECOMPUTE:
         precompute_analytics()
 
@@ -1178,21 +1186,21 @@ _SITUACAO_LABELS = {
 }
 
 
-def _atribuicao_atual_por_processo(db: Session, itens: list[PautaItem]) -> dict[tuple[str, str, object], str | None]:
-    """Atribuição atual no SEI para cada item, chaveada por (protocolo, setor, entrada_setor).
+def _estado_atual_por_processo(db: Session, itens: list[PautaItem]) -> dict[tuple[str, str, object], dict]:
+    """Estado atual de cada item na passagem corrente do processo pelo setor.
 
     Um item só recebe a atribuição atual quando é a PASSAGEM CORRENTE do processo:
     reconstrói o início da presença CONTÍNUA que chega ao último snapshot (usando
-    o índice de datas do setor para detectar gaps, como _build_presence_spans) e
-    só marca "atual" se esse início bater com item.entrada_setor.
+    o índice de datas do setor para detectar gaps, como _build_presence_spans).
+    Datas legadas que caem dentro da passagem corrente também são reconhecidas.
 
     Assim, um item histórico (processo que esteve no setor, saiu, e voltou depois
     numa NOVA passagem) nunca exibe a atribuição da passagem nova — mesmo que o
     processo tenha estado presente na data entrada_setor do item no passado.
 
-    A chave existir no dict = "atual, presente na passagem corrente" (valor pode
-    ser None sem normalização). Chave ausente → o chamador usa item.atribuicao
-    (fallback histórico). Prefere atribuicao_normalizada; se nula, usa texto bruto.
+    A chave existir no dict significa "presente na passagem corrente"; o valor
+    contém atribuição, início canônico, dias no setor e data de referência.
+    Chave ausente leva o chamador ao fallback histórico.
     """
     if not itens:
         return {}
@@ -1264,16 +1272,108 @@ def _atribuicao_atual_por_processo(db: Session, itens: list[PautaItem]) -> dict[
             pos -= 1
         return inicio
 
-    resultado: dict[tuple[str, str, object], str | None] = {}
+    resultado: dict[tuple[str, str, object], dict] = {}
     for it in itens:
         inicio_atual = _inicio_passagem_corrente(it.protocolo, it.setor)
         if inicio_atual is None:
             continue  # processo saiu do setor → item fica com fallback histórico
-        # Só é a MESMA passagem se o item entrou no mesmo início contínuo.
-        # Sem entrada_setor registrada, aceita a passagem corrente.
-        if it.entrada_setor is None or it.entrada_setor == inicio_atual:
-            resultado[(it.protocolo, it.setor, it.entrada_setor)] = atrib_ref.get((it.protocolo, it.setor))
+        referencia = ref_por_setor.get(it.setor)
+        # Compatibilidade com itens legados incluídos pela antiga tela de
+        # Atribuições: ela gravava o início da atribuição dentro da passagem como
+        # se fosse entrada_setor. Uma data dentro da passagem corrente representa
+        # o mesmo item; uma data anterior ao início corrente representa reentrada.
+        mesma_passagem = (
+            it.entrada_setor is None
+            or it.entrada_setor == inicio_atual
+            or (referencia is not None and inicio_atual <= it.entrada_setor <= referencia)
+        )
+        if mesma_passagem:
+            resultado[(it.protocolo, it.setor, it.entrada_setor)] = {
+                "atribuicao": atrib_ref.get((it.protocolo, it.setor)),
+                "entrada_setor": inicio_atual,
+                "dias_no_setor": max((referencia - inicio_atual).days, 0),
+                "data_referencia": referencia,
+            }
     return resultado
+
+
+def _atribuicao_atual_por_processo(db: Session, itens: list[PautaItem]) -> dict[tuple[str, str, object], str | None]:
+    """Compatibilidade para consumidores que precisam somente da atribuição."""
+    return {
+        key: state["atribuicao"]
+        for key, state in _estado_atual_por_processo(db, itens).items()
+    }
+
+
+def _estado_atual_protocolo_setor(db: Session, protocolo: str, setor: str) -> dict | None:
+    probe = PautaItem(protocolo=protocolo, setor=setor, entrada_setor=None)
+    return _estado_atual_por_processo(db, [probe]).get((protocolo, setor, None))
+
+
+def _reconcile_active_pauta_item_entries(db: Session) -> dict[str, int]:
+    """Corrige itens legados que gravaram início da atribuição como entrada no setor."""
+    candidates = (
+        db.query(PautaItem)
+        .join(PautaSessao, PautaItem.sessao_id == PautaSessao.id)
+        .filter(
+            PautaSessao.ativa == True,
+            PautaItem.status.in_(["pendente", "em_acompanhamento"]),
+        )
+        .all()
+    )
+    candidates = [
+        item for item in candidates
+        if _situacao_pauta_sessao(item.sessao) in ("a_iniciar", "em_andamento")
+    ]
+    states = _estado_atual_por_processo(db, candidates)
+    changed = 0
+    skipped = 0
+    changes: list[dict] = []
+    for item in candidates:
+        state = states.get((item.protocolo, item.setor, item.entrada_setor))
+        if not state or item.entrada_setor == state["entrada_setor"]:
+            continue
+        collision = (
+            db.query(PautaItem.id)
+            .filter(
+                PautaItem.id != item.id,
+                PautaItem.sessao_id == item.sessao_id,
+                PautaItem.protocolo == item.protocolo,
+                PautaItem.setor == item.setor,
+                PautaItem.entrada_setor == state["entrada_setor"],
+            )
+            .first()
+        )
+        if collision:
+            skipped += 1
+            continue
+        changes.append({
+            "item_id": item.id,
+            "protocolo": item.protocolo,
+            "entrada_anterior": item.entrada_setor,
+            "entrada_corrigida": state["entrada_setor"],
+        })
+        item.entrada_setor = state["entrada_setor"]
+        item.dias_no_setor = state["dias_no_setor"]
+        item.data_referencia = state["data_referencia"]
+        item.ultima_presenca = state["data_referencia"]
+        item.updated_at = datetime.now(timezone.utc)
+        changed += 1
+
+    if changed or skipped:
+        db.add(AuditLog(
+            action="pauta.itens_legados_reconciliados",
+            entity_type="pauta_item",
+            details=json.dumps({
+                "corrigidos": changed,
+                "ignorados_por_colisao": skipped,
+                "alteracoes": changes[:100],
+            }, ensure_ascii=False, default=str),
+            user_email="sistema@analyticsei.local",
+            user_name="Sistema AnalyticSEI",
+        ))
+    db.commit()
+    return {"corrigidos": changed, "ignorados_por_colisao": skipped}
 
 
 def _situacao_pauta_sessao(s: PautaSessao) -> str:
@@ -1320,15 +1420,22 @@ def _pauta_item_em_sessao_ativa(
             PautaSessao.ativa == True,
         )
     )
-    if entrada_setor is None:
-        query = query.filter(PautaItem.entrada_setor.is_(None))
-    else:
-        query = query.filter(PautaItem.entrada_setor == entrada_setor)
     if exclude_session_ids:
         query = query.filter(PautaItem.sessao_id.notin_(exclude_session_ids))
 
+    estado_atual = _estado_atual_protocolo_setor(db, protocolo, setor)
+    entrada_canonica = estado_atual["entrada_setor"] if estado_atual else entrada_setor
+    referencia = estado_atual["data_referencia"] if estado_atual else None
     for item in query.all():
-        if _situacao_pauta_sessao(item.sessao) in ("a_iniciar", "em_andamento"):
+        if _situacao_pauta_sessao(item.sessao) not in ("a_iniciar", "em_andamento"):
+            continue
+        if estado_atual and (
+            item.entrada_setor is None
+            or entrada_canonica == item.entrada_setor
+            or (referencia is not None and entrada_canonica <= item.entrada_setor <= referencia)
+        ):
+            return item
+        if not estado_atual and item.entrada_setor == entrada_setor:
             return item
     return None
 
@@ -1461,7 +1568,7 @@ def get_pauta_sessao(
     # Atribuição ATUAL no SEI (último snapshot de cada protocolo+setor da sessão).
     # Consulta em lote para evitar N+1; fallback para item.atribuicao (snapshot da
     # inclusão) quando o processo já não consta mais no setor.
-    atribuicao_atual = _atribuicao_atual_por_processo(db, s.itens)
+    estados_atuais = _estado_atual_por_processo(db, s.itens)
 
     itens = []
     for item in sorted(s.itens, key=lambda x: (-(x.score_risco or 0), -(x.dias_no_setor or 0))):
@@ -1470,11 +1577,14 @@ def get_pauta_sessao(
         d = _pauta_item_to_dict(item, users_map)
         # Chave de 3 elementos: só é "atual" na passagem corrente do processo
         chave = (item.protocolo, item.setor, item.entrada_setor)
-        presente = chave in atribuicao_atual
-        atual = atribuicao_atual.get(chave) if presente else None
+        estado_atual = estados_atuais.get(chave)
+        presente = estado_atual is not None
+        atual = estado_atual["atribuicao"] if presente else None
         d["atribuicao_atual"] = atual
         d["atribuicao_display"] = atual if presente else item.atribuicao
         d["atribuicao_historica"] = not presente  # True → tooltip de valor histórico
+        d["entrada_setor_atual"] = str(estado_atual["entrada_setor"]) if presente else None
+        d["dias_no_setor_atual"] = estado_atual["dias_no_setor"] if presente else item.dias_no_setor
         itens.append(d)
 
     # Não-admin sem itens visíveis: 404 — não confirma sequer que a sessão
@@ -1594,14 +1704,17 @@ def list_pauta_itens_ativos(
         .all()
     )
     items = []
+    estados_atuais = _estado_atual_por_processo(db, [item for item, _ in rows])
     for item, sessao in rows:
         if _situacao_pauta_sessao(sessao) in ("a_iniciar", "em_andamento"):
-            ent = str(item.entrada_setor) if item.entrada_setor else ""
+            estado_atual = estados_atuais.get((item.protocolo, item.setor, item.entrada_setor))
+            entrada_canonica = estado_atual["entrada_setor"] if estado_atual else item.entrada_setor
+            ent = str(entrada_canonica) if entrada_canonica else ""
             items.append({
                 "key": f"{item.protocolo}|{item.setor}|{ent}",
                 "protocolo": item.protocolo,
                 "setor": item.setor,
-                "entrada_setor": str(item.entrada_setor) if item.entrada_setor else None,
+                "entrada_setor": str(entrada_canonica) if entrada_canonica else None,
                 "sessao_id": sessao.id,
                 "sessao_titulo": sessao.titulo,
             })
@@ -1632,10 +1745,18 @@ def add_pauta_item(
             detail=f'Processo já está na pauta "{existente.sessao.titulo}".',
         )
 
+    item_data = payload.model_dump(exclude_none=True)
+    estado_atual = _estado_atual_protocolo_setor(db, payload.protocolo, payload.setor)
+    if estado_atual:
+        item_data["entrada_setor"] = estado_atual["entrada_setor"]
+        item_data["dias_no_setor"] = estado_atual["dias_no_setor"]
+        item_data["data_referencia"] = estado_atual["data_referencia"]
+        item_data["ultima_presenca"] = estado_atual["data_referencia"]
+
     item = PautaItem(
         sessao_id=sessao_id,
         assigned_by=current_admin.id,
-        **payload.model_dump(exclude_none=True),
+        **item_data,
     )
     db.add(item)
     db.commit()
@@ -1674,6 +1795,12 @@ def add_pauta_items_bulk(
             skipped += 1
             continue
         data = item_data.model_dump(exclude_none=True, exclude={"assigned_to", "nota_admin"})
+        estado_atual = _estado_atual_protocolo_setor(db, item_data.protocolo, item_data.setor)
+        if estado_atual:
+            data["entrada_setor"] = estado_atual["entrada_setor"]
+            data["dias_no_setor"] = estado_atual["dias_no_setor"]
+            data["data_referencia"] = estado_atual["data_referencia"]
+            data["ultima_presenca"] = estado_atual["data_referencia"]
         item = PautaItem(
             sessao_id=sessao_id,
             assigned_to=payload.assigned_to,
@@ -3010,6 +3137,7 @@ def attributions_list(
     atribuicao: str | None = None,
     min_dias: int | None = Query(None, ge=0),
     max_dias: int | None = Query(None, ge=0),
+    dias_base: Literal["setor", "atribuicao"] = Query("setor"),
     sem_atribuicao: bool = Query(False),
     sort_by: str = Query("dias"),
     sort_dir: str = Query("desc"),
@@ -3027,10 +3155,11 @@ def attributions_list(
     if sem_atribuicao:
         all_items = [item for item in all_items if item["atribuicao"] is None]
 
+    dias_field = "dias_no_setor" if dias_base == "setor" else "dias_com_atribuicao"
     if min_dias is not None:
-        all_items = [item for item in all_items if item["dias_com_atribuicao"] >= min_dias]
+        all_items = [item for item in all_items if item[dias_field] >= min_dias]
     if max_dias is not None:
-        all_items = [item for item in all_items if item["dias_com_atribuicao"] <= max_dias]
+        all_items = [item for item in all_items if item[dias_field] <= max_dias]
 
     if protocolo_busca:
         busca = protocolo_busca.strip().lower()
@@ -3041,8 +3170,10 @@ def attributions_list(
         all_items = sorted(all_items, key=lambda x: (x["atribuicao"] or "").lower(), reverse=reverse)
     elif sort_by == "tipo":
         all_items = sorted(all_items, key=lambda x: (x["tipo"] or "").lower(), reverse=reverse)
-    elif sort_by == "dias" and sort_dir == "asc":
-        all_items = list(reversed(all_items))
+    elif sort_by in ("dias", "dias_setor"):
+        all_items = sorted(all_items, key=lambda x: x["dias_no_setor"], reverse=reverse)
+    elif sort_by == "dias_atribuicao":
+        all_items = sorted(all_items, key=lambda x: x["dias_com_atribuicao"], reverse=reverse)
 
     total = len(all_items)
     total_pages = max((total + page_size - 1) // page_size, 1)
@@ -3058,6 +3189,8 @@ def attributions_list(
         "total_com_atribuicao": result["total_com_atribuicao"],
         "total_sem_atribuicao": result["total_sem_atribuicao"],
         "max_dias": result["max_dias"],
+        "max_dias_setor": result["max_dias_setor"],
+        "max_dias_atribuicao": result["max_dias_atribuicao"],
     })
 
 

@@ -69,6 +69,7 @@ function pautaSortValue(item, key) {
   if (key === "status") return STATUS_CFG[item.status]?.label?.replace("✓ ", "") || item.status;
   if (key === "prazo") return item.prazo ? Date.parse(`${item.prazo}T00:00:00Z`) : null;
   if (key === "dias_prazo") return isItemResolvido(item.status) ? null : diffDias(item.prazo);
+  if (key === "dias_no_setor") return item.dias_no_setor_atual ?? item.dias_no_setor;
   return item[key];
 }
 
@@ -940,7 +941,12 @@ function PautaItemRow({ item, idx, isAdmin, onUpdated, onDelete }) {
         )}
       </td>
       <td style={{ fontSize: "0.78rem", color: "var(--muted)" }}>{item.tipo || "—"}</td>
-      <td><strong>{item.dias_no_setor ?? "—"}</strong></td>
+      <td>
+        <strong>{item.dias_no_setor_atual ?? item.dias_no_setor ?? "—"}</strong>
+        {item.dias_no_setor_atual != null && item.dias_no_setor_atual !== item.dias_no_setor ? (
+          <span title={`Na inclusão: ${item.dias_no_setor ?? "—"} dias`} style={{ marginLeft: 4, color: "var(--muted)", fontSize: "0.68rem" }}>*</span>
+        ) : null}
+      </td>
       <td><NivelBadge nivel={item.nivel_risco} /></td>
       <td style={{ fontSize: "0.78rem" }}>{item.assigned_to_nome || <span style={{ color: "var(--muted)", fontStyle: "italic" }}>Sem atribuição</span>}</td>
       <td className="pauta-status-column"><StatusBadge status={item.status} dataStatus={item.data_status} /></td>

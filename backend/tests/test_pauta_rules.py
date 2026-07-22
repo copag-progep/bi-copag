@@ -26,6 +26,8 @@ from backend.models import AuditLog, PautaSessao, PautaItem, Processo, Upload, U
 from backend.main import (  # noqa: E402
     _situacao_pauta_sessao,
     _pauta_item_em_sessao_ativa,
+    _estado_atual_por_processo,
+    _reconcile_active_pauta_item_entries,
     _atribuicao_atual_por_processo,
     CopyPendingPayload,
     copy_pending_to_new_session,
@@ -196,6 +198,41 @@ def test_duplicidade_entrada_diferente_e_permitida():
         db.rollback(); db.close()
 
 
+def test_item_legado_com_inicio_da_atribuicao_bloqueia_mesma_passagem():
+    db = _Session()
+    try:
+        protocolo = "23067.055309/2025-24"
+        entrada_real = HOJE - timedelta(days=86)
+        inicio_atribuicao = HOJE - timedelta(days=4)
+        for dia, atribuicao in [
+            (entrada_real, None),
+            (HOJE - timedelta(days=5), None),
+            (inicio_atribuicao, "NAIARA JADY CANDIDO OLIVEIRA"),
+            (HOJE, "NAIARA JADY CANDIDO OLIVEIRA"),
+        ]:
+            _processo(db, protocolo, "DIAPE", atribuicao, atribuicao, dia)
+
+        sessao = _sessao(db, ativa=True, inicio=HOJE - timedelta(days=1))
+        legado = _item(db, sessao, protocolo=protocolo, setor="DIAPE", entrada=inicio_atribuicao)
+
+        existente = _pauta_item_em_sessao_ativa(db, protocolo, "DIAPE", entrada_real)
+        assert existente is legado
+
+        estado = _estado_atual_por_processo(db, [legado])[(protocolo, "DIAPE", inicio_atribuicao)]
+        assert estado["entrada_setor"] == entrada_real
+        assert estado["dias_no_setor"] == 86
+        assert estado["atribuicao"] == "NAIARA JADY CANDIDO OLIVEIRA"
+
+        result = _reconcile_active_pauta_item_entries(db)
+        db.refresh(legado)
+        assert result == {"corrigidos": 1, "ignorados_por_colisao": 0}
+        assert legado.entrada_setor == entrada_real
+        assert legado.dias_no_setor == 86
+        assert _reconcile_active_pauta_item_entries(db)["corrigidos"] == 0
+    finally:
+        db.rollback(); db.close()
+
+
 # ── Fallback da atribuição atual ──────────────────────────────────────────
 
 def test_atribuicao_atual_presente_sem_normalizacao():
@@ -245,6 +282,8 @@ def test_atribuicao_reingresso_nao_contamina_item_historico():
         mapa = _atribuicao_atual_por_processo(db, [item_hist])
         # A chave do item histórico não deve estar presente → cai no fallback
         assert ("R1", "DIAPE", entrada_antiga) not in mapa
+        # A passagem nova pode entrar em outra pauta; não é duplicidade da antiga.
+        assert _pauta_item_em_sessao_ativa(db, "R1", "DIAPE", HOJE) is None
     finally:
         db.rollback(); db.close()
 

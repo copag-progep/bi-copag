@@ -878,7 +878,7 @@ O Excel gera uma planilha com resumo e tabela de ocorrências. O PDF gera um rel
 
 ### Objetivo da tela
 
-Mostrar a carteira ativa de processos por atribuição, com tempo de permanência.
+Mostrar a carteira ativa separando o tempo total no setor do tempo com a atribuição atual.
 
 É uma das telas mais importantes para gestão operacional.
 
@@ -896,22 +896,22 @@ Quantidade de processos com responsável/atribuição identificada.
 
 Quantidade de processos sem atribuição definida.
 
-#### Maior tempo registrado
+#### Maior tempo no setor
 
-Maior quantidade de dias em que um processo permanece com a mesma atribuição/setor no snapshot atual.
+Maior quantidade de dias consecutivos em que um processo permanece no setor, independentemente de trocas de atribuição.
 
-### Como o sistema calcula os dias com atribuição
+### Como o sistema calcula as duas permanências
 
-O sistema procura, para cada processo, setor e atribuição, desde quando ele aparece de forma consecutiva até a data de referência.
+O sistema reconstrói primeiro a presença contínua do processo no setor e, dentro dela, identifica quando começou a atribuição atual.
 
 Cálculo simplificado:
 
 ```text
 1. Escolhe o snapshot de referência.
-2. Para cada processo ativo, identifica setor e atribuição atuais.
-3. Volta no histórico enquanto o processo continuar aparecendo no mesmo setor e na mesma atribuição.
-4. Para quando há uma quebra no histórico.
-5. Calcula dias = data de referência - primeira data dessa sequência.
+2. Volta no histórico enquanto o processo continuar aparecendo no mesmo setor: esse intervalo gera Dias setor.
+3. Dentro da passagem, volta enquanto a atribuição normalizada permanecer igual: esse intervalo gera Dias atribuição.
+4. Uma troca de atribuição reinicia somente Dias atribuição.
+5. Uma saída e posterior reentrada no setor reinicia as duas contagens.
 ```
 
 O cálculo usa índice por setor, porque cada setor pode ter frequência de upload diferente.
@@ -928,7 +928,7 @@ A tela permite filtrar por:
 - 60 a 89 dias
 - 90 dias ou mais
 
-Essas faixas ajudam a priorizar processos mais antigos.
+O controle **Faixa por** permite aplicar essas faixas a Dias no setor ou Dias na atribuição. O padrão é Dias no setor.
 
 ### Busca por protocolo
 
@@ -938,20 +938,21 @@ Permite localizar um processo específico dentro da carteira.
 
 Permite ordenar por:
 
-- Dias
+- Dias setor
+- Dias atribuição
 - Atribuição
 - Tipo
 
 ### Exportações
 
-A tela permite exportar a carteira em:
+A tela permite exportar a carteira em PDF e Excel com entrada/dias no setor e início/dias da atribuição atual.
 
 - Excel
 - PDF
 
 ### Observação de interpretação
 
-O tempo exibido não é necessariamente o tempo total de vida do processo no SEI. É o tempo inferido de permanência naquela carteira, com base nos snapshots disponíveis.
+Os tempos são inferidos pelos snapshots disponíveis e não representam o tempo total de vida do processo no SEI. A identidade usada pela Pauta é protocolo + setor + entrada real no setor; mudanças de atribuição não permitem duplicar o item.
 
 ---
 

@@ -1013,32 +1013,117 @@ def get_productivity_data(db: Session, filters: AnalyticsFilters) -> dict:
     return _cached_response(db, "productivity", filters, build)
 
 
-def get_stale_processes_data(db: Session, filters: AnalyticsFilters) -> dict:
-    """Processos parados: spans abertos ordenados por dias sem movimentação."""
-    def build() -> dict:
-        frame, reference_date, available_dates = _load_dataframe(
-            db, filters, fields=SPAN_FIELDS, apply_lookback=False
+def _current_process_tenures(db: Session, filters: AnalyticsFilters) -> tuple[date | None, list[dict]]:
+    """Reconstrói as permanências atuais antes de aplicar filtros de conteúdo.
+
+    `entrada_setor` ignora trocas de atribuição. `entrada_atribuicao` reinicia
+    quando muda a atribuição normalizada. O calendário é específico por setor,
+    pois as divisões podem importar snapshots em dias diferentes.
+    """
+    presence_filters = replace(filters, tipo=None, atribuicao=None)
+    frame, reference_date, _ = _load_dataframe(
+        db, presence_filters, fields=ATTRIBUTION_FIELDS, apply_lookback=False
+    )
+    if frame.empty or reference_date is None:
+        return reference_date, []
+
+    sector_dates: dict[str, list[date]] = {}
+    for sector_value in frame["setor"].unique():
+        sector = str(sector_value)
+        sector_dates[sector] = sorted(
+            frame.loc[frame["setor"] == sector_value, "report_day"].unique().tolist()
         )
-        spans = _build_presence_spans(frame, available_dates)
-        open_spans = spans[spans["aberto"]] if not spans.empty else spans
-        if open_spans.empty:
+    sector_positions = {
+        sector: {day: index for index, day in enumerate(days)}
+        for sector, days in sector_dates.items()
+    }
+
+    current = frame[frame["report_day"] == reference_date].copy()
+    multi_sector_protocols = set(
+        current.groupby("protocolo")["setor"].nunique().loc[lambda values: values > 1].index
+    )
+
+    if filters.tipo:
+        current = current[current["tipo"] == filters.tipo]
+    if filters.atribuicao == "__sem_atribuicao__":
+        current = current[current["atribuicao"] == "Não informado"]
+    elif filters.atribuicao:
+        current = current[current["atribuicao"] == filters.atribuicao]
+
+    current_by_key = {
+        (str(row["protocolo"]), str(row["setor"])): row
+        for row in current.to_dict(orient="records")
+    }
+
+    items: list[dict] = []
+    for (protocol_value, sector_value), group in frame.groupby(["protocolo", "setor"], sort=False):
+        protocol = str(protocol_value)
+        sector = str(sector_value)
+        row = current_by_key.get((protocol, sector))
+        if row is None:
+            continue
+        assignment = row.get("atribuicao") or "Não informado"
+        calendar = sector_dates.get(sector, [])
+        history = {
+            record["report_day"]: record
+            for record in group.to_dict(orient="records")
+        }
+        position = sector_positions.get(sector, {}).get(reference_date)
+        if position is None:
+            continue
+
+        sector_start = reference_date
+        assignment_start = reference_date
+        assignment_open = True
+        for previous_position in range(position - 1, -1, -1):
+            previous_day = calendar[previous_position]
+            previous_row = history.get(previous_day)
+            if previous_row is None:
+                break
+            sector_start = previous_day
+            if assignment_open and (previous_row.get("atribuicao") or "Não informado") == assignment:
+                assignment_start = previous_day
+            else:
+                assignment_open = False
+
+        items.append({
+            "protocolo": protocol,
+            "setor": sector,
+            "atribuicao": None if assignment == "Não informado" else assignment,
+            "tipo": row.get("tipo") or "Não informado",
+            "entrada_setor": str(sector_start),
+            "dias_no_setor": max((reference_date - sector_start).days, 0),
+            "entrada_atribuicao": str(assignment_start),
+            "dias_com_atribuicao": max((reference_date - assignment_start).days, 0),
+            "ultima_presenca": str(reference_date),
+            "multiplos_setores": protocol in multi_sector_protocols,
+        })
+
+    return reference_date, items
+
+
+def get_stale_processes_data(db: Session, filters: AnalyticsFilters) -> dict:
+    """Processos parados, preservando o tempo no setor sob filtros de conteúdo."""
+    def build() -> dict:
+        reference_date, current_items = _current_process_tenures(db, filters)
+        process_list = [
+            {
+                "protocolo": item["protocolo"],
+                "setor": item["setor"],
+                "atribuicao": item["atribuicao"],
+                "tipo": item["tipo"],
+                "dias_sem_movimentacao": item["dias_no_setor"],
+                "entrada_setor": item["entrada_setor"],
+            }
+            for item in sorted(current_items, key=lambda value: -value["dias_no_setor"])
+        ]
+        if not process_list:
             return {
                 "data_referencia": str(reference_date) if reference_date else None,
                 "contagens": {"mais_de_10": 0, "mais_de_20": 0, "mais_de_30": 0},
                 "processos": [],
             }
 
-        process_list = [
-            {
-                "protocolo": row["protocolo"],
-                "setor": row["setor"],
-                "atribuicao": row["atribuicao"],
-                "tipo": row["tipo"],
-                "dias_sem_movimentacao": int(row["duracao_dias"]),
-                "entrada_setor": str(row["entrada_setor"]),
-            }
-            for _, row in open_spans.sort_values("duracao_dias", ascending=False).iterrows()
-        ]
         return {
             "data_referencia": str(reference_date) if reference_date else None,
             "contagens": {
@@ -1062,13 +1147,10 @@ def get_multi_sector_data(db: Session, filters: AnalyticsFilters) -> dict:
 
 
 def get_attributions_data(db: Session, filters: AnalyticsFilters) -> dict:
-    """Carteira de atribuições ativas com dias de permanência por setor (usa índice por setor, não global)."""
+    """Carteira atual com permanências distintas no setor e na atribuição."""
     def build() -> dict:
-        frame, reference_date, available_dates = _load_dataframe(
-            db, filters, fields=ATTRIBUTION_FIELDS, apply_lookback=False
-        )
-
-        if frame.empty or reference_date is None:
+        reference_date, items = _current_process_tenures(db, filters)
+        if reference_date is None:
             return {
                 "data_referencia": None,
                 "items": [],
@@ -1076,68 +1158,10 @@ def get_attributions_data(db: Session, filters: AnalyticsFilters) -> dict:
                 "total_com_atribuicao": 0,
                 "total_sem_atribuicao": 0,
                 "max_dias": 0,
+                "max_dias_setor": 0,
+                "max_dias_atribuicao": 0,
             }
-
-        # Índice por setor — cada setor pode ter cadência de upload diferente.
-        # Usar datas globais (available_dates) causaria falsos "buracos" para setores
-        # que enviam CSV com menos frequência que os demais.
-        sector_idx_maps: dict[str, dict] = {}
-        for _setor_val in frame["setor"].unique():
-            _setor_str = str(_setor_val)
-            _setor_dates = sorted(frame[frame["setor"] == _setor_val]["report_day"].unique().tolist())
-            sector_idx_maps[_setor_str] = {day: idx for idx, day in enumerate(_setor_dates)}
-
-        ref_snapshot = frame[frame["report_day"] == reference_date]
-        multi_sector_protocols: set[str] = set(
-            ref_snapshot.groupby("protocolo")["setor"]
-            .nunique()
-            .loc[lambda s: s > 1]
-            .index
-        )
-
-        ordered = frame.sort_values(["protocolo", "setor", "atribuicao", "data_relatorio"])
-        items: list[dict] = []
-
-        for (protocolo, setor, atribuicao), group in ordered.groupby(
-            ["protocolo", "setor", "atribuicao"], sort=False
-        ):
-            records = group.to_dict(orient="records")
-            if not records:
-                continue
-
-            last = records[-1]
-            last_day = last.get("report_day") or pd.Timestamp(last["data_relatorio"]).date()
-            if last_day != reference_date:
-                continue
-
-            setor_idx_map = sector_idx_maps.get(str(setor), {})
-
-            start_day = last_day
-            for i in range(len(records) - 2, -1, -1):
-                curr_day = records[i].get("report_day") or pd.Timestamp(records[i]["data_relatorio"]).date()
-                next_day = records[i + 1].get("report_day") or pd.Timestamp(records[i + 1]["data_relatorio"]).date()
-                if setor_idx_map.get(next_day, -1) != setor_idx_map.get(curr_day, -2) + 1:
-                    break
-                start_day = curr_day
-
-            dias = max((reference_date - start_day).days, 0)
-            atribuicao_display = None if atribuicao == "Não informado" else atribuicao
-
-            items.append({
-                "protocolo": str(protocolo),
-                "setor": str(setor),
-                "atribuicao": atribuicao_display,
-                "tipo": last.get("tipo") or "Não informado",
-                "entrada_atribuicao": str(start_day),
-                # entrada_setor: chave canônica alinhada à regra de duplicidade da
-                # pauta (protocolo+setor+entrada_setor). Aqui é o início da presença
-                # do processo neste setor com esta atribuição — melhor proxy disponível.
-                "entrada_setor": str(start_day),
-                "dias_com_atribuicao": dias,
-                "multiplos_setores": str(protocolo) in multi_sector_protocols,
-            })
-
-        items.sort(key=lambda x: -x["dias_com_atribuicao"])
+        items.sort(key=lambda item: -item["dias_no_setor"])
 
         total = len(items)
         total_com = sum(1 for item in items if item["atribuicao"])
@@ -1149,7 +1173,11 @@ def get_attributions_data(db: Session, filters: AnalyticsFilters) -> dict:
             "total": total,
             "total_com_atribuicao": total_com,
             "total_sem_atribuicao": total_sem,
-            "max_dias": items[0]["dias_com_atribuicao"] if items else 0,
+            # Compatibilidade: max_dias passa a representar a métrica operacional
+            # principal (tempo no setor). Consumidores novos usam os campos explícitos.
+            "max_dias": max((item["dias_no_setor"] for item in items), default=0),
+            "max_dias_setor": max((item["dias_no_setor"] for item in items), default=0),
+            "max_dias_atribuicao": max((item["dias_com_atribuicao"] for item in items), default=0),
         }
 
     return _cached_response(db, "attributions", filters, build)

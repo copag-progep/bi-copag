@@ -11,15 +11,6 @@ function fmtDate(val) {
   }
 }
 
-function flagLabel(days) {
-  if (days >= 90) return "90d+";
-  if (days >= 60) return "60–89d";
-  if (days >= 45) return "45–59d";
-  if (days >= 30) return "30–44d";
-  if (days >= 15) return "15–29d";
-  return "<15d";
-}
-
 export function generateAttributionsExcel({ items, stats, dataReferencia, filtersText }) {
   const wb = XLSX.utils.book_new();
 
@@ -37,7 +28,7 @@ export function generateAttributionsExcel({ items, stats, dataReferencia, filter
     ],
     [],
     /* Cabeçalho da tabela */
-    ["Atribuição", "Protocolo", "Tipo", "Setor", "Desde", "Dias", "Faixa", "Múltiplos setores"],
+    ["Atribuição", "Protocolo", "Tipo", "Setor", "Entrada no setor", "Dias no setor", "Atribuído desde", "Dias na atribuição", "Múltiplos setores"],
   ];
 
   /* ── Linhas de dados ───────────────────────────── */
@@ -46,9 +37,10 @@ export function generateAttributionsExcel({ items, stats, dataReferencia, filter
     item.protocolo || "",
     item.tipo || "—",
     item.setor || "",
+    fmtDate(item.entrada_setor),
+    item.dias_no_setor,
     fmtDate(item.entrada_atribuicao),
     item.dias_com_atribuicao,
-    flagLabel(item.dias_com_atribuicao),
     item.multiplos_setores ? "Sim" : "Não",
   ]);
 
@@ -60,9 +52,10 @@ export function generateAttributionsExcel({ items, stats, dataReferencia, filter
     { wch: 26 }, // Protocolo
     { wch: 44 }, // Tipo
     { wch: 18 }, // Setor
-    { wch: 13 }, // Desde
-    { wch: 8  }, // Dias
-    { wch: 10 }, // Faixa
+    { wch: 17 }, // Entrada no setor
+    { wch: 14 }, // Dias no setor
+    { wch: 17 }, // Atribuído desde
+    { wch: 17 }, // Dias na atribuição
     { wch: 17 }, // Múltiplos setores
   ];
 

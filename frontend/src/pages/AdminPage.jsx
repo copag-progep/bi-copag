@@ -48,6 +48,7 @@ const ACTION_LABELS = {
   "pauta.sessao_editada":              { label: "Pauta: sessão editada",          color: "var(--primary)" },
   "pauta.item_nota_gestao_editada":    { label: "Pauta: nota da gestão editada",  color: "var(--primary)" },
   "pauta.item_prazo_editado":          { label: "Pauta: prazo do item editado",   color: "var(--primary)" },
+  "pauta.itens_legados_reconciliados": { label: "Pauta: entradas reconciliadas",  color: "var(--success)" },
   "pauta.pendencias_copiadas":         { label: "Pauta: pendências copiadas",     color: "var(--primary)" },
 };
 

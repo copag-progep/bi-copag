@@ -686,6 +686,18 @@ Entrega:
 - mais de 30 dias
 - lista ordenada de processos mais antigos
 
+Filtros de tipo e atribuicao sao reaplicados somente depois da reconstrucao da presenca. Assim, trocar de responsavel nao reinicia `entrada_setor` nem `dias_no_setor`. O calendario de snapshots e calculado por setor.
+
+### 11.7.1 Atribuicoes: duas permanencias
+
+`get_attributions_data()` compartilha a mesma fonte de permanencia e retorna:
+
+- `entrada_setor` e `dias_no_setor`: passagem continua no setor
+- `entrada_atribuicao` e `dias_com_atribuicao`: permanencia com a atribuicao atual
+- `max_dias_setor` e `max_dias_atribuicao`: maximos explicitos
+
+O endpoint aceita `dias_base=setor|atribuicao` para as faixas e ordenacao por `dias_setor` ou `dias_atribuicao`. A inclusao na Pauta usa sempre a entrada real no setor e o backend recalcula essa identidade a partir dos snapshots.
+
 ### 11.8 Processos em multiplos setores
 
 `get_multi_sector_data()` detecta protocolos que aparecem em mais de um setor no mesmo snapshot.

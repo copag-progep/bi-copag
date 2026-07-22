@@ -18,7 +18,7 @@ Plataforma web de Business Intelligence desenvolvida para a **COPAG (Coordenador
 | **Tendências estimadas** | Forecasting simples na Central Executiva: projeção de estoque ativo, tendência por setor e estimativa de críticos |
 | **Score de Risco** | Ranking de processos por prioridade de atenção, com explicação dos fatores do score |
 | **Pauta Prioritária** | Sessões semanais para acompanhar processos críticos, atribuir responsáveis, acompanhar prazos/reuniões, registrar notas, gerar PDF, encerrar ciclos e medir eficiência |
-| **Atribuições** | Carteira completa com flags de criticidade por tempo (6 faixas até 90d+) |
+| **Atribuições** | Carteira completa com dias no setor e dias na atribuição atual, faixas selecionáveis e exportação PDF/Excel |
 | **Pessoas** | Balanceamento de carga, classificação de sobrecarga e perfil longitudinal dos servidores |
 | **Inconsistências** | Detecção de processos em mais de um setor no mesmo dia, com exportação Excel/PDF |
 | **Indicadores mensais** | Painel histórico com importação de CSV e lançamento manual |

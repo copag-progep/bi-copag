@@ -151,9 +151,9 @@ Serve para priorizar atenção gerencial sobre processos que podem estar acumula
 
 ### 3.5 Atribuições
 
-Mostra a carteira de processos por atribuição, com classificação por tempo. Essa é uma das telas mais importantes para acompanhamento de carga e criticidade.
+Mostra a carteira por atribuição com dois tempos distintos: dias consecutivos no setor e dias com a atribuição atual. Trocar o servidor reinicia somente a segunda contagem e não altera a identidade do processo na Pauta Prioritária.
 
-As faixas de criticidade usadas são:
+As faixas podem ser aplicadas ao tempo no setor ou ao tempo na atribuição atual:
 
 | Faixa | Interpretação |
 |---|---|
@@ -615,7 +615,7 @@ Se entraram 10 e saíram 18, o saldo é -8.
 
 ### 13.5 Processos parados
 
-O sistema observa por quanto tempo um processo permanece em uma mesma condição/setor/atribuição, conforme os snapshots disponíveis.
+O sistema observa separadamente por quanto tempo o processo permanece no setor e há quanto tempo está com a atribuição atual, conforme os snapshots disponíveis.
 
 Quanto maior o tempo sem mudança inferida, maior a criticidade.
 
