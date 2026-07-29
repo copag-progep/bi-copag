@@ -25,9 +25,19 @@ services:
       - key: ACCESS_TOKEN_EXPIRE_MINUTES
         value: "720"
       - key: CORS_ORIGINS
-        value: https://bi-copag.vercel.app
+        value: https://analyticsei.vercel.app
       - key: AUTO_IMPORT_SAMPLE_DATA
         value: "false"
+      # O schema de produção já está provisionado. Migrations e índices devem
+      # ser executados de forma controlada, não em todo cold start.
+      - key: RUN_DB_MAINTENANCE_ON_STARTUP
+        value: "false"
+      - key: SQLALCHEMY_CONNECT_TIMEOUT
+        value: "10"
+      - key: SQLALCHEMY_STATEMENT_TIMEOUT_MS
+        value: "30000"
+      - key: SQLALCHEMY_LOCK_TIMEOUT_MS
+        value: "5000"
       - key: ANALYTICS_LOOKBACK_DAYS
         value: "120"
       - key: DISABLE_STARTUP_PRECOMPUTE

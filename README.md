@@ -120,6 +120,10 @@ Por padrão, o frontend local usa o proxy do Vite para encaminhar `/api` para `h
 | `DEFAULT_ADMIN_EMAIL` | E-mail do admin padrão |
 | `DEFAULT_ADMIN_PASSWORD` | Senha inicial do admin |
 | `AUTO_IMPORT_SAMPLE_DATA` | `false` em produção |
+| `RUN_DB_MAINTENANCE_ON_STARTUP` | No Render, mantenha `false` para retirar migrations, `create_all` e índices do cold start. Ative temporariamente apenas em deploys controlados com alteração de schema |
+| `SQLALCHEMY_CONNECT_TIMEOUT` | Limite em segundos para abrir conexão PostgreSQL. Padrão: `10` |
+| `SQLALCHEMY_STATEMENT_TIMEOUT_MS` | Limite por comando PostgreSQL em milissegundos. Padrão: `30000` |
+| `SQLALCHEMY_LOCK_TIMEOUT_MS` | Limite de espera por lock PostgreSQL em milissegundos. Padrão: `5000` |
 | `ANALYTICS_LOOKBACK_DAYS` | Janela máxima de histórico analítico (padrão: 120 dias). `0` = sem limite |
 | `DISABLE_STARTUP_PRECOMPUTE` | `false` em produção. `true` desliga o aquecimento de cache na inicialização |
 | `PRECOMPUTE_HEAVY_ANALYTICS` | `false` por padrão. `true` inclui endpoints pesados no precompute, como processos parados, atribuições, lead time, forecast e Score de Risco |

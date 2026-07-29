@@ -126,7 +126,7 @@ Detalhes importantes:
 
 O projeto usa Alembic para migracoes formais e mantem uma camada pragmatica de compatibilidade.
 
-Na inicializacao, `init_db()` executa:
+Localmente, ou quando `RUN_DB_MAINTENANCE_ON_STARTUP=true`, `init_db()` executa:
 
 - `run_migrations()`
 - `Base.metadata.create_all(...)`
@@ -134,6 +134,14 @@ Na inicializacao, `init_db()` executa:
 - `ensure_indexes()`
 
 `run_migrations()` executa `alembic upgrade head`. Em bancos existentes sem a tabela `alembic_version`, o sistema sela automaticamente no baseline `0001` antes de aplicar migracoes novas.
+
+No Render, o padrão operacional é `RUN_DB_MAINTENANCE_ON_STARTUP=false`.
+Nesse modo, o cold start executa apenas uma consulta curta de conectividade e
+abre a API sem repetir migrations, `create_all` ou criação de índices. Mudanças
+de schema devem usar um deploy controlado com a variável temporariamente ativa.
+As conexões PostgreSQL também aplicam limites de conexão, comando e espera por
+lock para impedir que o Uvicorn permaneça indefinidamente em
+`Waiting for application startup`.
 
 Hoje, `ensure_schema_updates()` ainda garante pelo menos a existencia de:
 

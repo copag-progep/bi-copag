@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 from collections.abc import Callable
 from statistics import median
@@ -87,6 +88,7 @@ from .sei_users import (
     upsert_sei_user,
 )
 
+logger = logging.getLogger(__name__)
 
 DEFAULT_ADMIN_NAME = os.getenv("DEFAULT_ADMIN_NAME", "Anderson CFS")
 API_UPLOAD_KEY = os.getenv("API_UPLOAD_KEY", "")
@@ -229,9 +231,13 @@ def run_noncritical_startup_tasks() -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    logger.info("AnalyticSEI application startup started")
     init_db()
+    logger.info("Database startup checks completed")
     ensure_default_user()
+    logger.info("Default administrator check completed")
     threading.Thread(target=run_noncritical_startup_tasks, daemon=True).start()
+    logger.info("Noncritical startup tasks scheduled; API is ready")
     yield
 
 

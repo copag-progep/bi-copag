@@ -63,6 +63,8 @@ Para configurar ou recriar o ambiente, defina no Render:
 - `DATABASE_URL`: Service URI do Aiven com `sslmode=require`
 - `API_UPLOAD_KEY`: mesma chave usada pelos workflows do GitHub
 - `DEFAULT_ADMIN_PASSWORD`: senha inicial para criacao do admin padrao
+- `RUN_DB_MAINTENANCE_ON_STARTUP=false`: impede que migrations e criação de índices bloqueiem todo cold start. Ative temporariamente apenas para um deploy controlado com mudança de schema.
+- `SQLALCHEMY_CONNECT_TIMEOUT=10`, `SQLALCHEMY_STATEMENT_TIMEOUT_MS=30000` e `SQLALCHEMY_LOCK_TIMEOUT_MS=5000`: fazem operações de banco falharem de forma explícita em vez de aguardarem indefinidamente.
 - `DISABLE_STARTUP_PRECOMPUTE=true`: evita aquecer cache durante o boot em planos com pouca RAM.
 - `DISABLE_POST_CHANGE_PRECOMPUTE=true`: evita precompute automatico apos uploads/alteracoes; o cache passa a ser populado sob demanda.
 - `ANALYTICS_CACHE_MAX_ENTRIES`, `ANALYTICS_CACHE_MAX_TOTAL_MB`, `ANALYTICS_CACHE_MAX_ITEM_MB`: limites do cache LRU analitico.
@@ -72,7 +74,16 @@ O backend aceita qualquer PostgreSQL compativel via `DATABASE_URL`; localmente, 
 
 ## Migrações e dados administrativos
 
-O backend executa `alembic upgrade head` na inicialização. Depois que uma migration já foi publicada em produção, não renomeie nem reutilize o mesmo `revision` em outro arquivo.
+Localmente, o backend executa `alembic upgrade head` na inicialização. No Render,
+`RUN_DB_MAINTENANCE_ON_STARTUP=false` mantém essa manutenção fora dos cold starts.
+Quando houver uma migration nova:
+
+1. confirme que não há locks ou transações longas no PostgreSQL;
+2. ative `RUN_DB_MAINTENANCE_ON_STARTUP=true`;
+3. faça um deploy controlado e confirme no log `Database startup step completed: alembic_migrations`;
+4. volte a variável para `false` e faça o deploy operacional.
+
+Depois que uma migration já foi publicada em produção, não renomeie nem reutilize o mesmo `revision` em outro arquivo.
 
 As migrations recentes criam estruturas administrativas importantes:
 
