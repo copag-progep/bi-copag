@@ -165,6 +165,7 @@ async def pagina_autenticada(page) -> bool:
     return (
         await selector_existe(page, "#lnkInfraUnidade")
         or await selector_existe(page, "#tblProcessosRecebidos")
+        or await selector_existe(page, "label.infraRadioLabel")
     )
 
 
@@ -343,39 +344,44 @@ async def fazer_login(page, sei_url: str, sei_user: str, sei_pass: str) -> None:
 
 async def trocar_para_setor(page, sei_base: str, sigla: str) -> None:
     """
-    Navega para a página de troca de unidade e clica no label da sigla-alvo.
+    Navega para a página de troca de unidade e seleciona a sigla-alvo.
 
     Seletores confirmados via DevTools (06/05/2026):
       label[title="DIAPE"], label[title="DICAT"], label[title="DIJOR"],
       label[title="DICAF"], label[title="DICAF-CHEFIA"],
       label[title="DICAF-REPOSIÇÕES"]
 
-    O clique no label aciona o radio button e o SEI redireciona
+    O clique no radio button aciona o evento do SEI e redireciona
     automaticamente ao painel da divisão — sem botão de confirmação.
     """
-    # 1. Extrai a URL de troca de unidade do onclick (evita clicar em
-    #    elemento que está invisível em headless).
-    onclick_url: str | None = await page.evaluate("""
-        () => {
-            const el = document.getElementById('lnkInfraUnidade');
-            if (!el) return null;
-            const m = (el.getAttribute('onclick') || '').match(/location\\.href='([^']+)'/);
-            return m ? m[1] : null;
-        }
-    """)
+    # 1. Reutiliza a página de seleção quando uma tentativa anterior já a
+    #    deixou aberta. Reabri-la nesse estado remove os labels em alguns
+    #    fluxos do SEI e produz o falso erro "Disponíveis: nenhuma".
+    seletor_aberto = await selector_existe(page, "label.infraRadioLabel")
+    if not seletor_aberto:
+        # Extrai a URL do onclick para não depender da visibilidade do link
+        # no navegador headless.
+        onclick_url: str | None = await page.evaluate("""
+            () => {
+                const el = document.getElementById('lnkInfraUnidade');
+                if (!el) return null;
+                const m = (el.getAttribute('onclick') || '').match(/location\\.href='([^']+)'/);
+                return m ? m[1] : null;
+            }
+        """)
 
-    if onclick_url:
-        destino = onclick_url if onclick_url.startswith("http") else urljoin(f"{sei_base}/", onclick_url)
-        await goto_tolerante(page, destino, wait_until="domcontentloaded", timeout=45_000)
-    else:
-        await page.evaluate(
-            "() => { const el = document.getElementById('lnkInfraUnidade'); if (el) el.click(); }"
-        )
+        if onclick_url:
+            destino = onclick_url if onclick_url.startswith("http") else urljoin(f"{sei_base}/", onclick_url)
+            await goto_tolerante(page, destino, wait_until="domcontentloaded", timeout=45_000)
+        else:
+            await page.evaluate(
+                "() => { const el = document.getElementById('lnkInfraUnidade'); if (el) el.click(); }"
+            )
 
-    try:
-        await page.wait_for_load_state("networkidle", timeout=15_000)
-    except PlaywrightTimeout:
-        pass
+        try:
+            await page.wait_for_load_state("networkidle", timeout=15_000)
+        except PlaywrightTimeout:
+            pass
 
     # Aguarda a lista de labels aparecer antes de procurar a sigla específica
     try:
@@ -383,9 +389,10 @@ async def trocar_para_setor(page, sei_base: str, sigla: str) -> None:
     except PlaywrightTimeout:
         pass  # sem labels visíveis — a tentativa de clique abaixo vai falhar com mensagem clara
 
-    # 2. Clica no label/radio da sigla-alvo via JS (ignora visibilidade
+    # 2. Clica no radio da sigla-alvo via JS (ignora visibilidade
     #    headless e normaliza acentos, ex: REPOSIÇÕES == REPOSICOES).
-    #    O clique dispara a navegação de volta ao painel — não há submit button.
+    #    O input é o elemento que possui o evento de troca no SEI. O label é
+    #    usado apenas como fallback quando o HTML não possui associação "for".
     result = await page.evaluate(
         """(sigla) => {
             const normalize = (value) => (value || '')
@@ -402,11 +409,13 @@ async def trocar_para_setor(page, sei_base: str, sigla: str) -> None:
                     label.getAttribute('for') || '',
                 ];
                 if (candidates.some((candidate) => normalize(candidate) === target)) {
-                    // O clique no label já aciona o radio associado. Clicar
-                    // também no input disparava duas navegações concorrentes.
-                    label.click();
+                    const inputId = label.getAttribute('for') || '';
+                    const input = inputId ? document.getElementById(inputId) : null;
+                    if (input) input.click();
+                    else label.click();
                     return {
                         clicked: true,
+                        via: input ? 'input' : 'label',
                         title: label.getAttribute('title') || '',
                         text: (label.textContent || '').trim(),
                     };
@@ -441,10 +450,8 @@ async def trocar_para_setor(page, sei_base: str, sigla: str) -> None:
     except PlaywrightTimeout:
         pass
 
-    # Caso especial: se a unidade já era a ativa, o SEI pode manter a URL
-    # em infra_trocar_unidade ao invés de redirecionar ao painel.
-    # Também tratamos login.php porque o SEI pode passar por uma tela
-    # intermediária antes de voltar ao controlador.
+    # A confirmação final exige a tabela real. Permanecer em
+    # infra_trocar_unidade não é sucesso, mesmo que a unidade esteja visível.
     await aguardar_painel_processos(page, timeout=60_000)
 
     print(f"  ✓ Unidade: {sigla}  (URL: {page.url.split('?')[0].split('/')[-1]})")

@@ -1663,7 +1663,8 @@ Regras atuais:
 - `scripts/sei_uploader.py` preserva a URL autenticada com `infra_hash`; nao deve reconstruir `controlador.php?acao=procedimento_controlar` depois do login
 - a sessao do SEI e validada pelos controles `#lnkInfraUnidade` e `#tblProcessosRecebidos`, nao apenas pela URL
 - quando o SEI devolve o uploader para `#txtUsuario`, a tentativa seguinte usa um contexto novo do navegador, com cookies limpos
-- a troca de unidade aciona somente o `label` associado ao setor para evitar duas navegacoes concorrentes
+- a troca de unidade aciona somente o `input` associado ao setor (com fallback para o `label`) para evitar duas navegacoes concorrentes
+- uma pagina de selecao de unidade ja aberta e reutilizada nas novas tentativas, sem reabrir o seletor e perder sua lista de unidades
 - `daily-report` roda de segunda a sexta as 19:30 BRT
 - antes de enviar o e-mail diario, `daily-report` executa `scripts/check_daily_upload_success.py`
 - se o upload automatico do dia nao concluiu com sucesso, o e-mail diario nao e enviado

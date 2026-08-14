@@ -54,6 +54,15 @@ class FakePage:
         return None
 
 
+def test_unit_selection_page_is_an_authenticated_state():
+    page = FakePage(
+        "https://sei.ufc.br/sei/controlador.php?acao=infra_trocar_unidade",
+        {"label.infraRadioLabel"},
+    )
+
+    assert asyncio.run(sei_uploader.pagina_autenticada(page)) is True
+
+
 def test_authenticated_page_is_reused_without_forced_navigation(monkeypatch):
     page = FakePage(
         "https://sei.ufc.br/sei/controlador.php?acao=procedimento_controlar&infra_hash=abc",
