@@ -41,6 +41,10 @@ LEGACY_BI_API_URLS = {
 }
 
 
+class SeiSessionExpired(RuntimeError):
+    """A sessão autenticada foi invalidada ou perdeu seus controles."""
+
+
 def bi_base_url() -> str:
     url = os.getenv("BI_API_URL", DEFAULT_BI_API_URL).rstrip("/")
     if url in LEGACY_BI_API_URLS:
@@ -154,6 +158,16 @@ async def selector_existe(page, selector: str) -> bool:
         return False
 
 
+async def pagina_autenticada(page) -> bool:
+    """Confirma a sessão por controles reais, sem depender apenas da URL."""
+    if "/sip/login.php" in page.url or await selector_existe(page, "#txtUsuario"):
+        return False
+    return (
+        await selector_existe(page, "#lnkInfraUnidade")
+        or await selector_existe(page, "#tblProcessosRecebidos")
+    )
+
+
 async def listar_unidades_visiveis(page) -> list[dict]:
     try:
         return await page.evaluate("""
@@ -247,23 +261,15 @@ async def preparar_area_recebidos(page) -> None:
     """)
 
 
-async def aguardar_painel_processos(page, sei_base: str, *, timeout: int = 45_000) -> None:
+async def aguardar_painel_processos(page, *, timeout: int = 45_000) -> None:
     """Confirma que a sessão chegou à tela com a tabela de processos recebidos."""
-    if "infra_trocar_unidade" in page.url or page.url.endswith("/login.php") or "login.php" in page.url:
-        await goto_tolerante(
-            page,
-            f"{sei_base}/controlador.php?acao=procedimento_controlar",
-            wait_until="domcontentloaded",
-            timeout=45_000,
-        )
-
     try:
         await page.wait_for_load_state("domcontentloaded", timeout=10_000)
     except PlaywrightTimeout:
         pass
 
-    if await selector_existe(page, "#txtUsuario"):
-        raise RuntimeError("Sessão voltou para a tela de login do SEI.")
+    if "/sip/login.php" in page.url or await selector_existe(page, "#txtUsuario"):
+        raise SeiSessionExpired("Sessão voltou para a tela de login do SEI.")
 
     await preparar_area_recebidos(page)
     try:
@@ -282,23 +288,19 @@ async def aguardar_painel_processos(page, sei_base: str, *, timeout: int = 45_00
 
 
 async def garantir_painel_logado(page, sei_url: str, sei_user: str, sei_pass: str, sei_base: str) -> str:
-    """Garante sessão autenticada e navegação no painel antes de processar um setor."""
+    """Garante sessão autenticada preservando a URL e o infra_hash atuais."""
+    if await pagina_autenticada(page):
+        return inferir_sei_base(sei_url, page.url)
+
     if await selector_existe(page, "#txtUsuario") or "/sip/login.php" in page.url:
         print("  Aviso: sessão no SEI voltou para login; refazendo autenticação...")
         await fazer_login(page, sei_url, sei_user, sei_pass)
         sei_base = inferir_sei_base(sei_url, page.url)
 
-    painel_url = f"{sei_base}/controlador.php?acao=procedimento_controlar"
-    await goto_tolerante(page, painel_url, wait_until="domcontentloaded", timeout=45_000)
-    try:
-        await page.wait_for_load_state("networkidle", timeout=15_000)
-    except PlaywrightTimeout:
-        pass
-
-    if await selector_existe(page, "#txtUsuario"):
-        print("  Aviso: painel redirecionou para login; refazendo autenticação...")
-        await fazer_login(page, sei_url, sei_user, sei_pass)
-        sei_base = inferir_sei_base(sei_url, page.url)
+    if not await pagina_autenticada(page):
+        raise SeiSessionExpired(
+            "Login concluído, mas os controles autenticados do SEI não permaneceram disponíveis."
+        )
 
     return sei_base
 
@@ -325,7 +327,12 @@ async def fazer_login(page, sei_url: str, sei_user: str, sei_pass: str) -> None:
     except PlaywrightTimeout:
         pass
 
-    if "login" in page.url.lower():
+    try:
+        await page.wait_for_selector("#lnkInfraUnidade", state="attached", timeout=20_000)
+    except PlaywrightTimeout:
+        pass
+
+    if not await pagina_autenticada(page):
         raise RuntimeError("Login falhou — verifique SEI_USER e SEI_PASSWORD.")
     print(f"  ✓ Login realizado. URL atual: {page.url}")
 
@@ -395,9 +402,8 @@ async def trocar_para_setor(page, sei_base: str, sigla: str) -> None:
                     label.getAttribute('for') || '',
                 ];
                 if (candidates.some((candidate) => normalize(candidate) === target)) {
-                    const inputId = label.getAttribute('for');
-                    const input = inputId ? document.getElementById(inputId) : null;
-                    if (input) input.click();
+                    // O clique no label já aciona o radio associado. Clicar
+                    // também no input disparava duas navegações concorrentes.
                     label.click();
                     return {
                         clicked: true,
@@ -439,7 +445,7 @@ async def trocar_para_setor(page, sei_base: str, sigla: str) -> None:
     # em infra_trocar_unidade ao invés de redirecionar ao painel.
     # Também tratamos login.php porque o SEI pode passar por uma tela
     # intermediária antes de voltar ao controlador.
-    await aguardar_painel_processos(page, sei_base, timeout=60_000)
+    await aguardar_painel_processos(page, timeout=60_000)
 
     print(f"  ✓ Unidade: {sigla}  (URL: {page.url.split('?')[0].split('/')[-1]})")
 
@@ -611,11 +617,12 @@ async def main() -> None:
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
 
-        async def criar_pagina():
+        async def criar_sessao():
             # Viewport explícito acima de 768 px para que Bootstrap d-md-block funcione.
-            return await browser.new_page(viewport={"width": 1440, "height": 900})
+            contexto = await browser.new_context(viewport={"width": 1440, "height": 900})
+            return contexto, await contexto.new_page()
 
-        page = await criar_pagina()
+        context, page = await criar_sessao()
 
         print("Fazendo login no SEI...")
         await fazer_login(page, sei_url, sei_user, sei_pass)
@@ -636,18 +643,19 @@ async def main() -> None:
                 return False
 
         async def nova_sessao() -> None:
-            """Abre uma página limpa e refaz login para evitar efeito cascata."""
-            nonlocal page, sei_base
+            """Recria cookies e página para interromper invalidações em cascata."""
+            nonlocal context, page, sei_base
             try:
-                await page.close()
+                await context.close()
             except Exception:
                 pass
-            page = await criar_pagina()
-            print("  ↻ Refazendo login em nova página para limpar estado do SEI...")
+            context, page = await criar_sessao()
+            print("  ↻ Refazendo login em contexto limpo para renovar a sessão do SEI...")
             await fazer_login(page, sei_url, sei_user, sei_pass)
             sei_base = inferir_sei_base(sei_url, page.url)
 
         erros: list[str] = []
+        sucessos: list[str] = []
         max_tentativas = setor_retries()
         for bi_setor, sigla_sei in SETORES:
             print(f"\n--- {bi_setor} ---")
@@ -664,8 +672,16 @@ async def main() -> None:
                         raise RuntimeError("Extração retornou 0 processos — tabela carregou vazia.")
                     csv_bytes = montar_csv(processos)
                     await upload_para_bi(bi_url, bi_key, bi_setor, hoje, csv_bytes)
+                    sucessos.append(bi_setor)
                     ultimo_erro = ""
                     break
+                except SeiSessionExpired as exc:
+                    ultimo_erro = f"{bi_setor}: {exc}"
+                    print(f"  ✗ {ultimo_erro}")
+                    await salvar_diagnostico(page, bi_setor, "sessao-expirada", tentativa, exc)
+                    if tentativa < max_tentativas:
+                        await nova_sessao()
+                        continue
                 except PlaywrightTimeout as exc:
                     ultimo_erro = f"{bi_setor}: timeout — {exc}"
                     print(f"  ✗ {ultimo_erro}")
@@ -695,6 +711,10 @@ async def main() -> None:
         await browser.close()
 
     print("\n=== Concluído ===")
+    print(
+        f"Setores atualizados: {len(sucessos)}/{len(SETORES)} "
+        f"({', '.join(sucessos) or 'nenhum'})"
+    )
     if erros:
         print(f"\nErros encontrados ({len(erros)}):")
         for e in erros:

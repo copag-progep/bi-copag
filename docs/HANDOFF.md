@@ -1660,6 +1660,10 @@ Arquivos principais:
 Regras atuais:
 
 - `daily-upload` roda de segunda a sexta as 19:00 BRT
+- `scripts/sei_uploader.py` preserva a URL autenticada com `infra_hash`; nao deve reconstruir `controlador.php?acao=procedimento_controlar` depois do login
+- a sessao do SEI e validada pelos controles `#lnkInfraUnidade` e `#tblProcessosRecebidos`, nao apenas pela URL
+- quando o SEI devolve o uploader para `#txtUsuario`, a tentativa seguinte usa um contexto novo do navegador, com cookies limpos
+- a troca de unidade aciona somente o `label` associado ao setor para evitar duas navegacoes concorrentes
 - `daily-report` roda de segunda a sexta as 19:30 BRT
 - antes de enviar o e-mail diario, `daily-report` executa `scripts/check_daily_upload_success.py`
 - se o upload automatico do dia nao concluiu com sucesso, o e-mail diario nao e enviado

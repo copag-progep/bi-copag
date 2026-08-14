@@ -168,6 +168,11 @@ Por padrão, o frontend local usa o proxy do Vite para encaminhar `/api` para `h
 
 **Troca de coordenador:** atualize apenas `SEI_USER` e `SEI_PASSWORD` nos GitHub Secrets. Nenhum código precisa ser alterado.
 
+O uploader preserva a URL autenticada e o `infra_hash` fornecidos pelo SEI,
+valida a sessão pela presença dos controles da interface e recria todo o
+contexto do navegador quando a sessão expira. A troca de unidade executa um
+único clique por setor para evitar navegações concorrentes.
+
 ---
 
 ## Setores monitorados
