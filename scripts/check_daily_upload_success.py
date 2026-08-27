@@ -2,8 +2,9 @@
 """
 Verifica se o upload diário do SEI concluiu com sucesso hoje.
 
-Usado pelo workflow do relatório diário para evitar envio de e-mail com dados
-desatualizados quando o upload automático falha.
+Usado pela recuperação do upload e pelo relatório diário. A recuperação evita
+coleta duplicada quando a execução principal funcionou; o relatório evita envio
+de indicadores desatualizados quando nenhuma tentativa teve sucesso.
 """
 
 from __future__ import annotations
@@ -103,7 +104,7 @@ def main() -> int:
             f"id={run.get('id')} conclusion={run.get('conclusion')} url={run.get('html_url')}"
         )
 
-    print("Nenhum upload diário bem-sucedido encontrado hoje. Relatório será ignorado.")
+    print("Nenhum upload diário bem-sucedido encontrado hoje.")
     _github_output(upload_ok="false", reason="no_successful_upload_today")
     return 0
 

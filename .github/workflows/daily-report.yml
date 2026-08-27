@@ -1,16 +1,16 @@
 name: Relatório diário AnalyticSEI — e-mail
 
-# Envia todo dia útil às 19:30 BRT (22:30 UTC) um e-mail HTML compacto com
+# Envia todo dia útil às 20:07 BRT (23:07 UTC) um e-mail HTML compacto com
 # os principais indicadores do dia: ativos, entradas/saídas, fluxo por setor
 # e alertas de processos críticos.
 # Pode ser disparado manualmente a qualquer momento via "Run workflow".
-# Horário definido após o upload diário (19:00 BRT) para garantir dados atualizados.
+# Horário definido após o upload principal (19:17) e sua recuperação (19:47).
 # O envio só continua se o workflow daily-upload.yml tiver concluído com sucesso
 # no mesmo dia, considerando o horário America/Fortaleza.
 
 on:
   schedule:
-    - cron: "30 22 * * 1-5"   # 19:30 BRT (UTC-3) = 22:30 UTC, seg–sex
+    - cron: "7 23 * * 1-5"   # 20:07 BRT (UTC-3) = 23:07 UTC, seg–sex
   workflow_dispatch:
 
 permissions:

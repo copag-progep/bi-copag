@@ -1722,7 +1722,8 @@ Workflow: **Upload diário SEI → AnalyticSEI**.
 Horário:
 
 - Segunda a sexta.
-- 19:00 no horário de Fortaleza/Brasília.
+- 19:17 no horário de Fortaleza/Brasília.
+- Às 19:47 há uma recuperação automática, que só coleta novamente quando ainda não existe upload bem-sucedido no dia.
 
 O que faz:
 
@@ -1739,7 +1740,7 @@ Workflow: **Relatório diário AnalyticSEI — e-mail**.
 Horário:
 
 - Segunda a sexta.
-- 19:30 no horário de Fortaleza/Brasília.
+- 20:07 no horário de Fortaleza/Brasília.
 
 Regra importante:
 

@@ -1,6 +1,8 @@
 name: Upload diário SEI → AnalyticSEI
 
-# Roda automaticamente de segunda a sexta às 19:00 BRT (22:00 UTC).
+# Roda automaticamente de segunda a sexta às 19:17 BRT (22:17 UTC).
+# Às 19:47 BRT há uma recuperação: ela só executa o uploader quando ainda
+# não existe upload bem-sucedido no dia.
 # Pode ser disparado manualmente em qualquer momento via "Run workflow".
 #
 # Para trocar de coordenador:
@@ -10,8 +12,17 @@ name: Upload diário SEI → AnalyticSEI
 
 on:
   schedule:
-    - cron: "0 22 * * 1-5"   # 19:00 BRT (UTC-3), segunda a sexta
+    - cron: "17 22 * * 1-5"  # principal: 19:17 BRT (UTC-3), segunda a sexta
+    - cron: "47 22 * * 1-5"  # recuperação: 19:47 BRT, somente se necessário
   workflow_dispatch:            # disparo manual (útil para testes e reprocessamentos)
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: analyticsei-daily-upload
+  cancel-in-progress: false
 
 jobs:
   upload:
@@ -27,13 +38,39 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Verificar necessidade do upload de recuperação
+        id: upload_gate
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          EVENT_SCHEDULE: ${{ github.event.schedule || '' }}
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          UPLOAD_WORKFLOW_FILE: daily-upload.yml
+        run: |
+          if [ "$EVENT_NAME" = "schedule" ] && [ "$EVENT_SCHEDULE" = "47 22 * * 1-5" ]; then
+            echo "Disparo de recuperação: verificando se o upload principal já teve sucesso."
+            if ! python scripts/check_daily_upload_success.py; then
+              echo "A verificação falhou; o upload será executado por segurança."
+              echo "upload_ok=false" >> "$GITHUB_OUTPUT"
+            fi
+          else
+            echo "upload_ok=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Ignorar recuperação desnecessária
+        if: steps.upload_gate.outputs.upload_ok == 'true'
+        run: echo "Upload do dia já concluído com sucesso; recuperação dispensada."
+
       - name: Instalar dependências Python
+        if: steps.upload_gate.outputs.upload_ok != 'true'
         run: pip install playwright httpx
 
       - name: Instalar Chromium (Playwright)
+        if: steps.upload_gate.outputs.upload_ok != 'true'
         run: playwright install chromium --with-deps
 
       - name: Executar uploader SEI
+        if: steps.upload_gate.outputs.upload_ok != 'true'
         env:
           SEI_URL:      ${{ secrets.SEI_URL }}
           SEI_USER:     ${{ secrets.SEI_USER }}      # atualizar na troca de coordenador
@@ -54,7 +91,7 @@ jobs:
           retention-days: 7
 
       - name: Notificar falha por e-mail
-        if: failure()
+        if: failure() && (github.event_name != 'schedule' || github.event.schedule == '47 22 * * 1-5')
         uses: dawidd6/action-send-mail@v3
         with:
           server_address: smtp.gmail.com

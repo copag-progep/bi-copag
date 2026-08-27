@@ -1659,13 +1659,15 @@ Arquivos principais:
 
 Regras atuais:
 
-- `daily-upload` roda de segunda a sexta as 19:00 BRT
+- `daily-upload` roda de segunda a sexta as 19:17 BRT e possui recuperacao as 19:47 BRT, executada somente quando ainda nao houve upload bem-sucedido no dia
+- as execucoes de upload usam um grupo de concorrencia unico; se o GitHub atrasar a principal, a recuperacao aguarda sua conclusao antes de decidir se precisa coletar novamente
+- a falha da execucao principal preserva os diagnosticos, mas o e-mail de alerta automatico so e enviado se a recuperacao tambem falhar; disparos manuais continuam notificando falhas
 - `scripts/sei_uploader.py` preserva a URL autenticada com `infra_hash`; nao deve reconstruir `controlador.php?acao=procedimento_controlar` depois do login
 - a sessao do SEI e validada pelos controles `#lnkInfraUnidade` e `#tblProcessosRecebidos`, nao apenas pela URL
 - quando o SEI devolve o uploader para `#txtUsuario`, a tentativa seguinte usa um contexto novo do navegador, com cookies limpos
 - a troca de unidade aciona somente o `input` associado ao setor (com fallback para o `label`) para evitar duas navegacoes concorrentes
 - uma pagina de selecao de unidade ja aberta e reutilizada nas novas tentativas, sem reabrir o seletor e perder sua lista de unidades
-- `daily-report` roda de segunda a sexta as 19:30 BRT
+- `daily-report` roda de segunda a sexta as 20:07 BRT, depois das duas oportunidades de upload
 - antes de enviar o e-mail diario, `daily-report` executa `scripts/check_daily_upload_success.py`
 - se o upload automatico do dia nao concluiu com sucesso, o e-mail diario nao e enviado
 - `weekly-report` roda sexta as 20:00 BRT

@@ -30,8 +30,8 @@ Plataforma web de Business Intelligence desenvolvida para a **COPAG (Coordenador
 | **Alertas por e-mail** | Notificação semanal de processos críticos (>30, >45, >90 dias), às sextas 21:00 BRT |
 | **Notificação in-app** | Sino com contagem em tempo real de processos ≥45 dias e itens pendentes da Pauta Prioritária |
 | **Saúde dos dados** | Badge de frescor no topo, indicando data de referência, setores ausentes/defasados e alertas de qualidade |
-| **Upload automático** | Script que acessa o SEI e envia dados sem intervenção humana (19h BRT) |
-| **Relatório diário** | E-mail automático seg–sex às 19:30 BRT com ativos, fluxo por setor e alertas |
+| **Upload automático** | Script que acessa o SEI às 19:17 e possui recuperação automática às 19:47 quando necessário |
+| **Relatório diário** | E-mail automático seg–sex às 20:07 BRT com ativos, fluxo por setor e alertas |
 | **Relatório semanal** | E-mail automático toda sexta com resumo dos indicadores |
 | **Exportação PDF / Excel** | Relatórios de Atribuições e Inconsistências com identidade visual Progep/UFC |
 | **Exportação de pauta em PDF** | Documento de reunião com processos priorizados, responsáveis, status e notas da gestão |
@@ -161,8 +161,8 @@ Por padrão, o frontend local usa o proxy do Vite para encaminhar `/api` para `h
 | Workflow | Frequência | Função |
 |---|---|---|
 | `keep-alive` | A cada 10 min | Pinga `/api/ping` para manter o Render ativo (sem cold start) |
-| `daily-upload` | Seg–Sex 19:00 BRT | Upload automático de todos os setores do SEI |
-| `daily-report` | Seg–Sex 19:30 BRT | E-mail diário com ativos, fluxo por setor e alertas de críticos. Antes de enviar, confirma se o `daily-upload` do dia concluiu com sucesso |
+| `daily-upload` | Seg–Sex 19:17 e 19:47 BRT | Upload automático de todos os setores do SEI; a segunda execução é dispensada quando a primeira já teve sucesso, e o alerta só é enviado se a recuperação falhar |
+| `daily-report` | Seg–Sex 20:07 BRT | E-mail diário com ativos, fluxo por setor e alertas de críticos. Antes de enviar, confirma se o `daily-upload` do dia concluiu com sucesso |
 | `weekly-report` | Sex 20:00 BRT | Relatório gerencial completo por e-mail |
 | `critical-alerts` | Sex 21:00 BRT | Alerta de processos críticos (só envia se houver) |
 

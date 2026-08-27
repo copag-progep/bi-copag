@@ -220,7 +220,7 @@ Existem duas formas de entrada de dados.
 
 ### 4.1 Upload automático diário
 
-De segunda a sexta, às 19:00 no horário de Fortaleza/Brasília, uma automação no GitHub Actions executa o script `scripts/sei_uploader.py`.
+De segunda a sexta, às 19:17 no horário de Fortaleza/Brasília, uma automação no GitHub Actions executa o script `scripts/sei_uploader.py`. Às 19:47, uma recuperação verifica se o upload principal teve sucesso e só repete a coleta quando ainda for necessário.
 
 Esse script:
 
@@ -283,8 +283,8 @@ O AnalyticSEI possui rotinas automáticas configuradas no GitHub Actions.
 
 | Rotina | Quando roda | O que faz |
 |---|---|---|
-| `daily-upload` | Segunda a sexta, 19:00 BRT | Coleta dados do SEI e envia ao AnalyticSEI |
-| `daily-report` | Segunda a sexta, 19:30 BRT | Confirma se o upload do dia teve sucesso e, se estiver tudo certo, envia e-mail diário compacto com principais indicadores |
+| `daily-upload` | Segunda a sexta, 19:17 e 19:47 BRT | Coleta dados do SEI; a segunda execução recupera o dia somente quando ainda não houve sucesso |
+| `daily-report` | Segunda a sexta, 20:07 BRT | Confirma se o upload do dia teve sucesso e, se estiver tudo certo, envia e-mail diário compacto com principais indicadores |
 | `weekly-report` | Sexta-feira, 20:00 BRT | Envia relatório semanal gerencial por e-mail |
 | `critical-alerts` | Sexta-feira, 21:00 BRT | Envia alerta se houver processos críticos |
 | `keep-alive` | A cada 10 minutos | Mantém a API acordada no Render |
@@ -302,7 +302,7 @@ O relatório diário é um e-mail compacto, pensado para leitura rápida. Ele mo
 - Quantidade de processos acima de 90 dias.
 - Link para abrir a plataforma.
 
-Ele roda às 19:30 para dar tempo de o upload automático das 19:00 terminar.
+Ele roda às 20:07 para dar tempo de o upload principal das 19:17 e, se necessário, a recuperação das 19:47 terminarem.
 
 Antes de enviar, o workflow verifica se o `daily-upload` do mesmo dia concluiu com sucesso. Se o upload falhar, o relatório diário não é enviado, evitando que a equipe receba indicadores desatualizados como se fossem dados novos.
 
@@ -719,8 +719,8 @@ Assim, o sistema permanece simples, institucional e baseado na infraestrutura qu
 
 ### 18.1 Todos os dias úteis
 
-- O upload automático roda às 19:00.
-- O relatório diário é enviado às 19:30.
+- O upload automático principal roda às 19:17 e possui recuperação às 19:47 quando necessário.
+- O relatório diário é enviado às 20:07.
 - A equipe pode consultar o dashboard no dia seguinte ou ainda no mesmo dia.
 
 ### 18.2 Semanalmente
@@ -934,7 +934,7 @@ O AnalyticSEI é uma ferramenta de apoio gerencial. Algumas limitações devem s
 - A produtividade é inferida por comparação entre snapshots, não por confirmação manual de cada ação realizada.
 - Se o SEI mudar sua interface, a automação de coleta pode precisar de ajuste.
 - Serviços gratuitos podem ter limites de uso, lentidão ou indisponibilidades temporárias.
-- O relatório diário às 19:30 depende do upload das 19:00; se o upload do dia não tiver sucesso, o envio é bloqueado automaticamente.
+- O relatório diário às 20:07 depende de um upload bem-sucedido no dia; se nem a execução principal nem a recuperação tiverem sucesso, o envio é bloqueado automaticamente.
 - O sistema não substitui conferência formal em casos sensíveis ou processos específicos.
 
 ---

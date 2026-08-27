@@ -35,8 +35,8 @@ const FEATURES = [
   { icon: "🔍", title: "Busca global", desc: "Histórico completo de movimentações de qualquer protocolo" },
   { icon: "🔔", title: "Alertas por e-mail", desc: "Notificação semanal às sextas, 21:00 BRT, para processos críticos (>30, >45, >90 dias)" },
   { icon: "🔔", title: "Notificação in-app", desc: "Sino com badge em tempo real de processos ≥45 dias e itens pendentes da Pauta Prioritária" },
-  { icon: "🤖", title: "Upload automático", desc: "Script Playwright que acessa o SEI e envia dados sem intervenção (19h BRT)" },
-  { icon: "📨", title: "Relatório diário", desc: "E-mail automático seg–sex às 19:30 BRT com ativos, fluxo do dia por setor e alertas de processos críticos" },
+  { icon: "🤖", title: "Upload automático", desc: "Script Playwright às 19:17, com recuperação às 19:47 somente quando o upload principal não concluir" },
+  { icon: "📨", title: "Relatório diário", desc: "E-mail automático seg–sex às 20:07 BRT com ativos, fluxo do dia por setor e alertas de processos críticos" },
   { icon: "📧", title: "Relatório semanal", desc: "E-mail automático toda sexta com resumo dos indicadores da semana" },
   { icon: "📄", title: "Exportação PDF / Excel", desc: "Relatórios de Atribuições e Inconsistências com identidade visual Progep/UFC" },
   { icon: "🔒", title: "Log de auditoria", desc: "Registro de todas as ações críticas: uploads, exclusões, trocas de senha" },
@@ -81,8 +81,8 @@ const SCRIPTS_STACK = {
 
 const WORKFLOWS = [
   { name: "keep-alive.yml", freq: "A cada 10 minutos (24h/dia)", desc: "Pinga /api/ping (endpoint leve sem banco) para manter o Render ativo. Sem isso, o plano gratuito hiberna após 15 min e gera cold start lento." },
-  { name: "daily-upload.yml", freq: "Seg–Sex 19:00 BRT", desc: "Playwright headless: login no SEI, troca de setor, coleta todas as páginas (100/pág), gera CSV e faz upload via API key. Notifica por e-mail se falhar." },
-  { name: "daily-report.yml", freq: "Seg–Sex 19:30 BRT", desc: "Antes de enviar, executa check_daily_upload_success.py para confirmar sucesso do daily-upload no dia. Se estiver OK, coleta /api/reports/daily-summary e envia e-mail HTML compacto." },
+  { name: "daily-upload.yml", freq: "Seg–Sex 19:17 + recuperação 19:47", desc: "Playwright headless: login no SEI, troca de setor, coleta todas as páginas, gera CSV e faz upload via API key. A recuperação só executa quando ainda não houve sucesso no dia." },
+  { name: "daily-report.yml", freq: "Seg–Sex 20:07 BRT", desc: "Antes de enviar, executa check_daily_upload_success.py para confirmar sucesso do daily-upload no dia. Se estiver OK, coleta /api/reports/daily-summary e envia e-mail HTML compacto." },
   { name: "weekly-report.yml", freq: "Sexta 20:00 BRT", desc: "Coleta dados do dashboard, balanceamento e alertas via API key e envia e-mail HTML com identidade visual Progep/UFC." },
   { name: "critical-alerts.yml", freq: "Sexta 21:00 BRT", desc: "Verifica processos >30d. NÃO envia e-mail se não houver processos críticos (anti-spam). Destaque especial para situação extrema >90d." },
 ];
@@ -505,9 +505,10 @@ export default function DocumentacaoPage() {
           {/* 10 */}
           <DocSection id="s10" num="10" eyebrow="Operação" title="Manutenção do dia a dia">
             <Callout icon="🤖">
-              O upload diário é <strong>totalmente automático às 19:00 BRT</strong>. Se falhar,
+              O upload diário é <strong>automático às 19:17 BRT</strong>, com recuperação às
+              <strong> 19:47</strong> caso a primeira execução não tenha sucesso. Se falhar,
               um e-mail de alerta é enviado automaticamente. Intervenção manual só é necessária
-              em casos excepcionais. O relatório diário das 19:30 também verifica esse sucesso antes
+              em casos excepcionais. O relatório diário das 20:07 também verifica esse sucesso antes
               de enviar, evitando e-mail com dados desatualizados quando o upload do dia falha.
             </Callout>
             <div className="doc-grid-2">
@@ -551,7 +552,7 @@ export default function DocumentacaoPage() {
               { title: "Gestão por Prioridades", items: ["Área de Trabalho com fila acionável, panorama operacional e atalhos contextuais","Sidebar agrupada em Operacional, Análise e Administração","Ícones com tooltip no menu recolhido, sem siglas automáticas","Desempenho com abas Fluxo e Produtividade","Gestão de Dados com abas Novo envio e Histórico","Administração com navegação entre Sistema e Base SEI","Nomes operacionais Inconsistências e Pessoas, preservando as rotas técnicas existentes"] },
               { title: "Performance", items: ["React.lazy + Suspense para code splitting por rota","preconnect e dns-prefetch para o backend","LoadingBlock com spinner e mensagem de servidor iniciando","useAnalyticsData hook com cache stale-while-revalidate para admins e resposta atual obrigatória para usuários restritos","clearAnalyticsCache chamado após upload"] },
               { title: "Analíticas avançadas", items: ["Central Executiva com prioridades do dia, saúde dos dados, sparklines dos KPIs principais e carregamento escalonado","Lead time estimado dos processos que saíram da carteira, com média, mediana, P90, faixas por duração e ranking por setor/tipo/atribuição","Tendências estimadas com regressão linear simples, projeção de estoque ativo em 15/30 dias, tendência por setor e estimativa de críticos","Score de Risco por processo com pesos configuráveis, P90 com piso técnico e explicação por fator","Pauta Prioritária com sessões semanais, cronograma visível, situação derivada por prazo, edição de prazos pelo admin, responsáveis, resolução automática via snapshot, PDF de reunião, encerramento e métricas de eficiência","Página Atribuições com permanências separadas no setor e na atribuição atual, faixas selecionáveis, filtros server-side, busca e badge de risco","Múltiplos setores com detecção e exibição limitadas ao escopo visível do usuário, busca local e exportação PDF/Excel","Exportação PDF com identidade visual (jsPDF + jspdf-autotable)","Exportação Excel (SheetJS)","Página Servidores: balanceamento por desvio-padrão + perfil longitudinal","Busca global de processo com histórico de movimentações","Filtro Sem atribuição no FilterBar global","Indicadores mensais com dashboard e lançamento manual"] },
-              { title: "Automação (Bloco 4)", items: ["API key para uploads sem JWT","Script SEI Scraper (Playwright headless): login, troca de setor por JS, coleta todas as páginas","Workflow daily-upload (19:00 BRT) com notificação de falha","Workflow daily-report (19:30 BRT) bloqueado por check_daily_upload_success.py quando o upload do dia não concluiu com sucesso","Workflow weekly-report (sexta 20:00 BRT)","Script de alertas com anti-spam (não envia se sem críticos)","Workflow critical-alerts (sexta 21:00 BRT)"] },
+              { title: "Automação (Bloco 4)", items: ["API key para uploads sem JWT","Script SEI Scraper (Playwright headless): login, troca de setor por JS, coleta todas as páginas","Workflow daily-upload principal (19:17 BRT) e recuperação idempotente (19:47 BRT)","Workflow daily-report (20:07 BRT) bloqueado por check_daily_upload_success.py quando o upload do dia não concluiu com sucesso","Workflow weekly-report (sexta 20:00 BRT)","Script de alertas com anti-spam (não envia se sem críticos)","Workflow critical-alerts (sexta 21:00 BRT)"] },
               { title: "Alertas e notificações (Bloco 1)", items: ["Endpoint /api/alerts/summary (leve, usa cache)","Sino de notificações na topbar: badge somando críticos ≥45d e itens pendentes da Pauta Prioritária","Dropdown com link para /atribuicoes e /pauta","E-mail de alertas: cards por faixa, tabela dos críticos, destaque para >90d","Não envia e-mail se nenhum processo crítico"] },
               { title: "Segurança e acesso", items: ["Troca de senha pelo próprio usuário (valida senha atual)","Controle de acesso por divisão em todos os endpoints analíticos e operacionais sensíveis, incluindo datas de referência e opções de filtro","Permissão individual para upload manual de relatórios","Pauta Prioritária com acesso cumulativo por responsável e setor atual permitido","DE-PARA com normalização de identidade (sem acentos, lowercase, case-insensitive), aliases históricos e vínculos de usuários SEI por setor","Filtro de Atribuição e Servidor limitado aos setores do usuário logado","Cache analítico do frontend isolado por usuário e sem leitura persistente para usuários restritos antes da resposta atual","Autenticação dual (JWT ou API key) nos endpoints analíticos","Página Minha conta com informações e formulário de troca de senha"] },
             ].map(({ title, items }) => (
