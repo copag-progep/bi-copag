@@ -1,7 +1,7 @@
 name: Upload diário SEI → AnalyticSEI
 
-# Roda automaticamente de segunda a sexta às 19:17 BRT (22:17 UTC).
-# Às 19:47 BRT há uma recuperação: ela só executa o uploader quando ainda
+# Roda automaticamente de segunda a sexta às 18:17 BRT (21:17 UTC).
+# Às 18:47 BRT há uma recuperação: ela só executa o uploader quando ainda
 # não existe upload bem-sucedido no dia.
 # Pode ser disparado manualmente em qualquer momento via "Run workflow".
 #
@@ -12,8 +12,8 @@ name: Upload diário SEI → AnalyticSEI
 
 on:
   schedule:
-    - cron: "17 22 * * 1-5"  # principal: 19:17 BRT (UTC-3), segunda a sexta
-    - cron: "47 22 * * 1-5"  # recuperação: 19:47 BRT, somente se necessário
+    - cron: "17 21 * * 1-5"  # principal: 18:17 BRT (UTC-3), segunda a sexta
+    - cron: "47 21 * * 1-5"  # recuperação: 18:47 BRT, somente se necessário
   workflow_dispatch:            # disparo manual (útil para testes e reprocessamentos)
 
 permissions:
@@ -47,7 +47,7 @@ jobs:
           GITHUB_REPOSITORY: ${{ github.repository }}
           UPLOAD_WORKFLOW_FILE: daily-upload.yml
         run: |
-          if [ "$EVENT_NAME" = "schedule" ] && [ "$EVENT_SCHEDULE" = "47 22 * * 1-5" ]; then
+          if [ "$EVENT_NAME" = "schedule" ] && [ "$EVENT_SCHEDULE" = "47 21 * * 1-5" ]; then
             echo "Disparo de recuperação: verificando se o upload principal já teve sucesso."
             if ! python scripts/check_daily_upload_success.py; then
               echo "A verificação falhou; o upload será executado por segurança."
@@ -91,7 +91,7 @@ jobs:
           retention-days: 7
 
       - name: Notificar falha por e-mail
-        if: failure() && (github.event_name != 'schedule' || github.event.schedule == '47 22 * * 1-5')
+        if: failure() && (github.event_name != 'schedule' || github.event.schedule == '47 21 * * 1-5')
         uses: dawidd6/action-send-mail@v3
         with:
           server_address: smtp.gmail.com

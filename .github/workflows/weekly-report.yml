@@ -3,7 +3,7 @@ name: Relatório semanal AnalyticSEI
 # Envia todo final de semana (sexta 20:00 BRT) um e-mail HTML com
 # os principais indicadores da semana para os destinatários configurados.
 # Pode ser disparado manualmente em qualquer momento.
-# Horário definido após o upload principal (19:17) e sua recuperação (19:47).
+# Horário definido após o upload principal (18:17) e sua recuperação (18:47).
 
 on:
   schedule:
